@@ -22,6 +22,7 @@ export default [
         Buffer: 'readonly',
         __dirname: 'readonly',
         __filename: 'readonly',
+        fetch: 'readonly',
       },
     },
     plugins: {
@@ -38,7 +39,7 @@ export default [
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-non-null-assertion': 'error',
       '@typescript-eslint/strict-boolean-expressions': 'off',
-      'no-console': ['warn', { allow: ['warn', 'error', 'debug'] }],
+      'no-console': ['warn', { allow: ['warn', 'error', 'debug', 'log'] }],
     },
   },
   {

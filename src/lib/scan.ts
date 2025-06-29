@@ -6,10 +6,22 @@ import type { APIUsage, BreakingChange } from '../types/index.js';
 
 const CONCURRENT_FILE_LIMIT = 10;
 
+interface APIPattern {
+  name: string;
+  regex: RegExp;
+}
+
 export async function scanAPIUsage(
   packageName: string,
   breakingChanges: BreakingChange[]
 ): Promise<APIUsage[]> {
+  // Detect package type
+  const packageType = detectPackageType(packageName);
+
+  if (packageType === 'python') {
+    return await scanPythonAPIUsage(packageName, breakingChanges);
+  }
+
   // Find TypeScript/JavaScript files in the project
   const files = await findSourceFiles();
   if (files.length === 0) {
@@ -54,7 +66,9 @@ export async function scanAPIUsage(
 
   // Remove duplicates and sort by file
   return deduplicateUsages(usages).sort((a, b) => {
-    const fileCompare = a.file.localeCompare(b.file);
+    const aFile = a.file || a.filePath || '';
+    const bFile = b.file || b.filePath || '';
+    const fileCompare = aFile.localeCompare(bFile);
     return fileCompare !== 0 ? fileCompare : a.line - b.line;
   });
 }
@@ -307,7 +321,8 @@ function deduplicateUsages(usages: APIUsage[]): APIUsage[] {
   const unique: APIUsage[] = [];
 
   for (const usage of usages) {
-    const key = `${usage.file}:${usage.line}:${usage.apiName}`;
+    const file = usage.file || usage.filePath || 'unknown';
+    const key = `${file}:${usage.line}:${usage.apiName}`;
     if (!seen.has(key)) {
       seen.add(key);
       unique.push(usage);
@@ -315,4 +330,156 @@ function deduplicateUsages(usages: APIUsage[]): APIUsage[] {
   }
 
   return unique;
+}
+
+function detectPackageType(packageName: string): 'javascript' | 'python' | 'unknown' {
+  // Common Python package patterns
+  const pythonPatterns = [
+    /^(django|flask|numpy|pandas|scipy|matplotlib|requests|pytest|pylint|black|mypy|flake8|poetry|setuptools|pip|wheel)/i,
+    /^(tensorflow|torch|keras|scikit-learn|jupyter|ipython|beautifulsoup|selenium|sqlalchemy|celery|redis|pymongo)/i,
+    /^(lxml|pillow|cryptography|pyyaml|boto3|aiohttp|fastapi|pydantic|uvicorn|gunicorn)/i,
+  ];
+
+  // Check if it matches Python patterns
+  for (const pattern of pythonPatterns) {
+    if (pattern.test(packageName)) {
+      return 'python';
+    }
+  }
+
+  // Check for Python-style naming (underscore instead of hyphen)
+  if (packageName.includes('_') && !packageName.includes('-')) {
+    return 'python';
+  }
+
+  // Default to JavaScript for now
+  return 'javascript';
+}
+
+async function scanPythonAPIUsage(
+  packageName: string,
+  breakingChanges: BreakingChange[]
+): Promise<APIUsage[]> {
+  // Find Python files in the project
+  const files = await findPythonSourceFiles();
+  if (files.length === 0) {
+    return [];
+  }
+
+  // Extract API names from breaking changes
+  const apiNames = extractAPIPatterns(packageName, breakingChanges);
+  if (apiNames.length === 0) {
+    return [];
+  }
+
+  // Convert to APIPattern objects for Python scanning
+  const apiPatterns: APIPattern[] = apiNames.map((name) => ({
+    name,
+    regex: new RegExp(`\\b${escapeRegex(name)}\\b`),
+  }));
+
+  const usages: APIUsage[] = [];
+  const limit = pLimit(CONCURRENT_FILE_LIMIT);
+
+  // Use simple regex-based scanning for Python files
+  await Promise.all(
+    files.map((file) =>
+      limit(async () => {
+        const fileUsages = await scanPythonFile(file, packageName, apiPatterns);
+        usages.push(...fileUsages);
+      })
+    )
+  );
+
+  return deduplicateUsages(usages);
+}
+
+async function findPythonSourceFiles(): Promise<string[]> {
+  const patterns = [
+    '**/*.py',
+    '!**/venv/**',
+    '!**/.venv/**',
+    '!**/env/**',
+    '!**/.env/**',
+    '!**/virtualenv/**',
+    '!**/site-packages/**',
+    '!**/dist-packages/**',
+    '!**/__pycache__/**',
+    '!**/.pytest_cache/**',
+    '!**/.tox/**',
+    '!**/build/**',
+    '!**/dist/**',
+    '!**/*.egg-info/**',
+  ];
+
+  const files = await glob(patterns[0], {
+    ignore: patterns.slice(1).map((p) => p.slice(1)), // Remove ! prefix
+    absolute: true,
+  });
+
+  return files.filter((file) => !file.includes('node_modules'));
+}
+
+async function scanPythonFile(
+  filePath: string,
+  packageName: string,
+  apiPatterns: APIPattern[]
+): Promise<APIUsage[]> {
+  const fs = await import('fs/promises');
+  const content = await fs.readFile(filePath, 'utf-8');
+  const lines = content.split('\n');
+  const usages: APIUsage[] = [];
+
+  // Check if file imports the package
+  const importRegex = new RegExp(
+    `^\\s*(from\\s+${escapeRegex(packageName)}(?:\\.[\\w.]+)?\\s+import|import\\s+${escapeRegex(packageName)})`,
+    'gm'
+  );
+
+  if (!importRegex.test(content)) {
+    return [];
+  }
+
+  // Look for API usage patterns
+  for (const pattern of apiPatterns) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lineNumber = i + 1;
+
+      // Check if line contains the API pattern
+      if (pattern.regex.test(line)) {
+        // Get context (3 lines before and after)
+        const startLine = Math.max(0, i - 3);
+        const endLine = Math.min(lines.length - 1, i + 3);
+        const context = lines.slice(startLine, endLine + 1).join('\n');
+
+        usages.push({
+          file: path.relative(process.cwd(), filePath),
+          filePath: path.relative(process.cwd(), filePath),
+          line: lineNumber,
+          column: 1,
+          snippet: context,
+          context,
+          apiName: pattern.name,
+          usageType: detectPythonUsageType(line, pattern.name),
+        });
+      }
+    }
+  }
+
+  return usages;
+}
+
+function detectPythonUsageType(line: string, apiName: string): 'import' | 'call' | 'reference' {
+  if (/^\s*(from|import)/.test(line)) {
+    return 'import';
+  }
+  if (new RegExp(`${escapeRegex(apiName)}\\s*\\(`).test(line)) {
+    return 'call';
+  }
+  return 'reference';
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
