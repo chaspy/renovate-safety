@@ -16,18 +16,32 @@ export async function fetchChangelogDiff(
     return cached;
   }
 
-  // Try GitHub releases first (preferred)
+  // Detect package type and use appropriate fetcher
+  const packageType = detectPackageType(packageUpdate.name);
+
+  if (packageType === 'python') {
+    // Try PyPI for Python packages
+    const pypiChangelog = await fetchFromPyPI(packageUpdate);
+    if (pypiChangelog) {
+      await cacheChangelog(packageUpdate, pypiChangelog, cacheDir);
+      return pypiChangelog;
+    }
+  }
+
+  // Try GitHub releases first (preferred for all package types)
   const githubChangelog = await fetchFromGitHubReleases(packageUpdate);
   if (githubChangelog) {
     await cacheChangelog(packageUpdate, githubChangelog, cacheDir);
     return githubChangelog;
   }
 
-  // Fall back to npm registry
-  const npmChangelog = await fetchFromNpmRegistry(packageUpdate);
-  if (npmChangelog) {
-    await cacheChangelog(packageUpdate, npmChangelog, cacheDir);
-    return npmChangelog;
+  // Fall back to npm registry for JavaScript packages
+  if (packageType === 'javascript') {
+    const npmChangelog = await fetchFromNpmRegistry(packageUpdate);
+    if (npmChangelog) {
+      await cacheChangelog(packageUpdate, npmChangelog, cacheDir);
+      return npmChangelog;
+    }
   }
 
   return null;
@@ -296,5 +310,107 @@ function extractRelevantSections(
 
 function normalizeVersion(version: string): string | null {
   const cleaned = version.replace(/^v/, '');
-  return semver.valid(cleaned);
+  
+  // Try to coerce to valid semver if it's not already valid
+  const valid = semver.valid(cleaned);
+  if (valid) {
+    return valid;
+  }
+  
+  // Try to coerce partial versions (e.g., "16" -> "16.0.0", "16.2" -> "16.2.0")
+  const coerced = semver.coerce(cleaned);
+  if (coerced) {
+    return coerced.version;
+  }
+  
+  return null;
+}
+
+function detectPackageType(packageName: string): 'javascript' | 'python' | 'unknown' {
+  // Common Python package patterns
+  const pythonPatterns = [
+    /^(django|flask|numpy|pandas|scipy|matplotlib|requests|pytest|pylint|black|mypy|flake8|poetry|setuptools|pip|wheel)/i,
+    /^(tensorflow|torch|keras|scikit-learn|jupyter|ipython|beautifulsoup|selenium|sqlalchemy|celery|redis|pymongo)/i,
+    /^(lxml|pillow|cryptography|pyyaml|boto3|aiohttp|fastapi|pydantic|uvicorn|gunicorn)/i,
+  ];
+
+  // Check if it matches Python patterns
+  for (const pattern of pythonPatterns) {
+    if (pattern.test(packageName)) {
+      return 'python';
+    }
+  }
+
+  // Check for Python-style naming (underscore instead of hyphen)
+  if (packageName.includes('_') && !packageName.includes('-')) {
+    return 'python';
+  }
+
+  // Default to JavaScript for now
+  return 'javascript';
+}
+
+async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDiff | null> {
+  try {
+    // Fetch package info from PyPI
+    const packageName = packageUpdate.name.toLowerCase();
+    const response = await fetch(`https://pypi.org/pypi/${packageName}/json`);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = (await response.json()) as any;
+
+    // Try to find GitHub URL from project URLs
+    const projectUrls = data.info?.project_urls || {};
+    let githubUrl = null;
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for (const [_key, url] of Object.entries(projectUrls)) {
+      if (typeof url === 'string' && url.includes('github.com')) {
+        githubUrl = url;
+        break;
+      }
+    }
+
+    // Also check home_page
+    if (!githubUrl && data.info?.home_page?.includes('github.com')) {
+      githubUrl = data.info.home_page;
+    }
+
+    // If we found a GitHub URL, try to fetch changelog from there
+    if (githubUrl) {
+      const match = githubUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+      if (match) {
+        const githubInfo = { owner: match[1], repo: match[2].replace(/\.git$/, '') };
+        // Use the existing GitHub releases fetcher with custom package name format
+        const githubPackageUpdate = {
+          ...packageUpdate,
+          name: `${githubInfo.owner}/${githubInfo.repo}`,
+        };
+        return await fetchFromGitHubReleases(githubPackageUpdate);
+      }
+    }
+
+    // Try to extract from package description or release notes
+    // const fromRelease = data.releases?.[packageUpdate.fromVersion]?.[0];
+    const toRelease = data.releases?.[packageUpdate.toVersion]?.[0];
+
+    if (toRelease?.description) {
+      // PyPI descriptions often contain changelog info
+      return {
+        source: 'PyPI',
+        content: `# ${packageUpdate.name} Changelog\n\n## Version ${packageUpdate.toVersion}\n\n${toRelease.description}`,
+        fromVersion: packageUpdate.fromVersion,
+        toVersion: packageUpdate.toVersion,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Failed to fetch from PyPI:', error);
+    return null;
+  }
 }
