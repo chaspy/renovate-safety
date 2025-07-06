@@ -2,12 +2,16 @@
 
 A CLI tool to analyze dependency update PRs created by Renovate for breaking changes and potential impact on your codebase.
 
-## Key Changes in Latest Version
+## Key Changes in Latest Version (v1.1.0)
 
-- 🆕 **Default PR Commenting**: Analysis results are now posted to PRs by default
-- 🔄 **Smart Duplicate Detection**: Avoids creating duplicate comments
-- 🌏 **Japanese Language Support**: Full AI analysis in Japanese with `--language ja`
-- ⚡ **Improved Performance**: Better fallback handling for LLM providers
+- 🏗️ **Pluggable Analyzer Architecture**: Support for multiple package managers (npm, PyPI, and more)
+- 🔄 **Multi-layer Information Gathering**: Fallback strategies when changelog isn't available
+- 🧠 **Enhanced Risk Assessment**: Unknown risk level and detailed confidence scoring
+- 🔍 **Advanced Usage Analysis**: AST-based code analysis for precise impact assessment
+- 📚 **Package Knowledge Base**: Curated migration information for popular packages
+- 🎯 **Actionable Recommendations**: Specific, executable steps based on analysis results
+- 🌏 **Multi-language Support**: Enhanced support for Python packages via PyPI
+- ⚡ **Improved Analysis Accuracy**: Better handling of edge cases and information gaps
 
 ## Features
 

@@ -72,13 +72,13 @@ export interface APIUsage {
   usageType?: 'import' | 'call' | 'reference';
 }
 
-export type RiskLevel = 'safe' | 'low' | 'medium' | 'high' | 'critical';
+export type RiskLevel = 'safe' | 'low' | 'medium' | 'high' | 'critical' | 'unknown';
 
 export interface RiskAssessment {
   level: RiskLevel;
   factors: string[];
-  estimatedEffort: 'none' | 'minimal' | 'moderate' | 'significant';
-  testingScope: 'none' | 'unit' | 'integration' | 'full';
+  estimatedEffort: 'none' | 'minimal' | 'moderate' | 'significant' | 'unknown';
+  testingScope: 'none' | 'unit' | 'integration' | 'full' | 'full regression' | 'full regression recommended';
 }
 
 export interface AnalysisResult {

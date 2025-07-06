@@ -6,29 +6,25 @@ import { resolve } from 'path';
 import { homedir } from 'os';
 import { CLIOptions, AnalysisResult, RiskAssessment, DeepAnalysisResult } from './types/index.js';
 import { extractPackageInfo } from './lib/pr.js';
+import { fetchChangelogDiff } from './lib/changelog.js';
 import { extractBreakingChanges } from './lib/breaking.js';
 import { enhancedLLMAnalysis } from './lib/llm.js';
 import { fetchCodeDiff } from './lib/github-diff.js';
 import { analyzeDependencyUsage } from './lib/dependency-tree.js';
+import { scanAPIUsage } from './lib/scan.js';
 import { performDeepAnalysis } from './lib/deep-analysis.js';
-import { assessEnhancedRisk } from './lib/enhanced-grade.js';
-import { generateEnhancedReport } from './lib/enhanced-report.js';
+import { assessRisk } from './lib/grade.js';
+import { generateReport } from './lib/report.js';
 import { postToPR } from './lib/post.js';
 import { runDoctorCheck } from './lib/doctor.js';
 import { loadConfig } from './lib/config.js';
-import { packageKnowledgeBase } from './lib/package-knowledge.js';
-
-// Import new analyzer system
-import './analyzers/index.js';
-import { analyzerRegistry, UsageAnalysis } from './analyzers/base.js';
-import { createDefaultAnalysisChain } from './analyzers/strategies/index.js';
 
 const program = new Command();
 
 program
   .name('renovate-safety')
   .description('Analyze dependency update PRs for breaking changes')
-  .version('1.1.0');
+  .version('1.0.0');
 
 // Doctor subcommand
 program
@@ -83,7 +79,6 @@ async function analyzeCommand(options: CLIOptions) {
   }
   
   console.log(chalk.gray(`- Language setting: ${options.language || 'en'}`));
-  console.log(chalk.gray(`- Using enhanced analyzer system v1.1`));
   
   // Ensure we're in a git repository
   try {
@@ -141,8 +136,6 @@ function generateRecommendation(riskAssessment: RiskAssessment, breakingCount: n
       return `High risk update. Found ${breakingCount} breaking changes affecting ${usageCount} locations in codebase. ${riskAssessment.estimatedEffort} effort with ${riskAssessment.testingScope} testing required.`;
     case 'critical':
       return `Critical risk update. Found ${breakingCount} breaking changes affecting ${usageCount} locations. Requires ${riskAssessment.estimatedEffort} effort and ${riskAssessment.testingScope} testing. Manual intervention strongly recommended.`;
-    case 'unknown':
-      return `Risk level unknown due to insufficient information. Found ${breakingCount} potential issues. Manual review strongly recommended.`;
     default:
       return 'Unknown risk level.';
   }
@@ -206,7 +199,7 @@ async function analyzeAllRenovatePRs(options: CLIOptions) {
     
     const safeCount = results.filter(r => r.result.riskAssessment.level === 'safe').length;
     const lowCount = results.filter(r => r.result.riskAssessment.level === 'low').length;
-    const reviewCount = results.filter(r => ['medium', 'high', 'critical', 'unknown'].includes(r.result.riskAssessment.level)).length;
+    const reviewCount = results.filter(r => ['medium', 'high', 'critical'].includes(r.result.riskAssessment.level)).length;
     
     console.log(`✅ Safe: ${safeCount}`);
     console.log(`⚠️  Low Risk: ${lowCount}`);
@@ -261,58 +254,17 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       };
     }
     
-    // Step 2: Find appropriate analyzer
-    spinner = ora('Finding appropriate package analyzer...').start();
-    const analyzer = await analyzerRegistry.findAnalyzer(packageUpdate.name, process.cwd());
+    // Step 2: Fetch changelog differences
+    spinner = ora('Fetching changelog differences...').start();
+    const changelogDiff = await fetchChangelogDiff(packageUpdate, options.cacheDir);
     
-    if (!analyzer) {
-      spinner.warn('No specific analyzer found, using fallback strategies');
-    } else {
-      spinner.succeed(`Using ${analyzer.constructor.name} for analysis`);
-    }
-    
-    // Step 3: Fetch changelog/diff using analyzer or fallback
-    spinner = ora('Fetching package information...').start();
-    let changelogDiff = null;
-    let knowledgeBasedBreaking: string[] = [];
-    
-    if (analyzer) {
-      changelogDiff = await analyzer.fetchChangelog(packageUpdate, options.cacheDir);
-    }
-    
-    // Try package knowledge base
-    const knownBreaking = await packageKnowledgeBase.getBreakingChanges(
-      packageUpdate.name,
-      packageUpdate.fromVersion,
-      packageUpdate.toVersion
-    );
-    if (knownBreaking.length > 0) {
-      knowledgeBasedBreaking = knownBreaking;
-      spinner.succeed(`Found ${knownBreaking.length} known breaking changes from knowledge base`);
-    }
-    
-    // If no changelog, use fallback strategies
     if (!changelogDiff) {
-      spinner.text = 'Using fallback analysis strategies...';
-      const analysisChain = createDefaultAnalysisChain();
-      const strategyResult = await analysisChain.analyze(packageUpdate);
-      
-      if (strategyResult.confidence > 0) {
-        changelogDiff = {
-          content: strategyResult.content,
-          source: strategyResult.source as any,
-          fromVersion: packageUpdate.fromVersion,
-          toVersion: packageUpdate.toVersion
-        };
-        spinner.succeed(`Analysis completed using ${strategyResult.source} (confidence: ${Math.round(strategyResult.confidence * 100)}%)`);
-      } else {
-        spinner.warn('Limited information available from all sources');
-      }
+      spinner.warn('No changelog found');
     } else {
       spinner.succeed(`Fetched changelog from ${changelogDiff.source}`);
     }
     
-    // Step 4: Fetch code diff from GitHub
+    // Step 3: Fetch code diff from GitHub
     spinner = ora('Fetching code differences from GitHub...').start();
     const codeDiff = await fetchCodeDiff(packageUpdate);
     
@@ -322,7 +274,7 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       spinner.succeed(`Fetched code diff: ${codeDiff.filesChanged} files changed`);
     }
     
-    // Step 5: Analyze dependency usage
+    // Step 4: Analyze dependency usage
     spinner = ora('Analyzing dependency usage...').start();
     const dependencyUsage = await analyzeDependencyUsage(packageUpdate.name);
     
@@ -332,28 +284,9 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       spinner.succeed(`Dependency analysis: ${dependencyUsage.isDirect ? 'Direct' : 'Transitive'} (${dependencyUsage.dependents.length} dependents)`);
     }
     
-    // Step 6: Analyze package usage with new analyzer
-    spinner = ora('Analyzing package usage in codebase...').start();
-    let usageAnalysis: UsageAnalysis | null = null;
-    
-    if (analyzer) {
-      usageAnalysis = await analyzer.analyzeUsage(packageUpdate.name, process.cwd());
-      spinner.succeed(`Found ${usageAnalysis.totalUsageCount} usage locations (${usageAnalysis.productionUsageCount} in production)`);
-    } else {
-      spinner.warn('Usage analysis not available for this package type');
-    }
-    
-    // Step 7: Extract breaking changes
+    // Step 5: Analyze for breaking changes
     spinner = ora('Analyzing for breaking changes...').start();
-    let breakingChanges = changelogDiff ? extractBreakingChanges(changelogDiff.content) : [];
-    
-    // Add knowledge-based breaking changes
-    knowledgeBasedBreaking.forEach(change => {
-      breakingChanges.push({
-        line: change,
-        severity: 'breaking'
-      });
-    });
+    const breakingChanges = changelogDiff ? extractBreakingChanges(changelogDiff.content) : [];
     
     if (breakingChanges.length > 0) {
       spinner.succeed(`Found ${breakingChanges.length} potential breaking changes`);
@@ -361,11 +294,12 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       spinner.succeed('No breaking changes detected');
     }
     
-    // Step 8: Enhanced LLM analysis
+    // Step 6: Enhanced LLM analysis (works with or without changelog)
     let llmSummary = null;
     if (!options.noLlm) {
       spinner = ora('Generating enhanced AI analysis...').start();
       
+      // Use enhanced analysis that considers code diff and dependency usage
       llmSummary = await enhancedLLMAnalysis(
         packageUpdate,
         changelogDiff,
@@ -381,8 +315,7 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
         const analysisTypes = [
           changelogDiff ? 'changelog' : null,
           codeDiff ? 'code-diff' : null,
-          dependencyUsage ? 'dependency-tree' : null,
-          knowledgeBasedBreaking.length > 0 ? 'knowledge-base' : null
+          dependencyUsage ? 'dependency-tree' : null
         ].filter(Boolean);
         
         spinner.succeed(`Generated AI analysis (${analysisTypes.join(', ')})`);
@@ -391,18 +324,16 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       }
     }
     
-    // Step 9: Convert usage analysis to API usages for compatibility
-    const apiUsages = usageAnalysis ? usageAnalysis.locations.map(loc => ({
-      filePath: loc.file,
-      line: loc.line,
-      column: loc.column,
-      apiName: packageUpdate.name,
-      usageType: loc.type as any,
-      snippet: loc.code,
-      context: loc.context
-    })) : [];
+    spinner = ora('Scanning codebase for API usage...').start();
+    const apiUsages = await scanAPIUsage(packageUpdate.name, breakingChanges);
     
-    // Step 10: Deep analysis (optional)
+    if (apiUsages.length > 0) {
+      spinner.succeed(`Found ${apiUsages.length} API usage locations`);
+    } else {
+      spinner.succeed('No direct API usage found');
+    }
+    
+    // Step 7: Deep analysis (optional)
     let deepAnalysis: DeepAnalysisResult | undefined = undefined;
     if (options.deep) {
       spinner = ora('Performing deep code analysis...').start();
@@ -416,27 +347,7 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       spinner.succeed(`Deep analysis: ${deepAnalysis.filesUsingPackage}/${deepAnalysis.totalFiles} files use package`);
     }
     
-    // Step 11: Enhanced risk assessment
-    const riskAssessment = await assessEnhancedRisk(
-      packageUpdate,
-      breakingChanges,
-      usageAnalysis,
-      llmSummary,
-      !!changelogDiff,
-      !!codeDiff
-    );
-    
-    // Get migration steps from knowledge base
-    const migrationSteps = await packageKnowledgeBase.getMigrationSteps(
-      packageUpdate.name,
-      packageUpdate.fromVersion,
-      packageUpdate.toVersion
-    );
-    
-    if (migrationSteps.length > 0) {
-      console.log(chalk.cyan('\n📚 Known migration steps:'));
-      migrationSteps.forEach(step => console.log(`  - ${step}`));
-    }
+    const riskAssessment = await assessRisk(breakingChanges, apiUsages, llmSummary, packageUpdate, !!changelogDiff);
     
     const analysisResult: AnalysisResult = {
       package: packageUpdate,
@@ -451,7 +362,7 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       recommendation: generateRecommendation(riskAssessment, breakingChanges.length, apiUsages.length)
     };
     
-    const report = await generateEnhancedReport(analysisResult, options.json ? 'json' : 'markdown');
+    const report = await generateReport(analysisResult, options.json ? 'json' : 'markdown');
     
     console.log('\n' + report);
     

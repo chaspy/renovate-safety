@@ -1,0 +1,57 @@
+{
+  "globals": {
+    "description": "Global identifiers from different JavaScript environments",
+    "repository": "https://github.com/sindresorhus/globals",
+    "migrations": {
+      "14.x->15.x": {
+        "summary": "ESLint v8 support added, browser globals updated",
+        "breakingChanges": [
+          "Minimum Node.js version: 12.20",
+          "Removed deprecated browser globals",
+          "Updated TypeScript definitions"
+        ],
+        "migrationSteps": [
+          "Update ESLint to v8 if using together",
+          "Check for usage of removed browser globals",
+          "Ensure Node.js >= 12.20"
+        ],
+        "affectedPackages": ["eslint", "eslint-config-*"],
+        "releaseDate": "2021-10-15"
+      },
+      "15.x->16.x": {
+        "summary": "Node.js 14 support dropped, improved ESM support",
+        "breakingChanges": [
+          "Requires Node.js >= 16",
+          "Pure ESM package",
+          "Changed export structure"
+        ],
+        "migrationSteps": [
+          "Ensure Node.js >= 16",
+          "Update import statements if using CommonJS",
+          "Check build tools compatibility with ESM"
+        ],
+        "affectedPackages": ["eslint", "@babel/core", "webpack"],
+        "releaseDate": "2023-04-20"
+      }
+    },
+    "commonIssues": [
+      {
+        "version": "16.x",
+        "issue": "ESM compatibility with older build tools",
+        "solution": "Update build tools or use dynamic imports"
+      }
+    ],
+    "versionCompatibility": {
+      "eslint": {
+        "14.x": "7.x",
+        "15.x": "8.x",
+        "16.x": "8.x"
+      },
+      "node": {
+        "14.x": ">=10",
+        "15.x": ">=12.20",
+        "16.x": ">=16"
+      }
+    }
+  }
+}
