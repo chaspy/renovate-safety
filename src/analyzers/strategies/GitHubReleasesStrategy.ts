@@ -1,0 +1,174 @@
+import { AnalysisStrategy, StrategyAnalysisResult } from './base.js';
+import type { PackageUpdate } from '../../types/index.js';
+import { Octokit } from '@octokit/rest';
+import { extractBreakingChanges } from '../../lib/breaking.js';
+
+export class GitHubReleasesStrategy extends AnalysisStrategy {
+  name = 'GitHub Releases';
+  private octokit: Octokit;
+
+  constructor() {
+    super();
+    this.octokit = new Octokit({
+      auth: process.env.GITHUB_TOKEN
+    });
+  }
+
+  async isApplicable(pkg: PackageUpdate): Promise<boolean> {
+    // Try to determine if package has a GitHub repository
+    const repoInfo = await this.getGitHubRepoInfo(pkg.name);
+    return repoInfo !== null;
+  }
+
+  async tryAnalyze(pkg: PackageUpdate): Promise<StrategyAnalysisResult | null> {
+    try {
+      const repoInfo = await this.getGitHubRepoInfo(pkg.name);
+      if (!repoInfo) return null;
+
+      const { owner, repo } = repoInfo;
+
+      // Fetch releases between versions
+      const releases = await this.fetchReleasesBetweenVersions(
+        owner,
+        repo,
+        pkg.fromVersion,
+        pkg.toVersion
+      );
+
+      if (releases.length === 0) {
+        return null;
+      }
+
+      // Combine release notes
+      const combinedContent = releases
+        .map(release => `## ${release.tag_name || release.name}\n\n${release.body || 'No release notes'}`)
+        .join('\n\n');
+
+      // Extract breaking changes
+      const breakingChanges = extractBreakingChanges(combinedContent);
+
+      return {
+        content: combinedContent,
+        breakingChanges,
+        confidence: 0.9, // High confidence for official releases
+        source: this.name,
+        metadata: {
+          releaseCount: releases.length,
+          hasPrerelease: releases.some(r => r.prerelease)
+        }
+      };
+    } catch (error) {
+      console.warn(`Failed to fetch GitHub releases:`, error);
+      return null;
+    }
+  }
+
+  private async getGitHubRepoInfo(packageName: string): Promise<{ owner: string; repo: string } | null> {
+    try {
+      // First try npm registry for repository info
+      const { execa } = await import('execa');
+      const { stdout } = await execa('npm', ['view', packageName, 'repository.url', '--json']);
+      const repoUrl = JSON.parse(stdout);
+      
+      if (repoUrl && repoUrl.includes('github.com')) {
+        const match = repoUrl.match(/github\.com[/:]([\w-]+)\/([\w-]+)/);
+        if (match) {
+          return { owner: match[1], repo: match[2].replace(/\.git$/, '') };
+        }
+      }
+    } catch {
+      // Ignore npm errors
+    }
+
+    // Common patterns for package names to GitHub repos
+    const patterns = [
+      { pattern: /^@(.+)\/(.+)$/, transform: (m: RegExpMatchArray) => ({ owner: m[1], repo: m[2] }) },
+      { pattern: /^(.+)$/, transform: (m: RegExpMatchArray) => ({ owner: m[1], repo: m[1] }) }
+    ];
+
+    for (const { pattern, transform } of patterns) {
+      const match = packageName.match(pattern);
+      if (match) {
+        const repoInfo = transform(match);
+        // Verify the repo exists
+        try {
+          await this.octokit.repos.get(repoInfo);
+          return repoInfo;
+        } catch {
+          // Continue to next pattern
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private async fetchReleasesBetweenVersions(
+    owner: string,
+    repo: string,
+    fromVersion: string,
+    toVersion: string
+  ): Promise<any[]> {
+    const allReleases: any[] = [];
+    let page = 1;
+    const perPage = 100;
+
+    // Normalize version strings (remove 'v' prefix if present)
+    const normalizeVersion = (v: string) => v.replace(/^v/, '');
+    const fromVersionNorm = normalizeVersion(fromVersion);
+    const toVersionNorm = normalizeVersion(toVersion);
+
+    while (true) {
+      const { data: releases } = await this.octokit.repos.listReleases({
+        owner,
+        repo,
+        per_page: perPage,
+        page
+      });
+
+      if (releases.length === 0) break;
+
+      for (const release of releases) {
+        const releaseVersion = normalizeVersion(release.tag_name || '');
+        
+        // Check if this release is in our version range
+        if (this.isVersionInRange(releaseVersion, fromVersionNorm, toVersionNorm)) {
+          allReleases.push(release);
+        }
+      }
+
+      if (releases.length < perPage) break;
+      page++;
+    }
+
+    // Sort by version (newest first)
+    return allReleases.sort((a, b) => {
+      const aVersion = normalizeVersion(a.tag_name || '');
+      const bVersion = normalizeVersion(b.tag_name || '');
+      return this.compareVersions(bVersion, aVersion);
+    });
+  }
+
+  private isVersionInRange(version: string, fromVersion: string, toVersion: string): boolean {
+    // Simple comparison - could be enhanced with semver
+    const versionCompare = this.compareVersions(version, fromVersion);
+    const toCompare = this.compareVersions(version, toVersion);
+    
+    return versionCompare > 0 && toCompare <= 0;
+  }
+
+  private compareVersions(a: string, b: string): number {
+    const aParts = a.split('.').map(p => parseInt(p) || 0);
+    const bParts = b.split('.').map(p => parseInt(p) || 0);
+    
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+      const aPart = aParts[i] || 0;
+      const bPart = bParts[i] || 0;
+      
+      if (aPart > bPart) return 1;
+      if (aPart < bPart) return -1;
+    }
+    
+    return 0;
+  }
+}
