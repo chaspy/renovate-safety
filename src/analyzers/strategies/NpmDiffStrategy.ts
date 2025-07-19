@@ -1,6 +1,8 @@
 import { AnalysisStrategy, StrategyAnalysisResult } from './base.js';
 import type { PackageUpdate } from '../../types/index.js';
 import { execa } from 'execa';
+import { tmpdir } from 'os';
+import { validatePackageName, validateVersion } from '../../lib/validation.js';
 
 export class NpmDiffStrategy extends AnalysisStrategy {
   name = 'NPM Diff Analysis';
@@ -17,12 +19,25 @@ export class NpmDiffStrategy extends AnalysisStrategy {
 
   async tryAnalyze(pkg: PackageUpdate): Promise<StrategyAnalysisResult | null> {
     try {
-      // Get npm diff
-      const { stdout: diffOutput } = await execa('npm', [
+      // Validate inputs
+      const safeName = validatePackageName(pkg.name);
+      const safeFromVersion = validateVersion(pkg.fromVersion);
+      const safeToVersion = validateVersion(pkg.toVersion);
+      
+      // Get npm diff (run in temp directory to avoid context issues)
+      const { stdout: diffOutput, failed } = await execa('npm', [
         'diff',
-        `${pkg.name}@${pkg.fromVersion}`,
-        `${pkg.name}@${pkg.toVersion}`
-      ]);
+        `${safeName}@${safeFromVersion}`,
+        `${safeName}@${safeToVersion}`
+      ], {
+        cwd: tmpdir(),  // Run in neutral directory
+        reject: false  // Don't throw on non-zero exit
+      });
+
+      if (failed) {
+        console.warn(`npm diff failed for ${pkg.name}, using fallback strategies`);
+        return null;
+      }
 
       if (!diffOutput) {
         return null;
