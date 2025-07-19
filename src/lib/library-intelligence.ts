@@ -1,6 +1,8 @@
-import { execa } from 'execa';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { secureNpmExec } from './secure-exec.js';
+import { getPackageMetadata, getPackageRepository, packageExists } from './npm-registry.js';
+import { validatePackageName } from './validation.js';
 
 export interface LibraryIntelligence {
   packageName: string;
@@ -215,12 +217,15 @@ export async function gatherLibraryIntelligence(
 
 async function gatherPackageInfo(packageName: string): Promise<PackageInfo> {
   try {
-    // Get package info from npm registry
-    const { stdout } = await execa('npm', ['view', packageName, '--json'], {
-      timeout: 10000
-    });
+    // Validate package name first
+    const safeName = validatePackageName(packageName);
     
-    const data = JSON.parse(stdout);
+    // Get package info from npm registry using centralized utility
+    const data = await getPackageMetadata(safeName);
+    
+    if (!data) {
+      return getDefaultPackageInfo();
+    }
     
     return {
       description: data.description || 'No description available',
@@ -245,12 +250,20 @@ async function gatherPackageInfo(packageName: string): Promise<PackageInfo> {
 
 async function gatherEcosystemInfo(packageName: string): Promise<EcosystemInfo> {
   try {
-    // Analyze package ecosystem
-    const { stdout } = await execa('npm', ['view', packageName, 'keywords', 'peerDependencies', '--json'], {
+    // Validate package name first
+    const safeName = validatePackageName(packageName);
+    
+    // Analyze package ecosystem using secure execution
+    const result = await secureNpmExec('view', [safeName, 'keywords', 'peerDependencies', '--json'], {
       timeout: 10000
     });
     
-    const data = JSON.parse(stdout);
+    if (!result.success) {
+      console.debug('Failed to get ecosystem info:', result.error);
+      return getDefaultEcosystemInfo();
+    }
+    
+    const data = JSON.parse(result.stdout);
     const keywords = data.keywords || [];
     
     // Determine category based on keywords and package name
@@ -300,13 +313,13 @@ async function gatherMaintenanceInfo(packageName: string): Promise<MaintenanceIn
 
 async function gatherSecurityInfo(packageName: string): Promise<SecurityInfo> {
   try {
-    // Run npm audit for the specific package
-    const { stdout } = await execa('npm', ['audit', '--json'], {
-      timeout: 15000,
-      reject: false
+    // Run npm audit using secure execution
+    const result = await secureNpmExec('audit', ['--json'], {
+      timeout: 15000
     });
     
-    const auditData = JSON.parse(stdout);
+    // npm audit returns non-zero exit code when vulnerabilities found, but that's ok
+    const auditData = result.stdout ? JSON.parse(result.stdout) : {};
     const vulnerabilities = extractVulnerabilities(auditData, packageName);
     
     return {
@@ -325,12 +338,15 @@ async function gatherSecurityInfo(packageName: string): Promise<SecurityInfo> {
 
 async function gatherPopularityMetrics(packageName: string): Promise<PopularityMetrics> {
   try {
-    // Get download stats from npm
-    const { stdout: downloadsData } = await execa('npm', ['view', packageName, '--json'], {
-      timeout: 10000
-    });
+    // Validate package name first
+    const safeName = validatePackageName(packageName);
     
-    const packageData = JSON.parse(downloadsData);
+    // Get package data using centralized utility
+    const packageData = await getPackageMetadata(safeName);
+    
+    if (!packageData) {
+      return getDefaultPopularityMetrics();
+    }
     
     // Get GitHub stats if repository is available
     const githubStats = await getGitHubStats(packageName);
@@ -355,12 +371,16 @@ async function gatherPopularityMetrics(packageName: string): Promise<PopularityM
 
 async function gatherTechnicalDetails(packageName: string, version: string): Promise<TechnicalDetails> {
   try {
-    // Get package.json to analyze technical details
-    const { stdout } = await execa('npm', ['view', `${packageName}@${version}`, '--json'], {
-      timeout: 10000
-    });
+    // Validate inputs first
+    const safeName = validatePackageName(packageName);
+    const safeVersion = version; // Version is already validated in the package string
     
-    const data = JSON.parse(stdout);
+    // Get package.json to analyze technical details
+    const data = await getPackageMetadata(`${safeName}@${safeVersion}`);
+    
+    if (!data) {
+      return getDefaultTechnicalDetails();
+    }
     
     return {
       bundleSize: {

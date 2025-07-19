@@ -1,6 +1,7 @@
-import { execa } from 'execa';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { secureNpmExec, secureSystemExec } from './secure-exec.js';
+import { validatePackageName } from './validation.js';
 
 export interface DependencyUsage {
   packageName: string;
@@ -41,12 +42,18 @@ export async function analyzeDependencyUsage(packageName: string): Promise<Depen
 
 async function analyzeWithNpm(packageName: string): Promise<DependencyUsage | null> {
   try {
+    // Validate package name first
+    const safeName = validatePackageName(packageName);
+    
     // Run npm ls to get dependency tree
-    const { stdout } = await execa('npm', ['ls', packageName, '--json', '--depth=10'], {
-      reject: false, // npm ls returns non-zero exit code when packages have issues
-    });
+    const result = await secureNpmExec('ls', [safeName, '--json', '--depth=10']);
+    
+    if (!result.success) {
+      console.debug('npm ls failed:', result.error);
+      return null;
+    }
 
-    const data = JSON.parse(stdout);
+    const data = JSON.parse(result.stdout);
     return parseNpmLsOutput(data, packageName);
   } catch (error) {
     console.debug('npm ls failed:', error);
@@ -58,13 +65,19 @@ async function analyzeWithYarn(packageName: string): Promise<DependencyUsage | n
   try {
     // Check if yarn.lock exists
     await fs.access('yarn.lock');
+    
+    // Validate package name first
+    const safeName = validatePackageName(packageName);
 
-    // Run yarn why
-    const { stdout } = await execa('yarn', ['why', packageName, '--json'], {
-      reject: false,
-    });
+    // Run yarn why using secure execution
+    const result = await secureSystemExec('yarn', ['why', safeName, '--json']);
+    
+    if (!result.success) {
+      console.debug('yarn why failed:', result.error);
+      return null;
+    }
 
-    const lines = stdout.split('\n').filter(line => line.trim());
+    const lines = result.stdout.split('\n').filter(line => line.trim());
     const jsonData = lines.map(line => {
       try {
         return JSON.parse(line);

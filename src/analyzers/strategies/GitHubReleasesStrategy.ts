@@ -2,6 +2,7 @@ import { AnalysisStrategy, StrategyAnalysisResult } from './base.js';
 import type { PackageUpdate } from '../../types/index.js';
 import { Octokit } from '@octokit/rest';
 import { extractBreakingChanges } from '../../lib/breaking.js';
+import { getPackageRepository, extractGitHubRepo } from '../../lib/npm-registry.js';
 
 export class GitHubReleasesStrategy extends AnalysisStrategy {
   name = 'GitHub Releases';
@@ -65,19 +66,14 @@ export class GitHubReleasesStrategy extends AnalysisStrategy {
 
   private async getGitHubRepoInfo(packageName: string): Promise<{ owner: string; repo: string } | null> {
     try {
-      // First try npm registry for repository info
-      const { execa } = await import('execa');
-      const { stdout } = await execa('npm', ['view', packageName, 'repository.url', '--json']);
-      const repoUrl = JSON.parse(stdout);
+      // Use centralized npm registry utility
+      const repoUrl = await getPackageRepository(packageName);
       
-      if (repoUrl && repoUrl.includes('github.com')) {
-        const match = repoUrl.match(/github\.com[/:]([\w-]+)\/([\w-]+)/);
-        if (match) {
-          return { owner: match[1], repo: match[2].replace(/\.git$/, '') };
-        }
+      if (repoUrl) {
+        return extractGitHubRepo(repoUrl);
       }
-    } catch {
-      // Ignore npm errors
+    } catch (error) {
+      console.warn(`Failed to get GitHub repo info for ${packageName}:`, error);
     }
 
     // Common patterns for package names to GitHub repos

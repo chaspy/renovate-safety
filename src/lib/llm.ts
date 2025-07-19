@@ -1,9 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { execa } from 'execa';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'crypto';
+import { secureSystemExec } from './secure-exec.js';
 import type { PackageUpdate, ChangelogDiff, BreakingChange, LLMSummary, CodeDiff, DependencyUsage } from '../types/index.js';
 
 const MAX_RETRIES = 3;
@@ -62,9 +62,10 @@ export async function summarizeWithLLM(
 async function detectProvider(): Promise<'claude-cli' | 'anthropic' | 'openai' | null> {
   // Priority 1: Claude CLI (for Pro/Max users - preferred for best model access)
   try {
-    const { execSync } = await import('child_process');
-    execSync('claude --version', { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 });
-    return 'claude-cli';
+    const result = await secureSystemExec('claude', ['--version'], { timeout: 5000 });
+    if (result.success) {
+      return 'claude-cli';
+    }
   } catch (error) {
     // Claude CLI not available, continue to next option
   }
@@ -123,7 +124,7 @@ async function summarizeWithClaudeCLI(prompt: string): Promise<LLMSummary | null
   
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const { stdout } = await execa('claude', [
+      const result = await secureSystemExec('claude', [
         '-p',
         prompt,
         '--output-format',
@@ -133,8 +134,12 @@ async function summarizeWithClaudeCLI(prompt: string): Promise<LLMSummary | null
       ], {
         timeout: 30000, // 30 second timeout for Claude CLI stability
       });
+      
+      if (!result.success) {
+        throw new Error(`Claude CLI failed: ${result.error}`);
+      }
 
-      return parseResponse(stdout);
+      return parseResponse(result.stdout);
     } catch (error) {
       if (attempt < MAX_RETRIES - 1) {
         await sleep(RETRY_DELAY * (attempt + 1));
