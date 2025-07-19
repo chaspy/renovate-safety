@@ -5,6 +5,8 @@ import { readFile, access } from 'fs/promises';
 import { resolve, join, relative } from 'path';
 import { glob } from 'glob';
 import { Project, SyntaxKind, Node } from 'ts-morph';
+import { validatePackageName, validateVersion } from '../../lib/validation.js';
+import { getFileContext, categorizeUsages, isPackageImport, getErrorMessage } from '../utils.js';
 
 export class NpmAnalyzer extends PackageAnalyzer {
   async canHandle(packageName: string, projectPath: string): Promise<boolean> {
@@ -19,7 +21,11 @@ export class NpmAnalyzer extends PackageAnalyzer {
 
   async fetchMetadata(pkg: PackageUpdate): Promise<PackageMetadata | null> {
     try {
-      const { stdout } = await execa('npm', ['view', `${pkg.name}@${pkg.toVersion}`, '--json']);
+      // Validate inputs for security
+      const safeName = validatePackageName(pkg.name);
+      const safeVersion = validateVersion(pkg.toVersion);
+      
+      const { stdout } = await execa('npm', ['view', `${safeName}@${safeVersion}`, '--json']);
       const data = JSON.parse(stdout);
       
       return {
@@ -34,7 +40,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
         deprecationMessage: data.deprecated
       };
     } catch (error) {
-      console.warn(`Failed to fetch metadata for ${pkg.name}:`, error);
+      console.warn(`Failed to fetch metadata for ${pkg.name}:`, getErrorMessage(error));
       return null;
     }
   }
@@ -42,8 +48,9 @@ export class NpmAnalyzer extends PackageAnalyzer {
   async fetchChangelog(pkg: PackageUpdate, cacheDir?: string): Promise<ChangelogDiff | null> {
     // First try npm registry
     try {
-      const fromContent = await this.fetchVersionReadme(pkg.name, pkg.fromVersion);
-      const toContent = await this.fetchVersionReadme(pkg.name, pkg.toVersion);
+      const safeName = validatePackageName(pkg.name);
+      const fromContent = await this.fetchVersionReadme(safeName, pkg.fromVersion);
+      const toContent = await this.fetchVersionReadme(safeName, pkg.toVersion);
       
       if (fromContent || toContent) {
         return {
@@ -78,7 +85,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
       // Analyze imports
       sourceFile.getImportDeclarations().forEach(importDecl => {
         const moduleSpecifier = importDecl.getModuleSpecifierValue();
-        if (this.isPackageImport(moduleSpecifier, packageName)) {
+        if (isPackageImport(moduleSpecifier, packageName)) {
           const line = importDecl.getStartLineNumber();
           const column = importDecl.getStartLinePos();
           
@@ -88,7 +95,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
             column,
             type: 'import',
             code: importDecl.getText(),
-            context: this.getFileContext(file)
+            context: getFileContext(file)
           });
 
           // Check for specific imported symbols
@@ -112,14 +119,14 @@ export class NpmAnalyzer extends PackageAnalyzer {
           const args = callExpr.getArguments();
           if (args.length > 0 && Node.isStringLiteral(args[0])) {
             const moduleSpecifier = args[0].getLiteralValue();
-            if (this.isPackageImport(moduleSpecifier, packageName)) {
+            if (isPackageImport(moduleSpecifier, packageName)) {
               locations.push({
                 file,
                 line: callExpr.getStartLineNumber(),
                 column: callExpr.getStartLinePos(),
                 type: 'require',
                 code: callExpr.getText(),
-                context: this.getFileContext(file)
+                context: getFileContext(file)
               });
             }
           }
@@ -148,25 +155,12 @@ export class NpmAnalyzer extends PackageAnalyzer {
       }
     }
 
-    // Calculate metrics
-    const productionUsageCount = locations.filter(l => l.context === 'production').length;
-    const testUsageCount = locations.filter(l => l.context === 'test').length;
-    const configUsageCount = locations.filter(l => l.context === 'config').length;
+    // Use common categorization logic
+    const categorization = categorizeUsages(locations);
     
-    // Identify critical paths (main entry points, core modules)
-    const criticalPaths = this.identifyCriticalPaths(locations, projectPath);
-    
-    // Check for dynamic imports
-    const hasDynamicImports = locations.some(l => l.code.includes('import(') || l.code.includes('require.resolve'));
-
     return {
       locations,
-      totalUsageCount: locations.length,
-      productionUsageCount,
-      testUsageCount,
-      configUsageCount,
-      criticalPaths,
-      hasDynamicImports
+      ...categorization
     };
   }
 
@@ -182,7 +176,10 @@ export class NpmAnalyzer extends PackageAnalyzer {
 
       // Check npm diff if available
       try {
-        const { stdout } = await execa('npm', ['diff', `${pkg.name}@${pkg.fromVersion}`, `${pkg.name}@${pkg.toVersion}`]);
+        const safeName = validatePackageName(pkg.name);
+        const safeFromVersion = validateVersion(pkg.fromVersion);
+        const safeToVersion = validateVersion(pkg.toVersion);
+        const { stdout } = await execa('npm', ['diff', `${safeName}@${safeFromVersion}`, `${safeName}@${safeToVersion}`]);
         context.npmDiff = stdout;
         context.hasNpmDiff = true;
       } catch {
@@ -191,7 +188,8 @@ export class NpmAnalyzer extends PackageAnalyzer {
 
       // Get download stats
       try {
-        const { stdout } = await execa('npm', ['view', pkg.name, 'downloads', '--json']);
+        const safeName = validatePackageName(pkg.name);
+        const { stdout } = await execa('npm', ['view', safeName, 'downloads', '--json']);
         context.weeklyDownloads = JSON.parse(stdout);
       } catch {
         // Ignore
@@ -219,7 +217,9 @@ export class NpmAnalyzer extends PackageAnalyzer {
 
   private async fetchVersionReadme(packageName: string, version: string): Promise<string | null> {
     try {
-      const { stdout } = await execa('npm', ['view', `${packageName}@${version}`, 'readme']);
+      const safeName = validatePackageName(packageName);
+      const safeVersion = validateVersion(version);
+      const { stdout } = await execa('npm', ['view', `${safeName}@${safeVersion}`, 'readme']);
       return stdout;
     } catch {
       return null;
@@ -232,40 +232,10 @@ export class NpmAnalyzer extends PackageAnalyzer {
            `## New Version (${pkg.toVersion})\n${toContent}`;
   }
 
-  private isPackageImport(moduleSpecifier: string, packageName: string): boolean {
-    // Direct match
-    if (moduleSpecifier === packageName) return true;
-    
-    // Scoped package or submodule
-    if (moduleSpecifier.startsWith(`${packageName}/`)) return true;
-    
-    // For scoped packages like @types/node
-    if (packageName.includes('/') && moduleSpecifier === packageName) return true;
-    
-    return false;
-  }
+  // Remove duplicate method - using shared utility instead
+  // isPackageImport is now imported from utils.ts
 
-  private getFileContext(filePath: string): 'production' | 'test' | 'config' | 'build' {
-    const lowerPath = filePath.toLowerCase();
-    
-    if (lowerPath.includes('test') || lowerPath.includes('spec') || 
-        lowerPath.includes('__tests__') || lowerPath.includes('__mocks__')) {
-      return 'test';
-    }
-    
-    if (lowerPath.endsWith('.config.js') || lowerPath.endsWith('.config.ts') ||
-        lowerPath.includes('webpack') || lowerPath.includes('rollup') ||
-        lowerPath.includes('vite') || lowerPath.includes('babel')) {
-      return 'build';
-    }
-    
-    if (lowerPath.endsWith('.json') || lowerPath.endsWith('.yaml') || 
-        lowerPath.endsWith('.yml') || lowerPath.endsWith('.toml')) {
-      return 'config';
-    }
-    
-    return 'production';
-  }
+  // Remove duplicate method - using shared utility getFileContext from utils.ts
 
   private findIdentifierUsages(
     sourceFile: any,
@@ -285,7 +255,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
             column: node.getStartLinePos(),
             type: 'function-call',
             code: parent.getText(),
-            context: this.getFileContext(filePath)
+            context: getFileContext(filePath)
           });
         }
         
@@ -297,7 +267,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
             column: node.getStartLinePos(),
             type: 'property-access',
             code: parent.getText(),
-            context: this.getFileContext(filePath)
+            context: getFileContext(filePath)
           });
         }
         
@@ -309,34 +279,12 @@ export class NpmAnalyzer extends PackageAnalyzer {
             column: node.getStartLinePos(),
             type: 'type-reference',
             code: node.getText(),
-            context: this.getFileContext(filePath)
+            context: getFileContext(filePath)
           });
         }
       }
     });
   }
 
-  private identifyCriticalPaths(locations: UsageLocation[], projectPath: string): string[] {
-    const criticalPaths: Set<string> = new Set();
-    
-    // Common entry points
-    const entryPoints = ['index', 'main', 'app', 'server', 'cli'];
-    
-    locations.forEach(location => {
-      const relativePath = relative(projectPath, location.file);
-      const fileName = relativePath.split('/').pop()?.split('.')[0] || '';
-      
-      // Check if it's an entry point
-      if (entryPoints.some(entry => fileName.includes(entry))) {
-        criticalPaths.add(relativePath);
-      }
-      
-      // Check if it's in src root
-      if (relativePath.split('/').length <= 2 && location.context === 'production') {
-        criticalPaths.add(relativePath);
-      }
-    });
-    
-    return Array.from(criticalPaths);
-  }
+  // Remove duplicate method - critical paths are now identified in categorizeUsages
 }

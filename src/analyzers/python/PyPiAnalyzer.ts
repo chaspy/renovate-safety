@@ -4,6 +4,8 @@ import { execa } from 'execa';
 import { readFile, access } from 'fs/promises';
 import { join, relative } from 'path';
 import { glob } from 'glob';
+import { validatePythonPackageName, validateVersion, validateUrl, escapeForUrl } from '../../lib/validation.js';
+import { getFileContext, categorizeUsages, getErrorMessage } from '../utils.js';
 
 export class PyPiAnalyzer extends PackageAnalyzer {
   async canHandle(packageName: string, projectPath: string): Promise<boolean> {
@@ -26,7 +28,11 @@ export class PyPiAnalyzer extends PackageAnalyzer {
     try {
       // Use dynamic import for node-fetch
       const { default: fetch } = await import('node-fetch');
-      const response = await fetch(`https://pypi.org/pypi/${pkg.name}/${pkg.toVersion}/json`);
+      const safeName = validatePythonPackageName(pkg.name);
+      const safeVersion = validateVersion(pkg.toVersion);
+      const url = `https://pypi.org/pypi/${escapeForUrl(safeName)}/${escapeForUrl(safeVersion)}/json`;
+      validateUrl(url);
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`PyPI API returned ${response.status}`);
       }
@@ -48,7 +54,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
         deprecationMessage: info.yanked_reason
       };
     } catch (error) {
-      console.warn(`Failed to fetch PyPI metadata for ${pkg.name}:`, error);
+      console.warn(`Failed to fetch PyPI metadata for ${pkg.name}:`, getErrorMessage(error));
       return null;
     }
   }
@@ -111,7 +117,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
               column: 0,
               type: 'import',
               code: line.trim(),
-              context: this.getFileContext(file)
+              context: getFileContext(file)
             });
             break;
           }
@@ -126,7 +132,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
             column: line.indexOf(packageName),
             type: 'function-call',
             code: line.trim(),
-            context: this.getFileContext(file)
+            context: getFileContext(file)
           });
         }
 
@@ -138,7 +144,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
             column: 0,
             type: 'require',
             code: line.trim(),
-            context: this.getFileContext(file)
+            context: getFileContext(file)
           });
         }
       });
@@ -171,25 +177,12 @@ export class PyPiAnalyzer extends PackageAnalyzer {
       }
     }
 
-    // Calculate metrics
-    const productionUsageCount = locations.filter(l => l.context === 'production').length;
-    const testUsageCount = locations.filter(l => l.context === 'test').length;
-    const configUsageCount = locations.filter(l => l.context === 'config').length;
+    // Use common categorization logic
+    const categorization = categorizeUsages(locations);
     
-    const criticalPaths = this.identifyCriticalPaths(locations, projectPath);
-    const hasDynamicImports = locations.some(l => 
-      l.code.includes('importlib.import_module') || 
-      l.code.includes('__import__')
-    );
-
     return {
       locations,
-      totalUsageCount: locations.length,
-      productionUsageCount,
-      testUsageCount,
-      configUsageCount,
-      criticalPaths,
-      hasDynamicImports
+      ...categorization
     };
   }
 
@@ -249,7 +242,11 @@ export class PyPiAnalyzer extends PackageAnalyzer {
     try {
       // Use dynamic import for node-fetch
       const { default: fetch } = await import('node-fetch');
-      const response = await fetch(`https://pypi.org/pypi/${packageName}/${version}/json`);
+      const safeName = validatePythonPackageName(packageName);
+      const safeVersion = validateVersion(version);
+      const url = `https://pypi.org/pypi/${escapeForUrl(safeName)}/${escapeForUrl(safeVersion)}/json`;
+      validateUrl(url);
+      const response = await fetch(url);
       if (!response.ok) return null;
       return await response.json();
     } catch {
@@ -301,56 +298,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
     return null;
   }
 
-  private getFileContext(filePath: string): 'production' | 'test' | 'config' | 'build' {
-    const lowerPath = filePath.toLowerCase();
-    
-    if (lowerPath.includes('test') || lowerPath.includes('tests') || 
-        lowerPath.includes('test_') || lowerPath.endsWith('_test.py') ||
-        lowerPath.includes('conftest.py')) {
-      return 'test';
-    }
-    
-    if (lowerPath.includes('setup.py') || lowerPath.includes('setup.cfg') ||
-        lowerPath.includes('pyproject.toml') || lowerPath.includes('tox.ini')) {
-      return 'build';
-    }
-    
-    if (lowerPath.endsWith('.cfg') || lowerPath.endsWith('.ini') || 
-        lowerPath.endsWith('.toml') || lowerPath.endsWith('.yaml') ||
-        lowerPath.endsWith('.yml')) {
-      return 'config';
-    }
-    
-    return 'production';
-  }
+  // Remove duplicate method - using shared utility getFileContext from utils.ts
 
-  private identifyCriticalPaths(locations: UsageLocation[], projectPath: string): string[] {
-    const criticalPaths: Set<string> = new Set();
-    
-    // Common Python entry points
-    const entryPoints = ['__main__', '__init__', 'main', 'app', 'wsgi', 'asgi', 'cli', 'manage'];
-    
-    locations.forEach(location => {
-      const relativePath = relative(projectPath, location.file);
-      const fileName = relativePath.split('/').pop()?.split('.')[0] || '';
-      
-      // Check if it's an entry point
-      if (entryPoints.some(entry => fileName.includes(entry))) {
-        criticalPaths.add(relativePath);
-      }
-      
-      // Check if it's in package root
-      if (relativePath.split('/').length <= 2 && location.context === 'production') {
-        criticalPaths.add(relativePath);
-      }
-      
-      // Check for Django/Flask specific patterns
-      if (fileName.includes('urls') || fileName.includes('views') || 
-          fileName.includes('models') || fileName.includes('settings')) {
-        criticalPaths.add(relativePath);
-      }
-    });
-    
-    return Array.from(criticalPaths);
-  }
+  // Remove duplicate method - critical paths are now identified in categorizeUsages
 }
