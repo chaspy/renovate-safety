@@ -60,7 +60,7 @@ async function checkGhCli(): Promise<void> {
     }
 
     // Check version (optional, for future compatibility checks)
-    const versionMatch = versionResult.stdout.match(/gh version (\d+\.\d+\.\d+)/);
+    const versionMatch = /gh version (\d+\.\d+\.\d+)/.exec(versionResult.stdout);
     if (versionMatch) {
       const [major] = versionMatch[1].split('.').map(Number);
       if (major < 2) {

@@ -1,7 +1,7 @@
 import { PackageAnalyzer, PackageMetadata, UsageAnalysis, UsageLocation } from '../base.js';
 import type { PackageUpdate, ChangelogDiff } from '../../types/index.js';
 import { readFile, access } from 'fs/promises';
-import { join, relative } from 'path';
+import { join } from 'path';
 import { glob } from 'glob';
 import { validatePythonPackageName, validateVersion, validateUrl, escapeForUrl } from '../../lib/validation.js';
 import { getFileContext, categorizeUsages, getErrorMessage } from '../utils.js';
@@ -36,7 +36,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
         throw new Error(`PyPI API returned ${response.status}`);
       }
       
-      const data = await response.json() as any;
+      const data = await response.json();
       const info = data.info;
       
       return {
@@ -283,7 +283,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
     ];
 
     for (const header of changelogHeaders) {
-      const match = description.match(header);
+      const match = header.exec(description);
       if (match) {
         const startIndex = match.index!;
         // Extract until next major header or end

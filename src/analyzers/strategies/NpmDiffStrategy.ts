@@ -72,7 +72,7 @@ export class NpmDiffStrategy extends AnalysisStrategy {
     lines.forEach((line, index) => {
       // Track current file
       if (line.startsWith('diff --git')) {
-        const match = line.match(/b\/(.+)$/);
+        const match = /b\/(.+)$/.exec(line);
         if (match) {
           currentFile = match[1];
           changedFiles.add(currentFile);
@@ -89,7 +89,7 @@ export class NpmDiffStrategy extends AnalysisStrategy {
       // Check for breaking changes
       for (const { pattern, type } of breakingPatterns) {
         if (pattern.test(line)) {
-          const match = line.match(pattern);
+          const match = pattern.exec(line);
           if (match) {
             breakingChanges.push(`${type}: ${match[1]} in ${currentFile}`);
             hasApiChanges = true;

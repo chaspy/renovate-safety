@@ -98,7 +98,7 @@ async function checkGitHubCLI(): Promise<HealthCheck> {
       throw new Error('gh command failed');
     }
     
-    const versionMatch = versionResult.stdout.match(/gh version (\d+\.\d+\.\d+)/);
+    const versionMatch = /gh version (\d+\.\d+\.\d+)/.exec(versionResult.stdout);
 
     if (versionMatch) {
       const version = versionMatch[1];

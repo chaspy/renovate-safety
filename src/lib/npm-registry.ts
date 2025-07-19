@@ -268,7 +268,7 @@ export function extractGitHubRepo(repositoryUrl: string | undefined): {
   ];
 
   for (const pattern of patterns) {
-    const match = repositoryUrl.match(pattern);
+    const match = pattern.exec(repositoryUrl);
     if (match) {
       return {
         owner: match[1],

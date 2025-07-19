@@ -1,7 +1,7 @@
 import { PackageAnalyzer, PackageMetadata, UsageAnalysis, UsageLocation, AdditionalContext } from '../base.js';
 import type { PackageUpdate, ChangelogDiff } from '../../types/index.js';
 import { readFile, access } from 'fs/promises';
-import { resolve, join, relative } from 'path';
+import { join } from 'path';
 import { glob } from 'glob';
 import { Project, SyntaxKind, Node } from 'ts-morph';
 import { getFileContext, categorizeUsages, isPackageImport, getErrorMessage } from '../utils.js';
@@ -206,7 +206,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
 
   getImportPatterns(): RegExp[] {
     return [
-      /import\s+.*?\s+from\s+['"]([^'"]+)['"]/g,
+      /import\s+(?:[a-zA-Z_$][a-zA-Z0-9_$]*(?:\s*,\s*)?(?:\{[^}]*\})?|\{[^}]*\}|\*\s+as\s+[a-zA-Z_$][a-zA-Z0-9_$]*)\s+from\s+['"]([^'"]+)['"]/g,
       /import\s*\(['"]([^'"]+)['"]\)/g,
       /require\s*\(['"]([^'"]+)['"]\)/g,
       /require\.resolve\s*\(['"]([^'"]+)['"]\)/g
