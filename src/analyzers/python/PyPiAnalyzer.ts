@@ -285,9 +285,9 @@ export class PyPiAnalyzer extends PackageAnalyzer {
     for (const header of changelogHeaders) {
       const match = header.exec(description);
       if (match) {
-        const startIndex = match.index!;
+        const startIndex = match.index;
         // Extract until next major header or end
-        const endMatch = description.substring(startIndex + match[0].length).match(/^#{1,2}\s+/m);
+        const endMatch = /^#{1,2}\s+/m.exec(description.substring(startIndex + match[0].length));
         const endIndex = endMatch ? startIndex + match[0].length + endMatch.index! : description.length;
         
         return description.substring(startIndex, endIndex).trim();

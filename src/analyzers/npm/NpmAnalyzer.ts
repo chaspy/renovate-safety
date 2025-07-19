@@ -206,7 +206,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
 
   getImportPatterns(): RegExp[] {
     return [
-      /import\s+(?:[a-zA-Z_$][a-zA-Z0-9_$]*(?:\s*,\s*)?(?:\{[^}]*\})?|\{[^}]*\}|\*\s+as\s+[a-zA-Z_$][a-zA-Z0-9_$]*)\s+from\s+['"]([^'"]+)['"]/g,
+      /import\s+[^]+?\s+from\s+['"]([^'"]+)['"]/g,
       /import\s*\(['"]([^'"]+)['"]\)/g,
       /require\s*\(['"]([^'"]+)['"]\)/g,
       /require\.resolve\s*\(['"]([^'"]+)['"]\)/g
