@@ -1,12 +1,12 @@
 import { PackageAnalyzer, PackageMetadata, UsageAnalysis, UsageLocation, AdditionalContext } from '../base.js';
 import type { PackageUpdate, ChangelogDiff } from '../../types/index.js';
-import { execa } from 'execa';
 import { readFile, access } from 'fs/promises';
 import { resolve, join, relative } from 'path';
 import { glob } from 'glob';
 import { Project, SyntaxKind, Node } from 'ts-morph';
-import { validatePackageName, validateVersion } from '../../lib/validation.js';
 import { getFileContext, categorizeUsages, isPackageImport, getErrorMessage } from '../utils.js';
+import { getPackageMetadata, getPackageReadme, getNpmDiff, getPackageDownloads } from '../../lib/npm-registry.js';
+import { validatePackageName } from '../../lib/validation.js';
 
 export class NpmAnalyzer extends PackageAnalyzer {
   async canHandle(packageName: string, projectPath: string): Promise<boolean> {
@@ -21,12 +21,12 @@ export class NpmAnalyzer extends PackageAnalyzer {
 
   async fetchMetadata(pkg: PackageUpdate): Promise<PackageMetadata | null> {
     try {
-      // Validate inputs for security
-      const safeName = validatePackageName(pkg.name);
-      const safeVersion = validateVersion(pkg.toVersion);
+      // Use centralized npm registry utility
+      const data = await getPackageMetadata(`${pkg.name}@${pkg.toVersion}`);
       
-      const { stdout } = await execa('npm', ['view', `${safeName}@${safeVersion}`, '--json']);
-      const data = JSON.parse(stdout);
+      if (!data) {
+        return null;
+      }
       
       return {
         name: data.name,
@@ -37,7 +37,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
         license: data.license,
         publishedAt: data.time?.[pkg.toVersion] ? new Date(data.time[pkg.toVersion]) : undefined,
         deprecated: data.deprecated !== undefined,
-        deprecationMessage: data.deprecated
+        deprecationMessage: typeof data.deprecated === 'string' ? data.deprecated : undefined
       };
     } catch (error) {
       console.warn(`Failed to fetch metadata for ${pkg.name}:`, getErrorMessage(error));
@@ -175,24 +175,22 @@ export class NpmAnalyzer extends PackageAnalyzer {
       }
 
       // Check npm diff if available
-      try {
-        const safeName = validatePackageName(pkg.name);
-        const safeFromVersion = validateVersion(pkg.fromVersion);
-        const safeToVersion = validateVersion(pkg.toVersion);
-        const { stdout } = await execa('npm', ['diff', `${safeName}@${safeFromVersion}`, `${safeName}@${safeToVersion}`]);
-        context.npmDiff = stdout;
+      const npmDiff = await getNpmDiff(
+        `${pkg.name}@${pkg.fromVersion}`,
+        `${pkg.name}@${pkg.toVersion}`
+      );
+      
+      if (npmDiff) {
+        context.npmDiff = npmDiff;
         context.hasNpmDiff = true;
-      } catch {
+      } else {
         context.hasNpmDiff = false;
       }
 
       // Get download stats
-      try {
-        const safeName = validatePackageName(pkg.name);
-        const { stdout } = await execa('npm', ['view', safeName, 'downloads', '--json']);
-        context.weeklyDownloads = JSON.parse(stdout);
-      } catch {
-        // Ignore
+      const downloads = await getPackageDownloads(pkg.name);
+      if (downloads !== null) {
+        context.weeklyDownloads = downloads;
       }
 
     } catch (error) {
@@ -216,14 +214,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
   }
 
   private async fetchVersionReadme(packageName: string, version: string): Promise<string | null> {
-    try {
-      const safeName = validatePackageName(packageName);
-      const safeVersion = validateVersion(version);
-      const { stdout } = await execa('npm', ['view', `${safeName}@${safeVersion}`, 'readme']);
-      return stdout;
-    } catch {
-      return null;
-    }
+    return getPackageReadme(`${packageName}@${version}`);
   }
 
   private generateChangelogDiff(fromContent: string, toContent: string, pkg: PackageUpdate): string {

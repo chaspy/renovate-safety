@@ -1,5 +1,5 @@
 import { Octokit } from '@octokit/rest';
-import { execa } from 'execa';
+import { secureSystemExec } from './secure-exec.js';
 import type { CLIOptions, PackageUpdate } from '../types/index.js';
 
 export async function extractPackageInfo(options: CLIOptions): Promise<PackageUpdate | null> {
@@ -48,7 +48,7 @@ export async function extractPackageInfo(options: CLIOptions): Promise<PackageUp
 export async function getRenovatePRs(): Promise<PRInfo[]> {
   try {
     // Try using gh CLI first
-    const { stdout } = await execa('gh', [
+    const result = await secureSystemExec('gh', [
       'pr',
       'list',
       '--json',
@@ -56,8 +56,12 @@ export async function getRenovatePRs(): Promise<PRInfo[]> {
       '--limit',
       '100',
     ]);
+    
+    if (!result.success) {
+      throw new Error(`gh CLI failed: ${result.error}`);
+    }
 
-    const allPRs = JSON.parse(stdout);
+    const allPRs = JSON.parse(result.stdout);
 
     // Filter for Renovate PRs
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -140,14 +144,19 @@ async function getPRData(prNumber: number): Promise<PRData | null> {
     const token = process.env.GITHUB_TOKEN;
     if (!token) {
       // Try using gh CLI
-      const { stdout } = await execa('gh', [
+      const result = await secureSystemExec('gh', [
         'pr',
         'view',
         prNumber.toString(),
         '--json',
         'title,headRefName,body',
       ]);
-      const data = JSON.parse(stdout);
+      
+      if (!result.success) {
+        throw new Error(`gh CLI failed: ${result.error}`);
+      }
+      
+      const data = JSON.parse(result.stdout);
       return {
         title: data.title,
         branch: data.headRefName,
@@ -179,12 +188,23 @@ async function getPRData(prNumber: number): Promise<PRData | null> {
 async function getPRDataFromCurrentBranch(): Promise<PRData | null> {
   try {
     // Get current branch name
-    const { stdout: branch } = await execa('git', ['branch', '--show-current']);
+    const branchResult = await secureSystemExec('git', ['branch', '--show-current']);
+    
+    if (!branchResult.success) {
+      throw new Error(`Failed to get current branch: ${branchResult.error}`);
+    }
+    
+    const branch = branchResult.stdout.trim();
 
     // Try to find PR for this branch
     try {
-      const { stdout } = await execa('gh', ['pr', 'view', '--json', 'title,body']);
-      const data = JSON.parse(stdout);
+      const prResult = await secureSystemExec('gh', ['pr', 'view', '--json', 'title,body']);
+      
+      if (!prResult.success) {
+        throw new Error('No PR found for current branch');
+      }
+      
+      const data = JSON.parse(prResult.stdout);
       return {
         title: data.title,
         branch,
@@ -206,8 +226,13 @@ async function getPRDataFromCurrentBranch(): Promise<PRData | null> {
 
 async function getRepoInfo(): Promise<[string, string]> {
   try {
-    const { stdout } = await execa('git', ['remote', 'get-url', 'origin']);
-    const match = stdout.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+    const result = await secureSystemExec('git', ['remote', 'get-url', 'origin']);
+    
+    if (!result.success) {
+      throw new Error(`Failed to get git remote URL: ${result.error}`);
+    }
+    
+    const match = result.stdout.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
     if (match) {
       return [match[1], match[2]];
     }

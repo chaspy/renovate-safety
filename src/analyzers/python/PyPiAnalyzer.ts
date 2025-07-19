@@ -1,6 +1,5 @@
 import { PackageAnalyzer, PackageMetadata, UsageAnalysis, UsageLocation } from '../base.js';
 import type { PackageUpdate, ChangelogDiff } from '../../types/index.js';
-import { execa } from 'execa';
 import { readFile, access } from 'fs/promises';
 import { join, relative } from 'path';
 import { glob } from 'glob';

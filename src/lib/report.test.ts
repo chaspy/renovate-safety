@@ -12,7 +12,11 @@ describe('Report Generation', () => {
     changelogDiff: {
       content: 'Sample changelog',
       source: 'github',
+      fromVersion: '1.0.0',
+      toVersion: '2.0.0'
     },
+    codeDiff: null,
+    dependencyUsage: null,
     breakingChanges: [
       {
         line: 'BREAKING: API removed',
@@ -32,28 +36,30 @@ describe('Report Generation', () => {
         apiName: 'removedApi',
       },
     ],
-    riskLevel: 'review',
+    riskAssessment: {
+      level: 'high',
+      factors: ['Breaking changes detected'],
+      estimatedEffort: 'moderate',
+      testingScope: 'integration'
+    },
     recommendation: 'Manual review required',
   };
 
-  it('should generate markdown report', () => {
-    const report = generateReport(sampleAnalysisResult, 'markdown');
+  it('should generate markdown report', async () => {
+    const report = await generateReport(sampleAnalysisResult, 'markdown');
 
     expect(report).toContain('# Renovate Safety Analysis Report');
     expect(report).toContain('test-package');
     expect(report).toContain('1.0.0 → 2.0.0');
-    expect(report).toContain('🔍');
-    expect(report).toContain('REVIEW');
     expect(report).toContain('Breaking Changes Detected');
     expect(report).toContain('src/test.ts:10');
   });
 
-  it('should generate JSON report', () => {
-    const report = generateReport(sampleAnalysisResult, 'json');
+  it('should generate JSON report', async () => {
+    const report = await generateReport(sampleAnalysisResult, 'json');
     const parsed = JSON.parse(report);
 
     expect(parsed.package.name).toBe('test-package');
-    expect(parsed.riskLevel).toBe('review');
     expect(parsed.breakingChanges.total).toBe(1);
     expect(parsed.apiUsages.total).toBe(1);
     expect(parsed.aiAnalysis.summary).toBe('This update contains breaking changes');

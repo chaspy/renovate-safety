@@ -1,6 +1,7 @@
-import { execa } from 'execa';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { secureNpmExec, secureSystemExec } from './secure-exec.js';
+import { validatePackageName } from './validation.js';
 import { DependencyUsage, DependentInfo } from './dependency-tree.js';
 
 export interface EnhancedDependencyAnalysis {
@@ -194,12 +195,18 @@ async function findTransitiveUsages(packageName: string): Promise<TransitiveUsag
   const usages: TransitiveUsage[] = [];
   
   try {
-    // Use npm ls to get detailed dependency tree
-    const { stdout } = await execa('npm', ['ls', packageName, '--json', '--depth=20'], {
-      reject: false
-    });
+    // Validate package name first
+    const safeName = validatePackageName(packageName);
     
-    const data = JSON.parse(stdout);
+    // Use npm ls to get detailed dependency tree
+    const result = await secureNpmExec('ls', [safeName, '--json', '--depth=20']);
+    
+    if (!result.success) {
+      console.debug('npm ls failed:', result.error);
+      return usages;
+    }
+    
+    const data = JSON.parse(result.stdout);
     extractTransitiveUsages(data, packageName, [], usages);
   } catch (error) {
     console.debug('Failed to analyze transitive usages:', error);
@@ -349,15 +356,14 @@ async function findPackageJsonFiles(): Promise<string[]> {
   const files = ['package.json'];
   
   try {
-    // Look for workspace package.json files
-    const { stdout } = await execa('find', ['.', '-name', 'package.json', '-not', '-path', '*/node_modules/*'], {
-      reject: false
-    });
+    // Look for workspace package.json files using secure execution
+    const result = await secureSystemExec('find', ['.', '-name', 'package.json', '-not', '-path', '*/node_modules/*']);
     
-    if (stdout) {
-      files.push(...stdout.split('\n').filter(f => f && f !== './package.json'));
+    if (result.success && result.stdout) {
+      files.push(...result.stdout.split('\n').filter(f => f && f !== './package.json'));
     }
   } catch (error) {
+    console.debug('Failed to find package.json files:', error);
     // Fallback to basic search
   }
   

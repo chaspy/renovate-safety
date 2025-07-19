@@ -1,43 +1,22 @@
 import { AnalysisStrategy, StrategyAnalysisResult } from './base.js';
 import type { PackageUpdate } from '../../types/index.js';
-import { execa } from 'execa';
-import { tmpdir } from 'os';
-import { validatePackageName, validateVersion } from '../../lib/validation.js';
+import { packageExists, getNpmDiff } from '../../lib/npm-registry.js';
 
 export class NpmDiffStrategy extends AnalysisStrategy {
   name = 'NPM Diff Analysis';
 
   async isApplicable(pkg: PackageUpdate): Promise<boolean> {
-    // Check if npm is available and package exists
-    try {
-      await execa('npm', ['view', pkg.name, '--json']);
-      return true;
-    } catch {
-      return false;
-    }
+    // Check if package exists in npm registry
+    return packageExists(pkg.name);
   }
 
   async tryAnalyze(pkg: PackageUpdate): Promise<StrategyAnalysisResult | null> {
     try {
-      // Validate inputs
-      const safeName = validatePackageName(pkg.name);
-      const safeFromVersion = validateVersion(pkg.fromVersion);
-      const safeToVersion = validateVersion(pkg.toVersion);
-      
-      // Get npm diff (run in temp directory to avoid context issues)
-      const { stdout: diffOutput, failed } = await execa('npm', [
-        'diff',
-        `${safeName}@${safeFromVersion}`,
-        `${safeName}@${safeToVersion}`
-      ], {
-        cwd: tmpdir(),  // Run in neutral directory
-        reject: false  // Don't throw on non-zero exit
-      });
-
-      if (failed) {
-        console.warn(`npm diff failed for ${pkg.name}, using fallback strategies`);
-        return null;
-      }
+      // Use centralized npm diff utility
+      const diffOutput = await getNpmDiff(
+        `${pkg.name}@${pkg.fromVersion}`,
+        `${pkg.name}@${pkg.toVersion}`
+      );
 
       if (!diffOutput) {
         return null;

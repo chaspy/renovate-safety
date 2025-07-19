@@ -1,6 +1,6 @@
 import chalk from 'chalk';
-import { execa } from 'execa';
 import * as fs from 'fs/promises';
+import { secureSystemExec } from './secure-exec.js';
 
 interface HealthCheck {
   name: string;
@@ -57,8 +57,8 @@ async function checkGitRepository(): Promise<HealthCheck> {
 
     // Check if it's a GitHub repository
     try {
-      const { stdout } = await execa('git', ['remote', 'get-url', 'origin']);
-      if (stdout.includes('github.com')) {
+      const result = await secureSystemExec('git', ['remote', 'get-url', 'origin']);
+      if (result.success && result.stdout.includes('github.com')) {
         return {
           name: 'Git Repository',
           status: 'ok',
@@ -92,18 +92,32 @@ async function checkGitRepository(): Promise<HealthCheck> {
 
 async function checkGitHubCLI(): Promise<HealthCheck> {
   try {
-    const { stdout } = await execa('gh', ['--version']);
-    const versionMatch = stdout.match(/gh version (\d+\.\d+\.\d+)/);
+    const versionResult = await secureSystemExec('gh', ['--version']);
+    
+    if (!versionResult.success) {
+      throw new Error('gh command failed');
+    }
+    
+    const versionMatch = versionResult.stdout.match(/gh version (\d+\.\d+\.\d+)/);
 
     if (versionMatch) {
       const version = versionMatch[1];
       try {
-        await execa('gh', ['auth', 'status']);
-        return {
-          name: 'GitHub CLI',
-          status: 'ok',
-          message: `Installed and authenticated (v${version})`,
-        };
+        const authResult = await secureSystemExec('gh', ['auth', 'status']);
+        if (authResult.success) {
+          return {
+            name: 'GitHub CLI',
+            status: 'ok',
+            message: `Installed and authenticated (v${version})`,
+          };
+        } else {
+          return {
+            name: 'GitHub CLI',
+            status: 'warning',
+            message: `Installed (v${version}) but not authenticated`,
+            suggestion: 'Run "gh auth login" to enable PR features',
+          };
+        }
       } catch {
         return {
           name: 'GitHub CLI',
@@ -132,19 +146,42 @@ async function checkGitHubCLI(): Promise<HealthCheck> {
 
 async function checkClaudeCLI(): Promise<HealthCheck> {
   try {
-    await execa('claude', ['--version']);
+    const versionResult = await secureSystemExec('claude', ['--version']);
+    
+    if (!versionResult.success) {
+      throw new Error('claude command failed');
+    }
 
     // Check if logged in by trying a simple command
     try {
-      await execa('claude', ['-p', 'test', '--max-turns', '1'], {
+      const testResult = await secureSystemExec('claude', ['-p', 'test', '--max-turns', '1'], {
         timeout: 5000,
         input: 'test',
       });
-      return {
-        name: 'Claude CLI (Priority 1)',
-        status: 'ok',
-        message: 'Installed and ready - will be used for AI analysis (Max Plan subscription)',
-      };
+      
+      if (testResult.success) {
+        return {
+          name: 'Claude CLI (Priority 1)',
+          status: 'ok',
+          message: 'Installed and ready - will be used for AI analysis (Max Plan subscription)',
+        };
+      } else {
+        const errorMsg = testResult.error || 'Unknown error';
+        if (errorMsg.includes('not logged in') || errorMsg.includes('authentication')) {
+          return {
+            name: 'Claude CLI (Priority 1)',
+            status: 'warning',
+            message: 'Installed but not authenticated',
+            suggestion: 'Run "claude login" to enable AI analysis for Pro/Max users',
+          };
+        } else {
+          return {
+            name: 'Claude CLI (Priority 1)',
+            status: 'ok',
+            message: 'Installed and ready - will be used for AI analysis (Max Plan subscription)',
+          };
+        }
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '';
       if (errorMsg.includes('not logged in') || errorMsg.includes('authentication')) {
