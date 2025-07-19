@@ -6,7 +6,7 @@ import { getPackageRepository, extractGitHubRepo } from '../../lib/npm-registry.
 
 export class GitHubReleasesStrategy extends AnalysisStrategy {
   name = 'GitHub Releases';
-  private octokit: Octokit;
+  private readonly octokit: Octokit;
 
   constructor() {
     super();

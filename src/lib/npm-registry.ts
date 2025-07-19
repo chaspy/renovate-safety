@@ -165,7 +165,7 @@ export async function listPackageDependencies(
     prod?: boolean;
     dev?: boolean;
   } = {}
-): Promise<any | null> {
+): Promise<any> {
   try {
     const args = ['ls', packageName, '--json'];
     
@@ -202,7 +202,7 @@ export async function runNpmAudit(
     json?: boolean;
     level?: 'low' | 'moderate' | 'high' | 'critical';
   } = {}
-): Promise<any | null> {
+): Promise<any> {
   try {
     const args = ['audit'];
     

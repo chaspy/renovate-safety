@@ -26,7 +26,7 @@ export interface PackageKnowledge {
 }
 
 export class PackageKnowledgeBase {
-  private knowledge: Map<string, PackageKnowledge> = new Map();
+  private readonly knowledge: Map<string, PackageKnowledge> = new Map();
   private loaded = false;
 
   async load(): Promise<void> {
@@ -138,7 +138,7 @@ export class PackageKnowledgeBase {
     toVersion: string
   ): boolean {
     // Parse range key like "14.x->15.x" or "1.2.3->2.0.0"
-    const match = rangeKey.match(/^(.+)->(.+)$/);
+    const match = /^(.+)->(.+)$/.exec(rangeKey);
     if (!match) return false;
 
     const [, rangeFrom, rangeTo] = match;

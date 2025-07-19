@@ -134,7 +134,7 @@ export function isPackageImport(moduleSpecifier: string, packageName: string): b
 export function extractPackageNameFromImport(importStatement: string): string | null {
   // ES6 import patterns
   const es6Patterns = [
-    /import\s+(?:[a-zA-Z_$][a-zA-Z0-9_$]*(?:\s*,\s*)?(?:\{[^}]*\})?|\{[^}]*\}|\*\s+as\s+[a-zA-Z_$][a-zA-Z0-9_$]*)\s+from\s+['"]([^'"]+)['"]/,
+    /import\s+[^]+?\s+from\s+['"]([^'"]+)['"]/,
     /import\s*\(['"]([^'"]+)['"]\)/,
     /import\s*{[^}]+}\s*from\s+['"]([^'"]+)['"]/,
     /import\s+\*\s+as\s+\w+\s+from\s+['"]([^'"]+)['"]/,
@@ -158,7 +158,7 @@ export function extractPackageNameFromImport(importStatement: string): string | 
   
   for (const pattern of allPatterns) {
     const match = pattern.exec(importStatement);
-    if (match && match[1]) {
+    if (match?.[1]) {
       return match[1];
     }
   }

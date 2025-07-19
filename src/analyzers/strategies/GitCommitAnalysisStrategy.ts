@@ -5,7 +5,7 @@ import { getPackageRepository, extractGitHubRepo } from '../../lib/npm-registry.
 
 export class GitCommitAnalysisStrategy extends AnalysisStrategy {
   name = 'Git Commit Analysis';
-  private octokit: Octokit;
+  private readonly octokit: Octokit;
 
   constructor() {
     super();

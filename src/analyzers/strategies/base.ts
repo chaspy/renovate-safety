@@ -32,7 +32,7 @@ export abstract class AnalysisStrategy {
  * Combines multiple analysis strategies with fallback
  */
 export class FallbackAnalysisChain {
-  private strategies: AnalysisStrategy[] = [];
+  private readonly strategies: AnalysisStrategy[] = [];
   
   addStrategy(strategy: AnalysisStrategy): void {
     this.strategies.push(strategy);

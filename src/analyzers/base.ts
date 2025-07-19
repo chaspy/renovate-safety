@@ -88,7 +88,7 @@ export abstract class PackageAnalyzer {
  * Registry for all available analyzers
  */
 export class AnalyzerRegistry {
-  private analyzers: PackageAnalyzer[] = [];
+  private readonly analyzers: PackageAnalyzer[] = [];
 
   register(analyzer: PackageAnalyzer): void {
     this.analyzers.push(analyzer);
