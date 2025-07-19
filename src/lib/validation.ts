@@ -56,8 +56,9 @@ export function validateVersion(version: string): string {
     throw new Error('Version string too long');
   }
 
-  // Semantic version pattern (simplified but covers most cases)
-  const semverPattern = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+  // Semantic version pattern (simplified to reduce complexity)
+  // Basic format: major.minor.patch[-prerelease][+build]
+  const semverPattern = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$/;
   
   // Also allow npm dist-tags like 'latest', 'next', 'beta'
   const distTagPattern = /^[a-z][a-z0-9-]*$/i;

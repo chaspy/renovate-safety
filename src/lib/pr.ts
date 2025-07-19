@@ -232,7 +232,7 @@ async function getRepoInfo(): Promise<[string, string]> {
       throw new Error(`Failed to get git remote URL: ${result.error}`);
     }
     
-    const match = result.stdout.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+    const match = /github\.com[:/]([^/]+)\/([^/.]+)/.exec(result.stdout);
     if (match) {
       return [match[1], match[2]];
     }

@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { secureNpmExec } from './secure-exec.js';
-import { getPackageMetadata, getPackageRepository, packageExists } from './npm-registry.js';
+import { getPackageMetadata } from './npm-registry.js';
 import { validatePackageName } from './validation.js';
 
 export interface LibraryIntelligence {

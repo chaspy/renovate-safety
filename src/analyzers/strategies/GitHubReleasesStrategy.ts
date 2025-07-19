@@ -78,12 +78,12 @@ export class GitHubReleasesStrategy extends AnalysisStrategy {
 
     // Common patterns for package names to GitHub repos
     const patterns = [
-      { pattern: /^@(.+)\/(.+)$/, transform: (m: RegExpMatchArray) => ({ owner: m[1], repo: m[2] }) },
-      { pattern: /^(.+)$/, transform: (m: RegExpMatchArray) => ({ owner: m[1], repo: m[1] }) }
+      { pattern: /^@([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/, transform: (m: RegExpMatchArray) => ({ owner: m[1], repo: m[2] }) },
+      { pattern: /^([a-zA-Z0-9_.-]+)$/, transform: (m: RegExpMatchArray) => ({ owner: m[1], repo: m[1] }) }
     ];
 
     for (const { pattern, transform } of patterns) {
-      const match = packageName.match(pattern);
+      const match = pattern.exec(packageName);
       if (match) {
         const repoInfo = transform(match);
         // Verify the repo exists

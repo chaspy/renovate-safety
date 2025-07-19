@@ -101,7 +101,7 @@ export function categorizeUsages(locations: UsageLocation[]): UsageCategorizatio
     productionUsageCount: counts.production,
     testUsageCount: counts.test,
     configUsageCount: configAndBuildCount,
-    criticalPaths: Array.from(criticalPaths).sort(),
+    criticalPaths: Array.from(criticalPaths).sort((a, b) => a.localeCompare(b)),
     hasDynamicImports
   };
 }
@@ -134,7 +134,7 @@ export function isPackageImport(moduleSpecifier: string, packageName: string): b
 export function extractPackageNameFromImport(importStatement: string): string | null {
   // ES6 import patterns
   const es6Patterns = [
-    /import\s+.*?\s+from\s+['"]([^'"]+)['"]/,
+    /import\s+(?:[a-zA-Z_$][a-zA-Z0-9_$]*(?:\s*,\s*)?(?:\{[^}]*\})?|\{[^}]*\}|\*\s+as\s+[a-zA-Z_$][a-zA-Z0-9_$]*)\s+from\s+['"]([^'"]+)['"]/,
     /import\s*\(['"]([^'"]+)['"]\)/,
     /import\s*{[^}]+}\s*from\s+['"]([^'"]+)['"]/,
     /import\s+\*\s+as\s+\w+\s+from\s+['"]([^'"]+)['"]/,
@@ -157,7 +157,7 @@ export function extractPackageNameFromImport(importStatement: string): string | 
   const allPatterns = [...es6Patterns, ...cjsPatterns, ...pythonPatterns];
   
   for (const pattern of allPatterns) {
-    const match = importStatement.match(pattern);
+    const match = pattern.exec(importStatement);
     if (match && match[1]) {
       return match[1];
     }

@@ -6,7 +6,6 @@
 import { execa, ExecaError } from 'execa';
 import { validatePackageName, validateVersion } from './validation.js';
 import { tmpdir } from 'os';
-import { join } from 'path';
 
 export interface SecureExecOptions {
   cwd?: string;
@@ -408,7 +407,7 @@ async function secureFindExec(
   // Very restrictive find validation
   const safeArgs = args.filter(arg => {
     // Allow basic directory and name patterns
-    return /^[\w.\-/\*]+$/.test(arg) || 
+    return /^[\w.\-/*]+$/.test(arg) || 
            arg === '-name' || 
            arg === '-not' || 
            arg === '-path' ||
