@@ -7,6 +7,8 @@ import { Project, SyntaxKind, Node } from 'ts-morph';
 import { getFileContext, categorizeUsages, isPackageImport, getErrorMessage } from '../utils.js';
 import { getPackageMetadata, getPackageReadme, getNpmDiff, getPackageDownloads } from '../../lib/npm-registry.js';
 import { validatePackageName } from '../../lib/validation.js';
+import { findPackageInConfigFiles, findSourceFiles, CONFIG_PATTERNS, searchInGenericConfigs } from '../file-utils.js';
+import { loggers } from '../../lib/logger.js';
 
 export class NpmAnalyzer extends PackageAnalyzer {
   async canHandle(packageName: string, projectPath: string): Promise<boolean> {
@@ -40,7 +42,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
         deprecationMessage: typeof data.deprecated === 'string' ? data.deprecated : undefined
       };
     } catch (error) {
-      console.warn(`Failed to fetch metadata for ${pkg.name}:`, getErrorMessage(error));
+      loggers.fetchFailed('metadata', pkg.name, error);
       return null;
     }
   }
@@ -61,7 +63,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
         };
       }
     } catch (error) {
-      console.warn('Failed to fetch from npm registry:', error);
+      loggers.genericFailed('fetch from npm registry', error);
     }
 
     // Fallback to existing implementation
@@ -74,10 +76,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
     const locations: UsageLocation[] = [];
     
     // Add source files
-    const sourceFiles = await glob('**/*.{ts,tsx,js,jsx,mjs,cjs}', {
-      cwd: projectPath,
-      ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.next/**']
-    });
+    const sourceFiles = await findSourceFiles(projectPath, 'javascript');
 
     for (const file of sourceFiles) {
       const sourceFile = project.addSourceFileAtPath(join(projectPath, file));
@@ -135,25 +134,8 @@ export class NpmAnalyzer extends PackageAnalyzer {
     }
 
     // Analyze config files
-    const configFiles = await glob('**/*.{json,yaml,yml,toml}', {
-      cwd: projectPath,
-      ignore: ['**/node_modules/**', '**/dist/**', '**/build/**']
-    });
-
-    for (const file of configFiles) {
-      const content = await readFile(join(projectPath, file), 'utf-8');
-      if (content.includes(packageName)) {
-        // Simple check for now - could be enhanced with proper parsing
-        locations.push({
-          file,
-          line: 1,
-          column: 0,
-          type: 'config',
-          code: `Reference to ${packageName} in config`,
-          context: 'config'
-        });
-      }
-    }
+    const configLocations = await searchInGenericConfigs(packageName, projectPath);
+    locations.push(...configLocations);
 
     // Use common categorization logic
     const categorization = categorizeUsages(locations);
@@ -194,7 +176,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
       }
 
     } catch (error) {
-      console.warn('Failed to get additional context:', error);
+      loggers.genericFailed('get additional context', error);
     }
 
     return context;

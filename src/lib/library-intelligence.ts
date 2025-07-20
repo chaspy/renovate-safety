@@ -3,6 +3,7 @@ import * as path from 'path';
 import { secureNpmExec } from './secure-exec.js';
 import { getPackageMetadata } from './npm-registry.js';
 import { validatePackageName } from './validation.js';
+import { safeJsonParse } from './safe-json.js';
 
 export interface LibraryIntelligence {
   packageName: string;
@@ -263,7 +264,7 @@ async function gatherEcosystemInfo(packageName: string): Promise<EcosystemInfo> 
       return getDefaultEcosystemInfo();
     }
     
-    const data = JSON.parse(result.stdout);
+    const data = safeJsonParse(result.stdout, {});
     const keywords = data.keywords || [];
     
     // Determine category based on keywords and package name
@@ -319,7 +320,7 @@ async function gatherSecurityInfo(packageName: string): Promise<SecurityInfo> {
     });
     
     // npm audit returns non-zero exit code when vulnerabilities found, but that's ok
-    const auditData = result.stdout ? JSON.parse(result.stdout) : {};
+    const auditData = result.stdout ? safeJsonParse(result.stdout, {}) : {};
     const vulnerabilities = extractVulnerabilities(auditData, packageName);
     
     return {

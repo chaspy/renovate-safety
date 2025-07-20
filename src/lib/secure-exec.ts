@@ -24,6 +24,57 @@ export interface ExecResult {
 }
 
 /**
+ * Common error handler for execa errors
+ */
+function handleExecError(
+  error: unknown,
+  options: SecureExecOptions
+): ExecResult {
+  if (options.throwOnError) {
+    throw error;
+  }
+
+  const execaError = error as ExecaError;
+  return {
+    stdout: execaError.stdout || '',
+    stderr: execaError.stderr || execaError.message || 'Unknown error',
+    failed: true,
+    exitCode: execaError.exitCode,
+    success: false,
+    error: execaError.stderr || execaError.message || 'Unknown error'
+  };
+}
+
+/**
+ * Common execution wrapper with error handling
+ */
+async function executeCommand(
+  command: string,
+  args: string[],
+  options: SecureExecOptions = {},
+  cwdDefault?: string
+): Promise<ExecResult> {
+  try {
+    const result = await execa(command, args, {
+      cwd: options.cwd || cwdDefault || process.cwd(),
+      timeout: options.timeout || 30000,
+      reject: false,
+      env: options.env
+    });
+
+    return {
+      stdout: result.stdout,
+      stderr: result.stderr,
+      failed: result.failed,
+      exitCode: result.exitCode,
+      success: !result.failed
+    };
+  } catch (error) {
+    return handleExecError(error, options);
+  }
+}
+
+/**
  * Secure execution of npm commands with input validation
  */
 export async function secureNpmExec(
@@ -72,36 +123,7 @@ export async function secureNpmExec(
     throw new Error(`Unsafe argument: ${arg}`);
   });
 
-  try {
-    const result = await execa('npm', [command, ...safeArgs], {
-      cwd: options.cwd || tmpdir(),
-      timeout: options.timeout || 30000,
-      reject: false,
-      env: options.env
-    });
-
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      failed: result.failed,
-      exitCode: result.exitCode,
-      success: !result.failed
-    };
-  } catch (error) {
-    if (options.throwOnError) {
-      throw error;
-    }
-
-    const execaError = error as ExecaError;
-    return {
-      stdout: execaError.stdout || '',
-      stderr: execaError.stderr || execaError.message || 'Unknown error',
-      failed: true,
-      exitCode: execaError.exitCode,
-      success: false,
-      error: execaError.stderr || execaError.message || 'Unknown error'
-    };
-  }
+  return executeCommand('npm', [command, ...safeArgs], options, tmpdir());
 }
 
 /**
@@ -161,36 +183,7 @@ export async function secureGhExec(
     }
   }
 
-  try {
-    const result = await execa('gh', args, {
-      cwd: options.cwd || process.cwd(),
-      timeout: options.timeout || 30000,
-      reject: false,
-      env: options.env
-    });
-
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      failed: result.failed,
-      exitCode: result.exitCode,
-      success: !result.failed
-    };
-  } catch (error) {
-    if (options.throwOnError) {
-      throw error;
-    }
-
-    const execaError = error as ExecaError;
-    return {
-      stdout: execaError.stdout || '',
-      stderr: execaError.stderr || execaError.message || 'Unknown error',
-      failed: true,
-      exitCode: execaError.exitCode,
-      success: false,
-      error: execaError.stderr || execaError.message || 'Unknown error'
-    };
-  }
+  return executeCommand('gh', args, options);
 }
 
 /**
@@ -227,36 +220,7 @@ export async function secureGitExec(
     }
   }
 
-  try {
-    const result = await execa('git', args, {
-      cwd: options.cwd || process.cwd(),
-      timeout: options.timeout || 30000,
-      reject: false,
-      env: options.env
-    });
-
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      failed: result.failed,
-      exitCode: result.exitCode,
-      success: !result.failed
-    };
-  } catch (error) {
-    if (options.throwOnError) {
-      throw error;
-    }
-
-    const execaError = error as ExecaError;
-    return {
-      stdout: execaError.stdout || '',
-      stderr: execaError.stderr || execaError.message || 'Unknown error',
-      failed: true,
-      exitCode: execaError.exitCode,
-      success: false,
-      error: execaError.stderr || execaError.message || 'Unknown error'
-    };
-  }
+  return executeCommand('git', args, options);
 }
 
 /**
@@ -278,36 +242,7 @@ export async function secureClaudeExec(
     }
   }
 
-  try {
-    const result = await execa('claude', args, {
-      cwd: options.cwd || process.cwd(),
-      timeout: options.timeout || 60000,
-      reject: false,
-      env: options.env
-    });
-
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      failed: result.failed,
-      exitCode: result.exitCode,
-      success: !result.failed
-    };
-  } catch (error) {
-    if (options.throwOnError) {
-      throw error;
-    }
-
-    const execaError = error as ExecaError;
-    return {
-      stdout: execaError.stdout || '',
-      stderr: execaError.stderr || execaError.message || 'Unknown error',
-      failed: true,
-      exitCode: execaError.exitCode,
-      success: false,
-      error: execaError.stderr || execaError.message || 'Unknown error'
-    };
-  }
+  return executeCommand('claude', args, { ...options, timeout: options.timeout || 60000 });
 }
 
 /**
@@ -365,36 +300,7 @@ async function secureYarnExec(
     }
   }
 
-  try {
-    const result = await execa('yarn', args, {
-      cwd: options.cwd || process.cwd(),
-      timeout: options.timeout || 30000,
-      reject: false,
-      env: options.env
-    });
-
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      failed: result.failed,
-      exitCode: result.exitCode,
-      success: !result.failed
-    };
-  } catch (error) {
-    if (options.throwOnError) {
-      throw error;
-    }
-
-    const execaError = error as ExecaError;
-    return {
-      stdout: execaError.stdout || '',
-      stderr: execaError.stderr || execaError.message || 'Unknown error',
-      failed: true,
-      exitCode: execaError.exitCode,
-      success: false,
-      error: execaError.stderr || execaError.message || 'Unknown error'
-    };
-  }
+  return executeCommand('yarn', args, options);
 }
 
 /**
@@ -420,36 +326,7 @@ async function secureFindExec(
     throw new Error('Potentially unsafe find arguments detected');
   }
 
-  try {
-    const result = await execa('find', args, {
-      cwd: options.cwd || process.cwd(),
-      timeout: options.timeout || 15000,
-      reject: false,
-      env: options.env
-    });
-
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      failed: result.failed,
-      exitCode: result.exitCode,
-      success: !result.failed
-    };
-  } catch (error) {
-    if (options.throwOnError) {
-      throw error;
-    }
-
-    const execaError = error as ExecaError;
-    return {
-      stdout: execaError.stdout || '',
-      stderr: execaError.stderr || execaError.message || 'Unknown error',
-      failed: true,
-      exitCode: execaError.exitCode,
-      success: false,
-      error: execaError.stderr || execaError.message || 'Unknown error'
-    };
-  }
+  return executeCommand('find', args, { ...options, timeout: options.timeout || 15000 });
 }
 
 /**

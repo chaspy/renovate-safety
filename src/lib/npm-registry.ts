@@ -5,6 +5,7 @@
 
 import { secureNpmExec, parseJsonOutput, isSuccessful } from './secure-exec.js';
 import { getErrorMessage } from '../analyzers/utils.js';
+import { loggers } from './logger.js';
 
 export interface PackageInfo {
   name: string;
@@ -53,7 +54,7 @@ export async function getPackageRepository(packageName: string): Promise<string 
 
     return null;
   } catch (error) {
-    console.warn(`Failed to fetch repository for ${packageName}:`, getErrorMessage(error));
+    loggers.npmOperationFailed('fetch repository', packageName, error);
     return null;
   }
 }
@@ -78,7 +79,7 @@ export async function getPackageMetadata(
     const data = parseJsonOutput<PackageInfo>(result.stdout);
     return data;
   } catch (error) {
-    console.warn(`Failed to fetch metadata for ${packageSpec}:`, getErrorMessage(error));
+    loggers.npmOperationFailed('fetch metadata', packageSpec, error);
     return null;
   }
 }
@@ -102,7 +103,7 @@ export async function getPackageFields(
 
     return parseJsonOutput(result.stdout);
   } catch (error) {
-    console.warn(`Failed to fetch fields for ${packageSpec}:`, getErrorMessage(error));
+    loggers.npmOperationFailed('fetch fields', packageSpec, error);
     return null;
   }
 }
@@ -125,7 +126,7 @@ export async function getPackageReadme(
 
     return result.stdout;
   } catch (error) {
-    console.warn(`Failed to fetch readme for ${packageSpec}:`, getErrorMessage(error));
+    loggers.npmOperationFailed('fetch readme', packageSpec, error);
     return null;
   }
 }
@@ -150,7 +151,7 @@ export async function getNpmDiff(
 
     return result.stdout;
   } catch (error) {
-    console.warn(`Failed to get npm diff:`, getErrorMessage(error));
+    loggers.genericFailed('get npm diff', error);
     return null;
   }
 }
@@ -189,7 +190,7 @@ export async function listPackageDependencies(
 
     return parseJsonOutput(result.stdout);
   } catch (error) {
-    console.warn(`Failed to list dependencies for ${packageName}:`, getErrorMessage(error));
+    loggers.npmOperationFailed('list dependencies', packageName, error);
     return null;
   }
 }
@@ -224,7 +225,7 @@ export async function runNpmAudit(
 
     return result.stdout;
   } catch (error) {
-    console.warn('Failed to run npm audit:', getErrorMessage(error));
+    loggers.genericFailed('run npm audit', error);
     return null;
   }
 }
@@ -247,7 +248,7 @@ export async function getPackageDownloads(
     const data = await getPackageFields(packageName, ['downloads']);
     return data?.downloads || null;
   } catch (error) {
-    console.warn(`Failed to fetch downloads for ${packageName}:`, getErrorMessage(error));
+    loggers.npmOperationFailed('fetch downloads', packageName, error);
     return null;
   }
 }
