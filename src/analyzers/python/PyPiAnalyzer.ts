@@ -5,6 +5,9 @@ import { join } from 'path';
 import { glob } from 'glob';
 import { validatePythonPackageName, validateVersion, validateUrl, escapeForUrl } from '../../lib/validation.js';
 import { getFileContext, categorizeUsages, getErrorMessage } from '../utils.js';
+import { fetchPyPiPackage } from '../../lib/http-client.js';
+import { findPackageInConfigFiles, findSourceFiles, CONFIG_PATTERNS, searchInGenericConfigs } from '../file-utils.js';
+import { loggers } from '../../lib/logger.js';
 
 export class PyPiAnalyzer extends PackageAnalyzer {
   async canHandle(packageName: string, projectPath: string): Promise<boolean> {
@@ -25,18 +28,16 @@ export class PyPiAnalyzer extends PackageAnalyzer {
 
   async fetchMetadata(pkg: PackageUpdate): Promise<PackageMetadata | null> {
     try {
-      // Use dynamic import for node-fetch
-      const { default: fetch } = await import('node-fetch');
       const safeName = validatePythonPackageName(pkg.name);
       const safeVersion = validateVersion(pkg.toVersion);
-      const url = `https://pypi.org/pypi/${escapeForUrl(safeName)}/${escapeForUrl(safeVersion)}/json`;
-      validateUrl(url);
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`PyPI API returned ${response.status}`);
+      const response = await fetchPyPiPackage(safeName, safeVersion);
+      
+      if (!response.ok || !response.data) {
+        console.warn(`Failed to fetch PyPI metadata for ${pkg.name}:`, response.error);
+        return null;
       }
       
-      const data = await response.json();
+      const data = response.data;
       const info = data.info;
       
       return {
@@ -53,7 +54,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
         deprecationMessage: info.yanked_reason
       };
     } catch (error) {
-      console.warn(`Failed to fetch PyPI metadata for ${pkg.name}:`, getErrorMessage(error));
+      loggers.fetchFailed('PyPI metadata', pkg.name, error);
       return null;
     }
   }
@@ -78,7 +79,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
         }
       }
     } catch (error) {
-      console.warn('Failed to fetch PyPI changelog:', error);
+      loggers.genericFailed('fetch PyPI changelog', error);
     }
 
     // Fallback to GitHub
@@ -90,10 +91,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
     const locations: UsageLocation[] = [];
     
     // Find Python files
-    const pythonFiles = await glob('**/*.py', {
-      cwd: projectPath,
-      ignore: ['**/venv/**', '**/__pycache__/**', '**/site-packages/**', '**/.tox/**']
-    });
+    const pythonFiles = await findSourceFiles(projectPath, 'python');
 
     for (const file of pythonFiles) {
       const content = await readFile(join(projectPath, file), 'utf-8');
@@ -150,31 +148,12 @@ export class PyPiAnalyzer extends PackageAnalyzer {
     }
 
     // Check configuration files
-    const configPatterns = [
-      { pattern: 'requirements*.txt', type: 'requirements' },
-      { pattern: 'setup.py', type: 'setup' },
-      { pattern: 'pyproject.toml', type: 'pyproject' },
-      { pattern: 'Pipfile', type: 'pipfile' },
-      { pattern: 'tox.ini', type: 'tox' },
-      { pattern: '.pre-commit-config.yaml', type: 'precommit' }
-    ];
-
-    for (const { pattern, type } of configPatterns) {
-      const configFiles = await glob(pattern, { cwd: projectPath });
-      for (const file of configFiles) {
-        const content = await readFile(join(projectPath, file), 'utf-8');
-        if (content.includes(packageName)) {
-          locations.push({
-            file,
-            line: 1,
-            column: 0,
-            type: 'config',
-            code: `${packageName} reference in ${type} file`,
-            context: 'config'
-          });
-        }
-      }
-    }
+    const pythonConfigLocations = await findPackageInConfigFiles(
+      packageName,
+      projectPath,
+      CONFIG_PATTERNS.python
+    );
+    locations.push(...pythonConfigLocations);
 
     // Use common categorization logic
     const categorization = categorizeUsages(locations);
@@ -218,7 +197,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
       }
 
     } catch (error) {
-      console.warn('Failed to get additional Python context:', error);
+      loggers.genericFailed('get additional Python context', error);
     }
 
     return context;
@@ -239,15 +218,10 @@ export class PyPiAnalyzer extends PackageAnalyzer {
 
   private async fetchPyPiData(packageName: string, version: string): Promise<any> {
     try {
-      // Use dynamic import for node-fetch
-      const { default: fetch } = await import('node-fetch');
       const safeName = validatePythonPackageName(packageName);
       const safeVersion = validateVersion(version);
-      const url = `https://pypi.org/pypi/${escapeForUrl(safeName)}/${escapeForUrl(safeVersion)}/json`;
-      validateUrl(url);
-      const response = await fetch(url);
-      if (!response.ok) return null;
-      return await response.json();
+      const response = await fetchPyPiPackage(safeName, safeVersion);
+      return response.data;
     } catch {
       return null;
     }

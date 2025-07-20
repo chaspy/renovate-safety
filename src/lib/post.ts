@@ -1,11 +1,13 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { tmpdir } from 'os';
+import { randomBytes } from 'crypto';
 import { secureSystemExec } from './secure-exec.js';
 
 export async function postToPR(prNumber: number, report: string): Promise<void> {
-  // Create a temporary file for the report content
-  const tempFile = path.join(tmpdir(), `renovate-safety-report-${Date.now()}.md`);
+  // Create a temporary file for the report content with secure random name
+  const randomSuffix = randomBytes(8).toString('hex');
+  const tempFile = path.join(tmpdir(), `renovate-safety-report-${randomSuffix}.md`);
 
   try {
     // Write report to temp file to handle large content and special characters

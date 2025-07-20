@@ -1,6 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import { secureSystemExec } from './secure-exec.js';
 import type { CLIOptions, PackageUpdate } from '../types/index.js';
+import { safeJsonParse } from './safe-json.js';
 
 export async function extractPackageInfo(options: CLIOptions): Promise<PackageUpdate | null> {
   // If manual override provided, use it
@@ -61,7 +62,7 @@ export async function getRenovatePRs(): Promise<PRInfo[]> {
       throw new Error(`gh CLI failed: ${result.error}`);
     }
 
-    const allPRs = JSON.parse(result.stdout);
+    const allPRs = safeJsonParse(result.stdout, []);
 
     // Filter for Renovate PRs
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -156,7 +157,7 @@ async function getPRData(prNumber: number): Promise<PRData | null> {
         throw new Error(`gh CLI failed: ${result.error}`);
       }
       
-      const data = JSON.parse(result.stdout);
+      const data = safeJsonParse(result.stdout, {});
       return {
         title: data.title,
         branch: data.headRefName,
@@ -204,7 +205,7 @@ async function getPRDataFromCurrentBranch(): Promise<PRData | null> {
         throw new Error('No PR found for current branch');
       }
       
-      const data = JSON.parse(prResult.stdout);
+      const data = safeJsonParse(prResult.stdout, {});
       return {
         title: data.title,
         branch,
@@ -409,7 +410,7 @@ function extractFromVersion(body: string, packageName: string): string | null {
       'i'
     ),
     // Fallback patterns
-    new RegExp(`${escapeRegex(packageName)}[\\s\\S]*?from[\\s\\S]*?v?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)`, 'i'),
+    new RegExp(`${escapeRegex(packageName)}.{0,200}?from.{0,50}?v?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)`, 'i'),
     new RegExp(`"${escapeRegex(packageName)}":[\\s]*"[~^]?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)"`, 'i'),
   ];
 
@@ -444,8 +445,8 @@ function extractToVersion(body: string, packageName: string): string | null {
       'i'
     ),
     // Fallback patterns
-    new RegExp(`${escapeRegex(packageName)}[\\s\\S]*?to[\\s\\S]*?v?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)`, 'i'),
-    new RegExp(`"${escapeRegex(packageName)}":[\\s]*"[~^]?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)"[\\s\\S]*?###`, 'i'),
+    new RegExp(`${escapeRegex(packageName)}.{0,200}?to.{0,50}?v?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)`, 'i'),
+    new RegExp(`"${escapeRegex(packageName)}":[\\s]*"[~^]?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)"`, 'i'),
   ];
 
   for (const pattern of patterns) {

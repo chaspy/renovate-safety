@@ -5,6 +5,7 @@ import * as path from 'path';
 import { createHash } from 'crypto';
 import semver from 'semver';
 import type { PackageUpdate, ChangelogDiff } from '../types/index.js';
+import { httpGet } from './http-client.js';
 
 export async function fetchChangelogDiff(
   packageUpdate: PackageUpdate,
@@ -354,14 +355,14 @@ async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDif
   try {
     // Fetch package info from PyPI
     const packageName = packageUpdate.name.toLowerCase();
-    const response = await fetch(`https://pypi.org/pypi/${packageName}/json`);
+    const response = await httpGet<any>(`https://pypi.org/pypi/${packageName}/json`);
 
-    if (!response.ok) {
+    if (!response.ok || !response.data) {
       return null;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = (await response.json()) as any;
+    const data = response.data;
 
     // Try to find GitHub URL from project URLs
     const projectUrls = data.info?.project_urls || {};

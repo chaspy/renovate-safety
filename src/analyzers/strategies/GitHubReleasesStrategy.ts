@@ -3,6 +3,7 @@ import type { PackageUpdate } from '../../types/index.js';
 import { Octokit } from '@octokit/rest';
 import { extractBreakingChanges } from '../../lib/breaking.js';
 import { getPackageRepository, extractGitHubRepo } from '../../lib/npm-registry.js';
+import { compareVersions, normalizeVersion, isVersionInRange } from '../../lib/version-utils.js';
 
 export class GitHubReleasesStrategy extends AnalysisStrategy {
   name = 'GitHub Releases';
@@ -110,7 +111,6 @@ export class GitHubReleasesStrategy extends AnalysisStrategy {
     const perPage = 100;
 
     // Normalize version strings (remove 'v' prefix if present)
-    const normalizeVersion = (v: string) => v.replace(/^v/, '');
     const fromVersionNorm = normalizeVersion(fromVersion);
     const toVersionNorm = normalizeVersion(toVersion);
 
@@ -128,7 +128,7 @@ export class GitHubReleasesStrategy extends AnalysisStrategy {
         const releaseVersion = normalizeVersion(release.tag_name || '');
         
         // Check if this release is in our version range
-        if (this.isVersionInRange(releaseVersion, fromVersionNorm, toVersionNorm)) {
+        if (isVersionInRange(releaseVersion, fromVersionNorm, toVersionNorm)) {
           allReleases.push(release);
         }
       }
@@ -141,30 +141,7 @@ export class GitHubReleasesStrategy extends AnalysisStrategy {
     return allReleases.sort((a, b) => {
       const aVersion = normalizeVersion(a.tag_name || '');
       const bVersion = normalizeVersion(b.tag_name || '');
-      return this.compareVersions(bVersion, aVersion);
+      return compareVersions(bVersion, aVersion);
     });
-  }
-
-  private isVersionInRange(version: string, fromVersion: string, toVersion: string): boolean {
-    // Simple comparison - could be enhanced with semver
-    const versionCompare = this.compareVersions(version, fromVersion);
-    const toCompare = this.compareVersions(version, toVersion);
-    
-    return versionCompare > 0 && toCompare <= 0;
-  }
-
-  private compareVersions(a: string, b: string): number {
-    const aParts = a.split('.').map(p => parseInt(p) || 0);
-    const bParts = b.split('.').map(p => parseInt(p) || 0);
-    
-    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
-      const aPart = aParts[i] || 0;
-      const bPart = bParts[i] || 0;
-      
-      if (aPart > bPart) return 1;
-      if (aPart < bPart) return -1;
-    }
-    
-    return 0;
   }
 }
