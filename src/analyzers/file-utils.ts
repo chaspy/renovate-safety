@@ -5,7 +5,7 @@
 
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { glob } from 'glob';
+import { getFiles, getSourceFiles } from '../lib/glob-helpers.js';
 import type { UsageLocation } from './base.js';
 import { getFileContext } from './utils.js';
 
@@ -30,7 +30,9 @@ export async function findPackageInConfigFiles(
   const locations: UsageLocation[] = [];
 
   for (const { pattern, type } of configPatterns) {
-    const configFiles = await glob(pattern, { cwd: projectPath });
+    const configFiles = await getFiles(pattern, {
+      absolute: false // Keep relative paths for compatibility
+    });
     
     for (const file of configFiles) {
       const content = await readFile(join(projectPath, file), 'utf-8');
@@ -94,12 +96,15 @@ export async function findSourceFiles(
   projectPath: string,
   ecosystem: 'javascript' | 'python'
 ): Promise<string[]> {
-  const patterns = SOURCE_FILE_PATTERNS[ecosystem];
+  // Use getSourceFiles from glob-helpers
+  const ecosystemMap = {
+    javascript: 'node',
+    python: 'python'
+  } as const;
   
-  return await glob(patterns.extensions[0], {
-    cwd: projectPath,
-    ignore: patterns.ignore
-  });
+  const files = await getSourceFiles(projectPath, ecosystemMap[ecosystem]);
+  // Return relative paths for compatibility
+  return files.map(file => file.replace(projectPath + '/', ''));
 }
 
 /**
@@ -116,9 +121,9 @@ export async function searchInGenericConfigs(
   const locations: UsageLocation[] = [];
   
   for (const { pattern } of genericPatterns) {
-    const configFiles = await glob(pattern, {
-      cwd: projectPath,
-      ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/venv/**']
+    const configFiles = await getFiles(pattern, {
+      absolute: false, // Keep relative paths for compatibility
+      additionalIgnore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/venv/**']
     });
 
     for (const file of configFiles) {

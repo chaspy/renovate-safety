@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import * as fs from 'fs/promises';
 import { secureSystemExec } from './secure-exec.js';
+import { getFiles, getSourceFiles } from './glob-helpers.js';
 
 interface HealthCheck {
   name: string;
@@ -286,50 +287,23 @@ async function checkNodeVersion(): Promise<HealthCheck> {
 }
 
 async function checkSourceFiles(): Promise<HealthCheck> {
-  const jsPatterns = [
-    'src/**/*.{ts,tsx,js,jsx}',
-    'lib/**/*.{ts,tsx,js,jsx}',
-    '*.{ts,tsx,js,jsx}',
-    'app/**/*.{ts,tsx,js,jsx}',
-    'pages/**/*.{ts,tsx,js,jsx}',
-  ];
-
-  const pyPatterns = ['**/*.py'];
-
   let jsFileCount = 0;
   let pyFileCount = 0;
 
   // Check JavaScript/TypeScript files
-  for (const pattern of jsPatterns) {
-    try {
-      const { glob } = await import('glob');
-      const files = await glob(pattern, {
-        ignore: ['**/node_modules/**', '**/dist/**', '**/*.test.*', '**/*.spec.*'],
-      });
-      jsFileCount += files.length;
-    } catch {
-      // Ignore glob errors
-    }
+  try {
+    const jsFiles = await getSourceFiles(process.cwd(), 'node');
+    jsFileCount = jsFiles.length;
+  } catch {
+    // Ignore errors
   }
 
   // Check Python files
-  for (const pattern of pyPatterns) {
-    try {
-      const { glob } = await import('glob');
-      const files = await glob(pattern, {
-        ignore: [
-          '**/venv/**',
-          '**/.venv/**',
-          '**/env/**',
-          '**/.env/**',
-          '**/site-packages/**',
-          '**/__pycache__/**',
-        ],
-      });
-      pyFileCount += files.length;
-    } catch {
-      // Ignore glob errors
-    }
+  try {
+    const pyFiles = await getSourceFiles(process.cwd(), 'python');
+    pyFileCount = pyFiles.length;
+  } catch {
+    // Ignore errors
   }
 
   const totalFiles = jsFileCount + pyFileCount;

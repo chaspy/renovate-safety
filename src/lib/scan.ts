@@ -1,6 +1,6 @@
 import { Project, SourceFile, Node, SyntaxKind } from 'ts-morph';
 import * as path from 'path';
-import { glob } from 'glob';
+import { getFiles } from './glob-helpers.js';
 import pLimit from 'p-limit';
 import type { APIUsage, BreakingChange } from '../types/index.js';
 
@@ -94,18 +94,12 @@ async function findSourceFiles(): Promise<string[]> {
     '**/*.d.ts',
   ];
 
-  const files: string[] = [];
-
-  for (const pattern of patterns) {
-    const matches = await glob(pattern, {
-      ignore: ignorePatterns,
-      absolute: true,
-    });
-    files.push(...matches);
-  }
-
-  // Deduplicate
-  return [...new Set(files)];
+  // Use getFiles from glob-helpers to avoid duplication
+  return await getFiles(patterns, {
+    ecosystem: 'node',
+    includeTests: false,
+    absolute: true
+  });
 }
 
 function extractAPIPatterns(_packageName: string, breakingChanges: BreakingChange[]): string[] {
@@ -412,12 +406,14 @@ async function findPythonSourceFiles(): Promise<string[]> {
     '!**/*.egg-info/**',
   ];
 
-  const files = await glob(patterns[0], {
-    ignore: patterns.slice(1).map((p) => p.slice(1)), // Remove ! prefix
-    absolute: true,
+  // Use getFiles from glob-helpers for Python files
+  const files = await getFiles('**/*.py', {
+    ecosystem: 'python',
+    includeTests: false,
+    absolute: true
   });
 
-  return files.filter((file) => !file.includes('node_modules'));
+  return files;
 }
 
 async function scanPythonFile(
