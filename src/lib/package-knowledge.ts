@@ -1,6 +1,6 @@
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { glob } from 'glob';
+import { getFiles } from './glob-helpers.js';
 import { readJsonFile } from './file-helpers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -33,10 +33,13 @@ export class PackageKnowledgeBase {
     if (this.loaded) return;
 
     const knowledgeDir = join(__dirname, '../../data/package-knowledge');
-    const files = await glob('*.json', { cwd: knowledgeDir });
+    // Use getFiles with absolute paths
+    const absoluteFiles = await getFiles(join(knowledgeDir, '*.json'), {
+      absolute: true
+    });
 
-    for (const file of files) {
-      const data = await readJsonFile<Record<string, PackageKnowledge>>(join(knowledgeDir, file));
+    for (const absolutePath of absoluteFiles) {
+      const data = await readJsonFile<Record<string, PackageKnowledge>>(absolutePath);
       if (data) {
         // Each file can contain multiple packages
         for (const [packageName, knowledge] of Object.entries(data)) {

@@ -2,7 +2,6 @@ import { PackageAnalyzer, PackageMetadata, UsageAnalysis, UsageLocation, Additio
 import type { PackageUpdate, ChangelogDiff } from '../../types/index.js';
 import { readFile, access } from 'fs/promises';
 import { join } from 'path';
-import { glob } from 'glob';
 import { Project, SyntaxKind, Node } from 'ts-morph';
 import { getFileContext, categorizeUsages, isPackageImport, getErrorMessage } from '../utils.js';
 import { getPackageMetadata, getPackageReadme, getNpmDiff, getPackageDownloads } from '../../lib/npm-registry.js';

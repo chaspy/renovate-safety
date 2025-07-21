@@ -1,6 +1,6 @@
 import { Project, SourceFile, Node, SyntaxKind, Symbol as TsSymbol } from 'ts-morph';
 import * as path from 'path';
-import { glob } from 'glob';
+import { getFiles, getSourceFiles, getConfigFiles } from './glob-helpers.js';
 import * as fs from 'fs/promises';
 import pLimit from 'p-limit';
 import type { PackageUpdate } from '../types/index.js';
@@ -139,64 +139,15 @@ export async function performDeepAnalysis(
 }
 
 async function findAllProjectFiles(): Promise<{ sourceFiles: string[]; configFiles: string[] }> {
-  const sourcePatterns = [
-    'src/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'lib/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'app/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'pages/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'components/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'utils/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'hooks/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'services/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    '*.{ts,tsx,js,jsx,mjs,cjs}',
-  ];
+  // Use getSourceFiles from glob-helpers for JavaScript/TypeScript files
+  const sourceFiles = await getSourceFiles(process.cwd(), 'node');
   
-  const configPatterns = [
-    'package.json',
-    'tsconfig*.json',
-    'webpack.config.{js,ts}',
-    'rollup.config.{js,ts}',
-    'vite.config.{js,ts}',
-    '.babelrc*',
-    'babel.config.{js,json}',
-    '.eslintrc*',
-    'eslint.config.{js,mjs}',
-    '.prettierrc*',
-    'prettier.config.{js,mjs}',
-  ];
-  
-  const ignorePatterns = [
-    '**/node_modules/**',
-    '**/dist/**',
-    '**/build/**',
-    '**/.next/**',
-    '**/coverage/**',
-    '**/*.d.ts',
-  ];
-  
-  const sourceFiles: string[] = [];
-  const configFiles: string[] = [];
-  
-  // Collect source files
-  for (const pattern of sourcePatterns) {
-    const matches = await glob(pattern, {
-      ignore: ignorePatterns,
-      absolute: true,
-    });
-    sourceFiles.push(...matches);
-  }
-  
-  // Collect config files
-  for (const pattern of configPatterns) {
-    const matches = await glob(pattern, {
-      absolute: true,
-    });
-    configFiles.push(...matches);
-  }
+  // Use getConfigFiles from glob-helpers for configuration files
+  const configFiles = await getConfigFiles(process.cwd());
   
   return {
-    sourceFiles: [...new Set(sourceFiles)],
-    configFiles: [...new Set(configFiles)],
+    sourceFiles,
+    configFiles,
   };
 }
 

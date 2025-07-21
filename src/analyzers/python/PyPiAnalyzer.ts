@@ -2,7 +2,6 @@ import { PackageAnalyzer, PackageMetadata, UsageAnalysis, UsageLocation } from '
 import type { PackageUpdate, ChangelogDiff } from '../../types/index.js';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { glob } from 'glob';
 import { validatePythonPackageName, validateVersion, validateUrl, escapeForUrl } from '../../lib/validation.js';
 import { getFileContext, categorizeUsages, getErrorMessage } from '../utils.js';
 import { fetchPyPiPackage } from '../../lib/http-client.js';
