@@ -17,6 +17,7 @@ import { postToPR } from './lib/post.js';
 import { runDoctorCheck } from './lib/doctor.js';
 import { loadConfig } from './lib/config.js';
 import { packageKnowledgeBase } from './lib/package-knowledge.js';
+import { getErrorMessage } from './analyzers/utils.js';
 
 // Import new analyzer system
 import './analyzers/index.js';
@@ -188,7 +189,7 @@ async function analyzeAllRenovatePRs(options: CLIOptions) {
           hasReviewRequired = true;
         }
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
+        const errorMsg = getErrorMessage(error);
         console.error(chalk.red(`Failed to analyze PR #${pr.number}:`), errorMsg);
         
         // Provide helpful message for common issues

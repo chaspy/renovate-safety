@@ -1,5 +1,6 @@
 import { Octokit } from '@octokit/rest';
 import type { PackageUpdate } from '../types/index.js';
+import { getEnvVar } from './env-validator.js';
 
 export interface CodeDiff {
   content: string;
@@ -21,7 +22,7 @@ export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeD
     }
 
     const octokit = new Octokit({
-      auth: process.env.GITHUB_TOKEN,
+      auth: getEnvVar('GITHUB_TOKEN'),
     });
 
     // Try to find appropriate tags for comparison

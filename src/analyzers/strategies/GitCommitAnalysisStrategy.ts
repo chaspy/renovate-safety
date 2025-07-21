@@ -2,6 +2,7 @@ import { AnalysisStrategy, StrategyAnalysisResult } from './base.js';
 import type { PackageUpdate } from '../../types/index.js';
 import { Octokit } from '@octokit/rest';
 import { getPackageRepository, extractGitHubRepo } from '../../lib/npm-registry.js';
+import { getGitHubClient } from '../../lib/github-client.js';
 
 export class GitCommitAnalysisStrategy extends AnalysisStrategy {
   name = 'Git Commit Analysis';
@@ -9,9 +10,7 @@ export class GitCommitAnalysisStrategy extends AnalysisStrategy {
 
   constructor() {
     super();
-    this.octokit = new Octokit({
-      auth: process.env.GITHUB_TOKEN
-    });
+    this.octokit = getGitHubClient();
   }
 
   async isApplicable(pkg: PackageUpdate): Promise<boolean> {

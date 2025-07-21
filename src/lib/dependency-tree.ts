@@ -2,6 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { secureNpmExec, secureSystemExec } from './secure-exec.js';
 import { validatePackageName } from './validation.js';
+import { readJsonFile } from './file-helpers.js';
 
 export interface DependencyUsage {
   packageName: string;
@@ -96,8 +97,7 @@ async function analyzeWithYarn(packageName: string): Promise<DependencyUsage | n
 async function analyzePackageJson(packageName: string): Promise<DependencyUsage | null> {
   try {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
-    const content = await fs.readFile(packageJsonPath, 'utf-8');
-    const packageJson = JSON.parse(content);
+    const packageJson = await readJsonFile(packageJsonPath);
 
     const dependents: DependentInfo[] = [];
     let usageType: DependencyUsage['usageType'] = 'dependencies';

@@ -1,6 +1,6 @@
 import { PackageAnalyzer, PackageMetadata, UsageAnalysis, UsageLocation } from '../base.js';
 import type { PackageUpdate, ChangelogDiff } from '../../types/index.js';
-import { readFile, access } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { glob } from 'glob';
 import { validatePythonPackageName, validateVersion, validateUrl, escapeForUrl } from '../../lib/validation.js';
@@ -8,16 +8,17 @@ import { getFileContext, categorizeUsages, getErrorMessage } from '../utils.js';
 import { fetchPyPiPackage } from '../../lib/http-client.js';
 import { findPackageInConfigFiles, findSourceFiles, CONFIG_PATTERNS, searchInGenericConfigs } from '../file-utils.js';
 import { loggers } from '../../lib/logger.js';
+import { fileExists } from '../../lib/file-helpers.js';
 
 export class PyPiAnalyzer extends PackageAnalyzer {
   async canHandle(packageName: string, projectPath: string): Promise<boolean> {
     try {
       // Check for Python project files
       const checks = await Promise.all([
-        access(join(projectPath, 'requirements.txt')).then(() => true).catch(() => false),
-        access(join(projectPath, 'setup.py')).then(() => true).catch(() => false),
-        access(join(projectPath, 'pyproject.toml')).then(() => true).catch(() => false),
-        access(join(projectPath, 'Pipfile')).then(() => true).catch(() => false),
+        fileExists(join(projectPath, 'requirements.txt')),
+        fileExists(join(projectPath, 'setup.py')),
+        fileExists(join(projectPath, 'pyproject.toml')),
+        fileExists(join(projectPath, 'Pipfile')),
       ]);
       
       return checks.some(exists => exists);

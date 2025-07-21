@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'crypto';
+import { readJsonFile, ensureDirectory } from './file-helpers.js';
 
 export interface PerformanceOptimizer {
   cache: SmartCache;
@@ -82,8 +83,7 @@ class FileBasedCache implements SmartCache {
     // Check file cache
     try {
       const cacheFile = this.getCacheFilePath(key);
-      const content = await fs.readFile(cacheFile, 'utf-8');
-      const entry: CacheEntry<T> = JSON.parse(content);
+      const entry = await readJsonFile<CacheEntry<T>>(cacheFile);
 
       if (!this.isExpired(entry)) {
         // Cache in memory for faster access
@@ -112,7 +112,7 @@ class FileBasedCache implements SmartCache {
 
     // Store in file
     try {
-      await fs.mkdir(this.cacheDir, { recursive: true });
+      await ensureDirectory(this.cacheDir);
       const cacheFile = this.getCacheFilePath(key);
       await fs.writeFile(cacheFile, JSON.stringify(entry, null, 2));
     } catch (error) {
