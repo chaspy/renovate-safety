@@ -4,6 +4,7 @@ import { Octokit } from '@octokit/rest';
 import { extractBreakingChanges } from '../../lib/breaking.js';
 import { getPackageRepository, extractGitHubRepo } from '../../lib/npm-registry.js';
 import { compareVersions, normalizeVersion, isVersionInRange } from '../../lib/version-utils.js';
+import { getGitHubClient } from '../../lib/github-client.js';
 
 export class GitHubReleasesStrategy extends AnalysisStrategy {
   name = 'GitHub Releases';
@@ -11,9 +12,7 @@ export class GitHubReleasesStrategy extends AnalysisStrategy {
 
   constructor() {
     super();
-    this.octokit = new Octokit({
-      auth: process.env.GITHUB_TOKEN
-    });
+    this.octokit = getGitHubClient();
   }
 
   async isApplicable(pkg: PackageUpdate): Promise<boolean> {

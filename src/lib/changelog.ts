@@ -6,6 +6,8 @@ import { createHash } from 'crypto';
 import semver from 'semver';
 import type { PackageUpdate, ChangelogDiff } from '../types/index.js';
 import { httpGet } from './http-client.js';
+import { fileExists, readJsonFile, ensureDirectory } from './file-helpers.js';
+import { getGitHubClient } from './github-client.js';
 
 export async function fetchChangelogDiff(
   packageUpdate: PackageUpdate,
@@ -56,14 +58,10 @@ async function getCachedChangelog(
     const cacheKey = getCacheKey(packageUpdate);
     const cachePath = path.join(cacheDir, `${cacheKey}.json`);
 
-    const exists = await fs
-      .access(cachePath)
-      .then(() => true)
-      .catch(() => false);
+    const exists = await fileExists(cachePath);
     if (!exists) return null;
 
-    const content = await fs.readFile(cachePath, 'utf-8');
-    return JSON.parse(content);
+    return await readJsonFile<ChangelogDiff>(cachePath);
   } catch {
     return null;
   }
@@ -75,7 +73,7 @@ async function cacheChangelog(
   cacheDir: string
 ): Promise<void> {
   try {
-    await fs.mkdir(cacheDir, { recursive: true });
+    await ensureDirectory(cacheDir);
 
     const cacheKey = getCacheKey(packageUpdate);
     const cachePath = path.join(cacheDir, `${cacheKey}.json`);
@@ -99,9 +97,7 @@ async function fetchFromGitHubReleases(
     const githubInfo = await getGitHubInfo(packageUpdate.name);
     if (!githubInfo) return null;
 
-    const octokit = new Octokit({
-      auth: process.env.GITHUB_TOKEN,
-    });
+    const octokit = getGitHubClient();
 
     // Fetch releases
     const { data: releases } = await octokit.repos.listReleases({
@@ -237,10 +233,7 @@ async function findChangelogFile(dir: string): Promise<string | null> {
 
   for (const name of possibleNames) {
     const filePath = path.join(dir, name);
-    const exists = await fs
-      .access(filePath)
-      .then(() => true)
-      .catch(() => false);
+    const exists = await fileExists(filePath);
     if (exists) {
       return filePath;
     }

@@ -3,6 +3,7 @@ import * as path from 'path';
 import { secureNpmExec, secureSystemExec } from './secure-exec.js';
 import { validatePackageName } from './validation.js';
 import { DependencyUsage, DependentInfo } from './dependency-tree.js';
+import { readJsonFile } from './file-helpers.js';
 
 export interface EnhancedDependencyAnalysis {
   packageName: string;
@@ -159,8 +160,7 @@ async function findDirectUsages(packageName: string): Promise<DirectUsage[]> {
     const packageJsonFiles = await findPackageJsonFiles();
     
     for (const packageJsonPath of packageJsonFiles) {
-      const content = await fs.readFile(packageJsonPath, 'utf-8');
-      const packageJson = JSON.parse(content);
+      const packageJson = await readJsonFile(packageJsonPath);
       
       const depTypes: Array<keyof typeof packageJson> = [
         'dependencies',

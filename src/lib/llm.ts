@@ -5,6 +5,7 @@ import * as path from 'path';
 import { createHash } from 'crypto';
 import { secureSystemExec } from './secure-exec.js';
 import type { PackageUpdate, ChangelogDiff, BreakingChange, LLMSummary, CodeDiff, DependencyUsage } from '../types/index.js';
+import { fileExists, readJsonFile, ensureDirectory } from './file-helpers.js';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
@@ -275,14 +276,10 @@ async function getCachedSummary(
     const cacheKey = getSummaryCacheKey(packageUpdate);
     const cachePath = path.join(cacheDir, 'summaries', `${cacheKey}.json`);
 
-    const exists = await fs
-      .access(cachePath)
-      .then(() => true)
-      .catch(() => false);
+    const exists = await fileExists(cachePath);
     if (!exists) return null;
 
-    const content = await fs.readFile(cachePath, 'utf-8');
-    return JSON.parse(content);
+    return await readJsonFile<LLMSummary>(cachePath);
   } catch {
     return null;
   }
@@ -295,7 +292,7 @@ async function cacheSummary(
 ): Promise<void> {
   try {
     const summaryDir = path.join(cacheDir, 'summaries');
-    await fs.mkdir(summaryDir, { recursive: true });
+    await ensureDirectory(summaryDir);
 
     const cacheKey = getSummaryCacheKey(packageUpdate);
     const cachePath = path.join(summaryDir, `${cacheKey}.json`);
@@ -516,14 +513,10 @@ async function getCachedEnhancedSummary(
     const cacheKey = getEnhancedSummaryCacheKey(packageUpdate);
     const cachePath = path.join(cacheDir, 'enhanced-summaries', `${cacheKey}.json`);
 
-    const exists = await fs
-      .access(cachePath)
-      .then(() => true)
-      .catch(() => false);
+    const exists = await fileExists(cachePath);
     if (!exists) return null;
 
-    const content = await fs.readFile(cachePath, 'utf-8');
-    return JSON.parse(content);
+    return await readJsonFile<LLMSummary>(cachePath);
   } catch {
     return null;
   }
@@ -536,7 +529,7 @@ async function cacheEnhancedSummary(
 ): Promise<void> {
   try {
     const summaryDir = path.join(cacheDir, 'enhanced-summaries');
-    await fs.mkdir(summaryDir, { recursive: true });
+    await ensureDirectory(summaryDir);
 
     const cacheKey = getEnhancedSummaryCacheKey(packageUpdate);
     const cachePath = path.join(summaryDir, `${cacheKey}.json`);

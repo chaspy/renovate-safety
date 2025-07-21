@@ -1,7 +1,7 @@
-import { readFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { glob } from 'glob';
+import { readJsonFile } from './file-helpers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -36,16 +36,12 @@ export class PackageKnowledgeBase {
     const files = await glob('*.json', { cwd: knowledgeDir });
 
     for (const file of files) {
-      try {
-        const content = await readFile(join(knowledgeDir, file), 'utf-8');
-        const data = JSON.parse(content);
-        
+      const data = await readJsonFile<Record<string, PackageKnowledge>>(join(knowledgeDir, file));
+      if (data) {
         // Each file can contain multiple packages
         for (const [packageName, knowledge] of Object.entries(data)) {
           this.knowledge.set(packageName, knowledge as PackageKnowledge);
         }
-      } catch (error) {
-        console.warn(`Failed to load knowledge file ${file}:`, error);
       }
     }
 
