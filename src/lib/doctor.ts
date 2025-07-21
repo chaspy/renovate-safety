@@ -2,6 +2,8 @@ import chalk from 'chalk';
 import * as fs from 'fs/promises';
 import { secureSystemExec } from './secure-exec.js';
 import { getFiles, getSourceFiles } from './glob-helpers.js';
+import { loggers } from './logger.js';
+import { logSection, logSeparator, logError, logWarningMessage, logSuccess } from './logger-extended.js';
 
 interface HealthCheck {
   name: string;
@@ -11,7 +13,7 @@ interface HealthCheck {
 }
 
 export async function runDoctorCheck(): Promise<void> {
-  console.log(chalk.bold('\n🏥 Renovate Safety Doctor\n'));
+  logSection('Renovate Safety Doctor', '🏥');
 
   const checks: HealthCheck[] = [];
 
@@ -39,16 +41,16 @@ export async function runDoctorCheck(): Promise<void> {
   const hasErrors = checks.some((check) => check.status === 'error');
   const hasWarnings = checks.some((check) => check.status === 'warning');
 
-  console.log('\n' + '='.repeat(60));
+  logSeparator('=', 60);
 
   if (hasErrors) {
-    console.log(chalk.red('❌ Critical issues found. Please fix the errors above.'));
+    logError('❌ Critical issues found. Please fix the errors above.');
     process.exit(1);
   } else if (hasWarnings) {
-    console.log(chalk.yellow('⚠️  Some warnings found. Review the suggestions above.'));
-    console.log(chalk.green('✅ Ready to use renovate-safety with basic features.'));
+    logWarningMessage('⚠️  Some warnings found. Review the suggestions above.');
+    logSuccess('✅ Ready to use renovate-safety with basic features.');
   } else {
-    console.log(chalk.green('✅ All checks passed! Ready to use renovate-safety.'));
+    logSuccess('✅ All checks passed! Ready to use renovate-safety.');
   }
 }
 
@@ -335,11 +337,10 @@ function displayResults(checks: HealthCheck[]): void {
     const color =
       check.status === 'ok' ? chalk.green : check.status === 'warning' ? chalk.yellow : chalk.red;
 
-    console.log(`${icon} ${chalk.bold(check.name)}: ${color(check.message)}`);
+    loggers.info(`${icon} ${chalk.bold(check.name)}: ${color(check.message)}`);
 
     if (check.suggestion) {
-      console.log(`   ${chalk.gray('💡 ' + check.suggestion)}`);
+      loggers.info(`   ${chalk.gray('💡 ' + check.suggestion)}`);
     }
-    console.log();
   }
 }

@@ -18,6 +18,8 @@ import { runDoctorCheck } from './lib/doctor.js';
 import { loadConfig } from './lib/config.js';
 import { packageKnowledgeBase } from './lib/package-knowledge.js';
 import { getErrorMessage } from './analyzers/utils.js';
+import { loggers } from './lib/logger.js';
+import { logSection, logListItem, logProgress, logWarningMessage, logError, logSeparator } from './lib/logger-extended.js';
 
 // Import new analyzer system
 import './analyzers/index.js';
@@ -83,14 +85,14 @@ async function analyzeCommand(options: CLIOptions) {
     options.cacheDir = config.cacheDir;
   }
   
-  console.log(chalk.gray(`- Language setting: ${options.language || 'en'}`));
-  console.log(chalk.gray(`- Using enhanced analyzer system v1.1`));
+  loggers.info(chalk.gray(`- Language setting: ${options.language || 'en'}`));
+  loggers.info(chalk.gray(`- Using enhanced analyzer system v1.1`));
   
   // Ensure we're in a git repository
   try {
     await import('fs/promises').then(fs => fs.access('.git'));
   } catch {
-    console.error(chalk.red('Error: Not in a git repository. Please run from the root of your project.'));
+    logError('Error: Not in a git repository. Please run from the root of your project.');
     process.exit(1);
   }
   
@@ -159,18 +161,17 @@ async function analyzeAllRenovatePRs(options: CLIOptions) {
     
     if (prs.length === 0) {
       spinner.fail('No open Renovate PRs found');
-      console.log(chalk.yellow('\nTip: Use --pr <number> to analyze a specific PR'));
+      logWarningMessage('\nTip: Use --pr <number> to analyze a specific PR');
       process.exit(0);
     }
     
     spinner.succeed(`Found ${prs.length} Renovate PR${prs.length > 1 ? 's' : ''}`);
     
     // Display PR list
-    console.log('\n📋 Renovate PRs to analyze:');
+    logSection('Renovate PRs to analyze:', '📋');
     for (const pr of prs) {
-      console.log(`  #${pr.number}: ${pr.title}`);
+      logListItem(`#${pr.number}: ${pr.title}`);
     }
-    console.log();
     
     // Analyze each PR
     let hasReviewRequired = false;
@@ -178,7 +179,7 @@ async function analyzeAllRenovatePRs(options: CLIOptions) {
     
     for (let i = 0; i < prs.length; i++) {
       const pr = prs[i];
-      console.log(chalk.bold(`\n[${i + 1}/${prs.length}] Analyzing PR #${pr.number}: ${pr.title}\n`));
+      logProgress(i + 1, prs.length, `Analyzing PR #${pr.number}: ${pr.title}`);
       
       try {
         // Analyze single PR
@@ -190,36 +191,36 @@ async function analyzeAllRenovatePRs(options: CLIOptions) {
         }
       } catch (error) {
         const errorMsg = getErrorMessage(error);
-        console.error(chalk.red(`Failed to analyze PR #${pr.number}:`), errorMsg);
+        logError(`Failed to analyze PR #${pr.number}: ${errorMsg}`);
         
         // Provide helpful message for common issues
         if (errorMsg.includes('Could not extract package information')) {
-          console.log(chalk.yellow(`  ℹ️  This might be a non-JavaScript package. Currently only npm packages are fully supported.`));
+          logWarningMessage('ℹ️  This might be a non-JavaScript package. Currently only npm packages are fully supported.');
         } else if (errorMsg.includes('Invalid Version')) {
-          console.log(chalk.yellow(`  ℹ️  Version format not recognized. This tool expects semver-compatible versions.`));
+          logWarningMessage('ℹ️  Version format not recognized. This tool expects semver-compatible versions.');
         }
       }
     }
     
     // Summary
-    console.log(chalk.bold('\n📊 Summary\n'));
-    console.log('=' .repeat(60));
+    logSection('Summary', '📊');
+    logSeparator('=', 60);
     
     const safeCount = results.filter(r => r.result.riskAssessment.level === 'safe').length;
     const lowCount = results.filter(r => r.result.riskAssessment.level === 'low').length;
     const reviewCount = results.filter(r => ['medium', 'high', 'critical', 'unknown'].includes(r.result.riskAssessment.level)).length;
     
-    console.log(`✅ Safe: ${safeCount}`);
-    console.log(`⚠️  Low Risk: ${lowCount}`);
-    console.log(`🔍 Review Required: ${reviewCount}`);
-    console.log('=' .repeat(60));
+    loggers.info(`✅ Safe: ${safeCount}`);
+    loggers.info(`⚠️  Low Risk: ${lowCount}`);
+    loggers.info(`🔍 Review Required: ${reviewCount}`);
+    logSeparator('=', 60);
     
     // Exit with error if any PR requires review
     process.exit(hasReviewRequired ? 1 : 0);
     
   } catch (error) {
     spinner.fail('Failed to analyze Renovate PRs');
-    console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+    logError('Error:', error);
     process.exit(1);
   }
 }
@@ -242,7 +243,7 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
     
     // Check if we should skip patch updates
     if (!options.force && await isPatchUpdate(packageUpdate.fromVersion, packageUpdate.toVersion)) {
-      console.log(chalk.yellow('Skipping patch update (use --force to analyze)'));
+      logWarningMessage('Skipping patch update (use --force to analyze)');
       if (exitOnComplete) process.exit(0);
       return {
         package: packageUpdate,
@@ -435,8 +436,8 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
     );
     
     if (migrationSteps.length > 0) {
-      console.log(chalk.cyan('\n📚 Known migration steps:'));
-      migrationSteps.forEach(step => console.log(`  - ${step}`));
+      logSection('Known migration steps:', '📚');
+      migrationSteps.forEach(step => logListItem(step));
     }
     
     const analysisResult: AnalysisResult = {
@@ -486,7 +487,7 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
     
   } catch (error) {
     spinner.fail('Analysis failed');
-    console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+    logError('Error:', error);
     if (exitOnComplete) process.exit(1);
     throw error;
   }

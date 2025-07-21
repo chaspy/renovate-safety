@@ -6,6 +6,8 @@ import { createHash } from 'crypto';
 import { secureSystemExec } from './secure-exec.js';
 import type { PackageUpdate, ChangelogDiff, BreakingChange, LLMSummary, CodeDiff, DependencyUsage } from '../types/index.js';
 import { fileExists, readJsonFile, ensureDirectory } from './file-helpers.js';
+import { loggers } from './logger.js';
+import { logError } from './logger-extended.js';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
@@ -26,7 +28,7 @@ export async function summarizeWithLLM(
   // Determine provider
   const llmProvider = provider || (await detectProvider());
   if (!llmProvider) {
-    console.warn(
+    loggers.warn(
       'No LLM provider available. Install Claude CLI or set ANTHROPIC_API_KEY/OPENAI_API_KEY.'
     );
     return null;
@@ -55,7 +57,7 @@ export async function summarizeWithLLM(
 
     return summary;
   } catch (error) {
-    console.error('LLM summarization failed:', error);
+    logError('LLM summarization failed:', error);
     return null;
   }
 }
@@ -245,7 +247,7 @@ function parseResponse(text: string): LLMSummary | null {
     // Extract JSON from the response (in case there's extra text)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn('No JSON found in LLM response');
+      loggers.warn('No JSON found in LLM response');
       return null;
     }
 
@@ -253,7 +255,7 @@ function parseResponse(text: string): LLMSummary | null {
 
     // Validate the response
     if (!parsed.summary || !parsed.language || !Array.isArray(parsed.breakingChanges)) {
-      console.warn('Invalid LLM response format');
+      loggers.warn('Invalid LLM response format');
       return null;
     }
 
@@ -263,7 +265,7 @@ function parseResponse(text: string): LLMSummary | null {
       breakingChanges: parsed.breakingChanges.filter((x: unknown) => typeof x === 'string'),
     };
   } catch (error) {
-    console.warn('Failed to parse LLM response:', error);
+    loggers.warn('Failed to parse LLM response:', error);
     return null;
   }
 }
@@ -299,7 +301,7 @@ async function cacheSummary(
 
     await fs.writeFile(cachePath, JSON.stringify(summary, null, 2));
   } catch (error) {
-    console.warn('Failed to cache summary:', error);
+    loggers.warn('Failed to cache summary:', error);
   }
 }
 
@@ -338,7 +340,7 @@ export async function enhancedLLMAnalysis(
   const llmProvider = provider || (await detectProvider());
   
   if (!llmProvider) {
-    console.warn(
+    loggers.warn(
       'No LLM provider available. Install Claude CLI or set ANTHROPIC_API_KEY/OPENAI_API_KEY.'
     );
     return null;
@@ -398,7 +400,7 @@ export async function enhancedLLMAnalysis(
 
     return summary;
   } catch (error) {
-    console.error('Enhanced LLM analysis failed:', error);
+    logError('Enhanced LLM analysis failed:', error);
     return null;
   }
 }
@@ -536,7 +538,7 @@ async function cacheEnhancedSummary(
 
     await fs.writeFile(cachePath, JSON.stringify(summary, null, 2));
   } catch (error) {
-    console.warn('Failed to cache enhanced summary:', error);
+    loggers.warn('Failed to cache enhanced summary:', error);
   }
 }
 
