@@ -6,6 +6,7 @@
 import { secureNpmExec, parseJsonOutput, isSuccessful } from './secure-exec.js';
 import { getErrorMessage } from '../analyzers/utils.js';
 import { loggers } from './logger.js';
+import { tryWithLogging } from './error-handlers.js';
 
 export interface PackageInfo {
   name: string;
@@ -28,7 +29,7 @@ export interface PackageInfo {
  * Consolidates the duplicate pattern across multiple files
  */
 export async function getPackageRepository(packageName: string): Promise<string | null> {
-  try {
+  return tryWithLogging(async () => {
     const result = await secureNpmExec(
       'view',
       [packageName, 'repository.url', '--json']
@@ -53,10 +54,7 @@ export async function getPackageRepository(packageName: string): Promise<string 
     }
 
     return null;
-  } catch (error) {
-    loggers.npmOperationFailed('fetch repository', packageName, error);
-    return null;
-  }
+  }, 'fetch repository', packageName);
 }
 
 /**
@@ -66,7 +64,7 @@ export async function getPackageRepository(packageName: string): Promise<string 
 export async function getPackageMetadata(
   packageSpec: string
 ): Promise<PackageInfo | null> {
-  try {
+  return tryWithLogging(async () => {
     const result = await secureNpmExec(
       'view',
       [packageSpec, '--json']
@@ -78,10 +76,7 @@ export async function getPackageMetadata(
 
     const data = parseJsonOutput<PackageInfo>(result.stdout);
     return data;
-  } catch (error) {
-    loggers.npmOperationFailed('fetch metadata', packageSpec, error);
-    return null;
-  }
+  }, 'fetch metadata', packageSpec);
 }
 
 /**
@@ -138,7 +133,7 @@ export async function getNpmDiff(
   fromSpec: string,
   toSpec: string
 ): Promise<string | null> {
-  try {
+  return tryWithLogging(async () => {
     const result = await secureNpmExec(
       'diff',
       [fromSpec, toSpec]
@@ -150,10 +145,7 @@ export async function getNpmDiff(
     }
 
     return result.stdout;
-  } catch (error) {
-    loggers.genericFailed('get npm diff', error);
-    return null;
-  }
+  }, 'npm diff', `${fromSpec} -> ${toSpec}`);
 }
 
 /**

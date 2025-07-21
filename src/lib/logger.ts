@@ -34,6 +34,22 @@ export function logWarning(context: LogContext): void {
 }
 
 /**
+ * Debug logger
+ */
+export function logDebug(message: string, ...args: any[]): void {
+  if (process.env.DEBUG || process.env.VERBOSE) {
+    console.debug(message, ...args);
+  }
+}
+
+/**
+ * Info logger
+ */
+export function logInfo(message: string, ...args: any[]): void {
+  console.log(message, ...args);
+}
+
+/**
  * Specialized loggers for common patterns
  */
 export const loggers = {
@@ -58,5 +74,17 @@ export const loggers = {
       operation,
       error
     });
+  },
+  
+  debug: (message: string, ...args: any[]) => {
+    logDebug(message, ...args);
+  },
+  
+  info: (message: string, ...args: any[]) => {
+    logInfo(message, ...args);
+  },
+  
+  warn: (message: string, ...args: any[]) => {
+    console.warn(message, ...args);
   }
 };

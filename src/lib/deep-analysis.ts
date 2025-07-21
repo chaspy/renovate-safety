@@ -4,6 +4,8 @@ import { glob } from 'glob';
 import * as fs from 'fs/promises';
 import pLimit from 'p-limit';
 import type { PackageUpdate } from '../types/index.js';
+import { safeJsonParse } from './safe-json.js';
+import { readJsonFile } from './file-helpers.js';
 
 const CONCURRENT_FILE_LIMIT = 10;
 
@@ -572,12 +574,8 @@ async function analyzeConfigFiles(
       if (content.includes(packageName)) {
         let parsedContent: any = null;
         
-        try {
-          if (filename.endsWith('.json') || filename === '.babelrc' || filename === '.eslintrc' || filename === '.prettierrc') {
-            parsedContent = JSON.parse(content);
-          }
-        } catch {
-          // Not JSON or parse error
+        if (filename.endsWith('.json') || filename === '.babelrc' || filename === '.eslintrc' || filename === '.prettierrc') {
+          parsedContent = safeJsonParse(content, null);
         }
         
         // Extract usage context
