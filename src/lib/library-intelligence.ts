@@ -4,6 +4,7 @@ import { secureNpmExec } from './secure-exec.js';
 import { getPackageMetadata } from './npm-registry.js';
 import { validatePackageName } from './validation.js';
 import { safeJsonParse } from './safe-json.js';
+import { loggers } from './logger.js';
 
 export interface LibraryIntelligence {
   packageName: string;
@@ -184,7 +185,7 @@ export async function gatherLibraryIntelligence(
   fromVersion: string,
   toVersion: string
 ): Promise<LibraryIntelligence> {
-  console.log(`🔍 Gathering comprehensive intelligence for ${packageName}...`);
+  loggers.info(`🔍 Gathering comprehensive intelligence for ${packageName}...`);
   
   const [
     packageInfo,

@@ -1,6 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import type { PackageUpdate } from '../types/index.js';
 import { CodeDiff } from './github-diff.js';
+import { loggers } from './logger.js';
 
 export interface EnhancedCodeAnalysis {
   packageName: string;
@@ -120,7 +121,7 @@ export async function performEnhancedCodeAnalysis(
   packageUpdate: PackageUpdate,
   codeDiff: CodeDiff | null
 ): Promise<EnhancedCodeAnalysis> {
-  console.log(`🔍 Performing enhanced code analysis for ${packageUpdate.name}...`);
+  loggers.info(`🔍 Performing enhanced code analysis for ${packageUpdate.name}...`);
 
   if (!codeDiff) {
     return {

@@ -2,6 +2,8 @@
  * Safe JSON parsing utilities
  */
 
+import { loggers } from './logger.js';
+
 /**
  * Safely parse JSON with error handling
  * @param text JSON string to parse
@@ -15,7 +17,7 @@ export function safeJsonParse<T>(text: string, defaultValue: T): T {
     }
     return JSON.parse(text);
   } catch (error) {
-    console.warn('Failed to parse JSON:', error instanceof Error ? error.message : 'Unknown error');
+    loggers.warn('Failed to parse JSON:', error instanceof Error ? error.message : 'Unknown error');
     return defaultValue;
   }
 }
@@ -38,10 +40,10 @@ export function safeJsonParseWithValidation<T>(
     if (validator(parsed)) {
       return parsed;
     }
-    console.warn('Parsed JSON failed validation');
+    loggers.warn('Parsed JSON failed validation');
     return null;
   } catch (error) {
-    console.warn('Failed to parse JSON:', error instanceof Error ? error.message : 'Unknown error');
+    loggers.warn('Failed to parse JSON:', error instanceof Error ? error.message : 'Unknown error');
     return null;
   }
 }

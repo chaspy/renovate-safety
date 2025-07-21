@@ -3,6 +3,7 @@ import type { PackageUpdate } from '../../types/index.js';
 import { Octokit } from '@octokit/rest';
 import { getPackageRepository, extractGitHubRepo } from '../../lib/npm-registry.js';
 import { getGitHubClient } from '../../lib/github-client.js';
+import { loggers } from '../../lib/logger.js';
 
 export class GitCommitAnalysisStrategy extends AnalysisStrategy {
   name = 'Git Commit Analysis';
@@ -55,7 +56,7 @@ export class GitCommitAnalysisStrategy extends AnalysisStrategy {
         }
       };
     } catch (error) {
-      console.warn(`Failed to analyze commits:`, error);
+      loggers.warn(`Failed to analyze commits:`, error);
       return null;
     }
   }
@@ -69,7 +70,7 @@ export class GitCommitAnalysisStrategy extends AnalysisStrategy {
         return extractGitHubRepo(repoUrl);
       }
     } catch (error) {
-      console.warn(`Failed to get GitHub repo info for ${packageName}:`, error);
+      loggers.warn(`Failed to get GitHub repo info for ${packageName}:`, error);
     }
 
     return null;
@@ -106,7 +107,7 @@ export class GitCommitAnalysisStrategy extends AnalysisStrategy {
         files: commit.files?.map(f => f.filename) || []
       }));
     } catch (error) {
-      console.warn('Failed to get commits between versions:', error);
+      loggers.warn('Failed to get commits between versions:', error);
       return [];
     }
   }

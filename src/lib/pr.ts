@@ -2,6 +2,7 @@ import { Octokit } from '@octokit/rest';
 import { secureSystemExec } from './secure-exec.js';
 import type { CLIOptions, PackageUpdate } from '../types/index.js';
 import { safeJsonParse } from './safe-json.js';
+import { logError } from './logger-extended.js';
 
 export async function extractPackageInfo(options: CLIOptions): Promise<PackageUpdate | null> {
   // If manual override provided, use it
@@ -121,7 +122,7 @@ export async function getRenovatePRs(): Promise<PRInfo[]> {
         body: pr.body || '',
       }));
     } catch {
-      console.error('Failed to fetch PRs:', error);
+      logError('Failed to fetch PRs:', error);
       return [];
     }
   }
@@ -181,7 +182,7 @@ async function getPRData(prNumber: number): Promise<PRData | null> {
       body: data.body || '',
     };
   } catch (error) {
-    console.error('Failed to fetch PR data:', error);
+    logError('Failed to fetch PR data:', error);
     return null;
   }
 }
@@ -220,7 +221,7 @@ async function getPRDataFromCurrentBranch(): Promise<PRData | null> {
       };
     }
   } catch (error) {
-    console.error('Failed to get current branch info:', error);
+    logError('Failed to get current branch info:', error);
     return null;
   }
 }
