@@ -1,6 +1,6 @@
 import { Octokit } from '@octokit/rest';
 import type { PackageUpdate } from '../types/index.js';
-import { getEnvVar } from './env-validator.js';
+import { getEnvironmentConfig } from './env-config.js';
 import { loggers } from './logger.js';
 
 export interface CodeDiff {
@@ -22,8 +22,9 @@ export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeD
       return null;
     }
 
+    const config = getEnvironmentConfig();
     const octokit = new Octokit({
-      auth: getEnvVar('GITHUB_TOKEN'),
+      auth: config.githubToken,
     });
 
     // Try to find appropriate tags for comparison

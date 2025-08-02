@@ -16,6 +16,7 @@ import { generateEnhancedReport } from './lib/enhanced-report.js';
 import { postToPR } from './lib/post.js';
 import { runDoctorCheck } from './lib/doctor.js';
 import { loadConfig } from './lib/config.js';
+import { getEnvironmentConfig } from './lib/env-config.js';
 import { packageKnowledgeBase } from './lib/package-knowledge.js';
 import { getErrorMessage } from './analyzers/utils.js';
 import { loggers } from './lib/logger.js';
@@ -55,7 +56,7 @@ program
   .option('--cache-dir <path>', 'Cache directory', resolve(homedir(), '.renovate-safety-cache'))
   .option('--json', 'Output as JSON instead of Markdown', false)
   .option('--force', 'Force analysis even for patch updates', false)
-  .option('--language <lang>', 'Language for AI analysis (en|ja)', /^(en|ja)$/i, process.env.RENOVATE_SAFETY_LANGUAGE || 'en')
+  .option('--language <lang>', 'Language for AI analysis (en|ja)', /^(en|ja)$/i, getEnvironmentConfig().language)
   .option('--deep', 'Perform deep code analysis', false)
   .action(async (options) => {
     await analyzeCommand(options);

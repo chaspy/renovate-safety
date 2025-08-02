@@ -33,4 +33,3 @@ export function generateMultiParamCacheKey(
   const params = [type, packageName, version, ...additionalParams].join(':');
   return createHash('sha256').update(params).digest('hex');
 }
-
