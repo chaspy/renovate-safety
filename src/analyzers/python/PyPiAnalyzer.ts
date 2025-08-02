@@ -2,24 +2,26 @@ import { PackageAnalyzer, PackageMetadata, UsageAnalysis, UsageLocation } from '
 import type { PackageUpdate, ChangelogDiff } from '../../types/index.js';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import { validatePythonPackageName, validateVersion, validateUrl, escapeForUrl } from '../../lib/validation.js';
-import { getFileContext, categorizeUsages, getErrorMessage } from '../utils.js';
+import { validatePythonPackageName, validateVersion } from '../../lib/validation.js';
+import { getFileContext, categorizeUsages } from '../utils.js';
 import { fetchPyPiPackage } from '../../lib/http-client.js';
-import { findPackageInConfigFiles, findSourceFiles, CONFIG_PATTERNS, searchInGenericConfigs } from '../file-utils.js';
+import { findPackageInConfigFiles, findSourceFiles, CONFIG_PATTERNS } from '../file-utils.js';
 import { loggers } from '../../lib/logger.js';
 import { fileExists } from '../../lib/file-helpers.js';
+import { executeInParallel } from '../../lib/parallel-helpers.js';
 
 export class PyPiAnalyzer extends PackageAnalyzer {
-  async canHandle(packageName: string, projectPath: string): Promise<boolean> {
+  async canHandle(_packageName: string, projectPath: string): Promise<boolean> {
     try {
       // Check for Python project files
-      const checks = await Promise.all([
-        fileExists(join(projectPath, 'requirements.txt')),
-        fileExists(join(projectPath, 'setup.py')),
-        fileExists(join(projectPath, 'pyproject.toml')),
-        fileExists(join(projectPath, 'Pipfile')),
+      const results = await executeInParallel([
+        () => fileExists(join(projectPath, 'requirements.txt')),
+        () => fileExists(join(projectPath, 'setup.py')),
+        () => fileExists(join(projectPath, 'pyproject.toml')),
+        () => fileExists(join(projectPath, 'Pipfile')),
       ]);
       
+      const checks = results.map(result => result instanceof Error ? false : result);
       return checks.some(exists => exists);
     } catch {
       return false;
@@ -37,7 +39,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
         return null;
       }
       
-      const data = response.data;
+      const data = response.data as any;
       const info = data.info;
       
       return {
@@ -47,7 +49,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
         homepage: info.home_page || info.project_url,
         repository: info.project_urls?.Source || info.project_urls?.Repository,
         license: info.license,
-        publishedAt: data.releases[pkg.toVersion]?.[0]?.upload_time 
+        publishedAt: data.releases?.[pkg.toVersion]?.[0]?.upload_time 
           ? new Date(data.releases[pkg.toVersion][0].upload_time) 
           : undefined,
         deprecated: info.yanked || false,
@@ -62,10 +64,12 @@ export class PyPiAnalyzer extends PackageAnalyzer {
   async fetchChangelog(pkg: PackageUpdate, cacheDir?: string): Promise<ChangelogDiff | null> {
     try {
       // Try to get changelog from PyPI description
-      const [fromData, toData] = await Promise.all([
-        this.fetchPyPiData(pkg.name, pkg.fromVersion),
-        this.fetchPyPiData(pkg.name, pkg.toVersion)
+      const results = await executeInParallel([
+        () => this.fetchPyPiData(pkg.name, pkg.fromVersion),
+        () => this.fetchPyPiData(pkg.name, pkg.toVersion)
       ]);
+      
+      const [fromData, toData] = results.map(result => result instanceof Error ? null : result);
 
       if (fromData || toData) {
         const content = this.extractChangelogContent(fromData, toData, pkg);
@@ -84,7 +88,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
 
     // Fallback to GitHub
     const { fetchChangelogDiff } = await import('../../lib/changelog.js');
-    return fetchChangelogDiff(pkg, cacheDir);
+    return fetchChangelogDiff(pkg, cacheDir || '.');
   }
 
   async analyzeUsage(packageName: string, projectPath: string): Promise<UsageAnalysis> {

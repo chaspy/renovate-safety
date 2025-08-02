@@ -13,7 +13,7 @@ describe('Report Generation', () => {
       content: 'Sample changelog',
       source: 'github',
       fromVersion: '1.0.0',
-      toVersion: '2.0.0'
+      toVersion: '2.0.0',
     },
     codeDiff: null,
     dependencyUsage: null,
@@ -40,7 +40,7 @@ describe('Report Generation', () => {
       level: 'high',
       factors: ['Breaking changes detected'],
       estimatedEffort: 'moderate',
-      testingScope: 'integration'
+      testingScope: 'integration',
     },
     recommendation: 'Manual review required',
   };

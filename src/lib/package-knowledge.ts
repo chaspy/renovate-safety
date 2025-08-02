@@ -35,7 +35,7 @@ export class PackageKnowledgeBase {
     const knowledgeDir = join(__dirname, '../../data/package-knowledge');
     // Use getFiles with absolute paths
     const absoluteFiles = await getFiles(join(knowledgeDir, '*.json'), {
-      absolute: true
+      absolute: true,
     });
 
     for (const absolutePath of absoluteFiles) {
@@ -74,7 +74,7 @@ export class PackageKnowledgeBase {
     const fromMajor = fromVersion.split('.')[0];
     const toMajor = toVersion.split('.')[0];
     const majorKey = `${fromMajor}.x->${toMajor}.x`;
-    
+
     if (knowledge.migrations[majorKey]) {
       return knowledge.migrations[majorKey];
     }
@@ -116,7 +116,7 @@ export class PackageKnowledgeBase {
 
     // Find the best matching version
     const versionMajor = version.split('.')[0];
-    
+
     // Try exact version
     if (knowledge.versionCompatibility[version]) {
       return knowledge.versionCompatibility[version];
@@ -131,24 +131,20 @@ export class PackageKnowledgeBase {
     return null;
   }
 
-  private versionRangeMatches(
-    rangeKey: string,
-    fromVersion: string,
-    toVersion: string
-  ): boolean {
+  private versionRangeMatches(rangeKey: string, fromVersion: string, toVersion: string): boolean {
     // Parse range key like "14.x->15.x" or "1.2.3->2.0.0"
     const match = /^(.+)->(.+)$/.exec(rangeKey);
     if (!match) return false;
 
     const [, rangeFrom, rangeTo] = match;
-    
+
     // Simple major version comparison
     const fromMajor = parseInt(fromVersion.split('.')[0]);
     const toMajor = parseInt(toVersion.split('.')[0]);
-    
+
     const rangeFromMajor = parseInt(rangeFrom.split('.')[0]);
     const rangeToMajor = parseInt(rangeTo.split('.')[0]);
-    
+
     return fromMajor <= rangeFromMajor && toMajor >= rangeToMajor;
   }
 
@@ -160,8 +156,8 @@ export class PackageKnowledgeBase {
   async searchPackages(query: string): Promise<string[]> {
     await this.load();
     const lowerQuery = query.toLowerCase();
-    
-    return Array.from(this.knowledge.keys()).filter(pkg => 
+
+    return Array.from(this.knowledge.keys()).filter((pkg) =>
       pkg.toLowerCase().includes(lowerQuery)
     );
   }

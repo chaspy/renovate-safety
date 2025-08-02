@@ -4,7 +4,14 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'crypto';
 import { secureSystemExec } from './secure-exec.js';
-import type { PackageUpdate, ChangelogDiff, BreakingChange, LLMSummary, CodeDiff, DependencyUsage } from '../types/index.js';
+import type {
+  PackageUpdate,
+  ChangelogDiff,
+  BreakingChange,
+  LLMSummary,
+  CodeDiff,
+  DependencyUsage,
+} from '../types/index.js';
 import { fileExists, readJsonFile, ensureDirectory } from './file-helpers.js';
 import { loggers } from './logger.js';
 import { logError } from './logger-extended.js';
@@ -69,7 +76,7 @@ async function detectProvider(): Promise<'claude-cli' | 'anthropic' | 'openai' |
     if (result.success) {
       return 'claude-cli';
     }
-  } catch (error) {
+  } catch {
     // Claude CLI not available, continue to next option
   }
 
@@ -124,20 +131,17 @@ async function summarizeWithClaudeCLI(prompt: string): Promise<LLMSummary | null
   if (prompt.length > 10000) {
     prompt = prompt.substring(0, 9000) + '\n\n... (truncated for analysis)';
   }
-  
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const result = await secureSystemExec('claude', [
-        '-p',
-        prompt,
-        '--output-format',
-        'json',
-        '--max-turns',
-        '1',
-      ], {
-        timeout: 30000, // 30 second timeout for Claude CLI stability
-      });
-      
+      const result = await secureSystemExec(
+        'claude',
+        ['-p', prompt, '--output-format', 'json', '--max-turns', '1'],
+        {
+          timeout: 30000, // 30 second timeout for Claude CLI stability
+        }
+      );
+
       if (!result.success) {
         throw new Error(`Claude CLI failed: ${result.error}`);
       }
@@ -207,7 +211,7 @@ async function summarizeWithOpenAI(prompt: string): Promise<LLMSummary | null> {
       const systemPrompt = isJapanesePrompt
         ? 'あなたはソフトウェアの変更履歴を分析する有用なアシスタントです。常に有効なJSONで応答してください。日本語で回答してください。'
         : 'You are a helpful assistant that analyzes software changelogs. Always respond with valid JSON.';
-      
+
       const response = await openai.chat.completions.create({
         model: 'o3-mini',
         messages: [
@@ -329,7 +333,7 @@ export async function enhancedLLMAnalysis(
   if (typeof provider !== 'string' || !['claude-cli', 'anthropic', 'openai'].includes(provider)) {
     provider = undefined;
   }
-  
+
   // Check cache first
   if (cacheDir) {
     const cached = await getCachedEnhancedSummary(packageUpdate, cacheDir);
@@ -338,7 +342,7 @@ export async function enhancedLLMAnalysis(
 
   // Determine provider
   const llmProvider = provider || (await detectProvider());
-  
+
   if (!llmProvider) {
     loggers.warn(
       'No LLM provider available. Install Claude CLI or set ANTHROPIC_API_KEY/OPENAI_API_KEY.'
@@ -347,12 +351,19 @@ export async function enhancedLLMAnalysis(
   }
 
   try {
-    const prompt = buildEnhancedPrompt(packageUpdate, changelogDiff, codeDiff, dependencyUsage, breakingChanges, language);
+    const prompt = buildEnhancedPrompt(
+      packageUpdate,
+      changelogDiff,
+      codeDiff,
+      dependencyUsage,
+      breakingChanges,
+      language
+    );
 
     let summary: LLMSummary | null = null;
-    
+
     // Try primary provider first
-    
+
     try {
       switch (llmProvider) {
         case 'claude-cli':
@@ -365,15 +376,15 @@ export async function enhancedLLMAnalysis(
           summary = await summarizeWithOpenAI(prompt);
           break;
       }
-    } catch (primaryError) {
-      
+    } catch {
       // Try fallback providers
-      const fallbackProviders = ['anthropic', 'openai'].filter(p => p !== llmProvider);
-      
+      const fallbackProviders = ['anthropic', 'openai'].filter((p) => p !== llmProvider);
+
       for (const fallback of fallbackProviders) {
-        if ((fallback === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
-            (fallback === 'openai' && process.env.OPENAI_API_KEY)) {
-          
+        if (
+          (fallback === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
+          (fallback === 'openai' && process.env.OPENAI_API_KEY)
+        ) {
           try {
             switch (fallback) {
               case 'anthropic':
@@ -383,11 +394,12 @@ export async function enhancedLLMAnalysis(
                 summary = await summarizeWithOpenAI(prompt);
                 break;
             }
-            
+
             if (summary) {
               break;
             }
-          } catch (fallbackError) {
+          } catch {
+            // Fallback provider failed, try next
           }
         }
       }
@@ -422,14 +434,17 @@ Package: ${packageUpdate.name}
 Version: ${packageUpdate.fromVersion} → ${packageUpdate.toVersion}`);
 
   // Breaking changes section
-  const breakingSection = breakingChanges.length > 0 
-    ? `\nPattern-Identified Breaking Changes:\n${breakingChanges.map((bc) => `- [${bc.severity}] ${bc.line}`).join('\n')}`
-    : '\nNo explicit breaking changes identified from patterns.';
+  const breakingSection =
+    breakingChanges.length > 0
+      ? `\nPattern-Identified Breaking Changes:\n${breakingChanges.map((bc) => `- [${bc.severity}] ${bc.line}`).join('\n')}`
+      : '\nNo explicit breaking changes identified from patterns.';
   sections.push(breakingSection);
 
   // Changelog section
   if (changelogDiff) {
-    sections.push(`\nChangelog excerpt:\n${changelogDiff.content.substring(0, 3000)}${changelogDiff.content.length > 3000 ? '\n...(truncated)' : ''}`);
+    sections.push(
+      `\nChangelog excerpt:\n${changelogDiff.content.substring(0, 3000)}${changelogDiff.content.length > 3000 ? '\n...(truncated)' : ''}`
+    );
   } else {
     sections.push('\nNo changelog found for this version update.');
   }
@@ -456,9 +471,12 @@ ${codeDiff.content.substring(0, 4000)}${codeDiff.content.length > 4000 ? '\n...(
 - Number of dependents: ${dependencyUsage.dependents.length}
 
 Dependency chain:
-${dependencyUsage.dependents.slice(0, 5).map(dep => 
-  `- ${dep.name} (${dep.version}) [${dep.type}] - Path: ${dep.path.join(' → ')}`
-).join('\n')}${dependencyUsage.dependents.length > 5 ? `\n- ... and ${dependencyUsage.dependents.length - 5} more` : ''}`);
+${dependencyUsage.dependents
+  .slice(0, 5)
+  .map((dep) => `- ${dep.name} (${dep.version}) [${dep.type}] - Path: ${dep.path.join(' → ')}`)
+  .join(
+    '\n'
+  )}${dependencyUsage.dependents.length > 5 ? `\n- ... and ${dependencyUsage.dependents.length - 5} more` : ''}`);
   } else {
     sections.push('\nNo dependency usage information available.');
   }

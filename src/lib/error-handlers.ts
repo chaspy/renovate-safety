@@ -91,7 +91,7 @@ export async function tryAllWithLogging<T>(
  * @param operationType Type of operation for logging
  * @returns Wrapped function with error handling
  */
-export function withErrorLogging<T extends (...args: any[]) => Promise<any>>(
+export function withErrorLogging<T extends (...args: unknown[]) => Promise<unknown>>(
   fn: T,
   operationType: string
 ): T {

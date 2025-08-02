@@ -31,9 +31,9 @@ export async function findPackageInConfigFiles(
 
   for (const { pattern, type } of configPatterns) {
     const configFiles = await getFiles(pattern, {
-      absolute: false // Keep relative paths for compatibility
+      absolute: false, // Keep relative paths for compatibility
     });
-    
+
     for (const file of configFiles) {
       const content = await readFile(join(projectPath, file), 'utf-8');
       if (content.includes(packageName)) {
@@ -43,7 +43,7 @@ export async function findPackageInConfigFiles(
           column: 0,
           type: 'config',
           code: `${packageName} reference in ${type} file`,
-          context: 'config'
+          context: 'config',
         });
       }
     }
@@ -58,12 +58,12 @@ export async function findPackageInConfigFiles(
 export const SOURCE_FILE_PATTERNS = {
   javascript: {
     extensions: ['**/*.{ts,tsx,js,jsx,mjs,cjs}'],
-    ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.next/**']
+    ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.next/**'],
   },
   python: {
     extensions: ['**/*.py'],
-    ignore: ['**/venv/**', '**/__pycache__/**', '**/site-packages/**', '**/.tox/**']
-  }
+    ignore: ['**/venv/**', '**/__pycache__/**', '**/site-packages/**', '**/.tox/**'],
+  },
 };
 
 /**
@@ -77,7 +77,7 @@ export const CONFIG_PATTERNS = {
     { pattern: 'pnpm-lock.yaml', type: 'pnpm-lock' },
     { pattern: '.npmrc', type: 'npmrc' },
     { pattern: 'tsconfig.json', type: 'tsconfig' },
-    { pattern: 'jsconfig.json', type: 'jsconfig' }
+    { pattern: 'jsconfig.json', type: 'jsconfig' },
   ],
   python: [
     { pattern: 'requirements*.txt', type: 'requirements' },
@@ -85,8 +85,8 @@ export const CONFIG_PATTERNS = {
     { pattern: 'pyproject.toml', type: 'pyproject' },
     { pattern: 'Pipfile', type: 'pipfile' },
     { pattern: 'tox.ini', type: 'tox' },
-    { pattern: '.pre-commit-config.yaml', type: 'precommit' }
-  ]
+    { pattern: '.pre-commit-config.yaml', type: 'precommit' },
+  ],
 };
 
 /**
@@ -99,12 +99,12 @@ export async function findSourceFiles(
   // Use getSourceFiles from glob-helpers
   const ecosystemMap = {
     javascript: 'node',
-    python: 'python'
+    python: 'python',
   } as const;
-  
+
   const files = await getSourceFiles(projectPath, ecosystemMap[ecosystem]);
   // Return relative paths for compatibility
-  return files.map(file => file.replace(projectPath + '/', ''));
+  return files.map((file) => file.replace(projectPath + '/', ''));
 }
 
 /**
@@ -114,16 +114,14 @@ export async function searchInGenericConfigs(
   packageName: string,
   projectPath: string
 ): Promise<UsageLocation[]> {
-  const genericPatterns = [
-    { pattern: '**/*.{json,yaml,yml,toml}', type: 'config' }
-  ];
-  
+  const genericPatterns = [{ pattern: '**/*.{json,yaml,yml,toml}', type: 'config' }];
+
   const locations: UsageLocation[] = [];
-  
+
   for (const { pattern } of genericPatterns) {
     const configFiles = await getFiles(pattern, {
       absolute: false, // Keep relative paths for compatibility
-      additionalIgnore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/venv/**']
+      additionalIgnore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/venv/**'],
     });
 
     for (const file of configFiles) {
@@ -135,11 +133,11 @@ export async function searchInGenericConfigs(
           column: 0,
           type: 'config',
           code: `Reference to ${packageName} in config`,
-          context: getFileContext(file)
+          context: getFileContext(file),
         });
       }
     }
   }
-  
+
   return locations;
 }

@@ -13,22 +13,22 @@ export function getEnvVar(
   validator?: (value: string) => boolean
 ): string | undefined {
   const value = process.env[name];
-  
+
   if (!value || typeof value !== 'string') {
     return undefined;
   }
-  
+
   // Check for empty strings
   if (value.trim().length === 0) {
     return undefined;
   }
-  
+
   // Apply custom validation if provided
   if (validator && !validator(value)) {
     console.warn(`Invalid value for environment variable ${name}`);
     return undefined;
   }
-  
+
   return value;
 }
 
@@ -43,16 +43,18 @@ export function getEnvVarEnum<T extends string>(
   allowedValues: readonly T[]
 ): T | undefined {
   const value = getEnvVar(name);
-  
+
   if (!value) {
     return undefined;
   }
-  
+
   if (allowedValues.includes(value as T)) {
     return value as T;
   }
-  
-  console.warn(`Invalid value '${value}' for environment variable ${name}. Allowed values: ${allowedValues.join(', ')}`);
+
+  console.warn(
+    `Invalid value '${value}' for environment variable ${name}. Allowed values: ${allowedValues.join(', ')}`
+  );
   return undefined;
 }
 
@@ -63,11 +65,11 @@ export function getEnvVarEnum<T extends string>(
  */
 export function getRequiredEnvVar(name: string): string {
   const value = getEnvVar(name);
-  
+
   if (!value) {
     throw new Error(`Required environment variable ${name} is not set`);
   }
-  
+
   return value;
 }
 
@@ -79,13 +81,13 @@ export function isValidPath(value: string): boolean {
   if (value.includes('\0')) {
     return false;
   }
-  
+
   // Check for suspicious patterns
   const suspiciousPatterns = [
     /\.\.[/\\]\.\.[/\\]/, // Multiple parent directory traversals
     /^[/\\]etc[/\\]/, // System config directories
     /^[/\\]proc[/\\]/, // Process information
   ];
-  
-  return !suspiciousPatterns.some(pattern => pattern.test(value));
+
+  return !suspiciousPatterns.some((pattern) => pattern.test(value));
 }

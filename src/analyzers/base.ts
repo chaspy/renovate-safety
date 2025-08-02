@@ -41,7 +41,7 @@ export interface UsageAnalysis {
  * Additional context specific to the package ecosystem
  */
 export interface AdditionalContext {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**

@@ -1,3 +1,5 @@
+import { URL } from 'node:url';
+
 /**
  * Validation utilities for package names and versions
  * Helps prevent command injection and other security issues
@@ -20,17 +22,17 @@ export function validatePackageName(packageName: string): string {
   // npm package name pattern
   // Allows scoped packages like @scope/package
   const npmPackagePattern = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
-  
+
   if (!npmPackagePattern.test(packageName)) {
     throw new Error(`Invalid package name format: ${packageName}`);
   }
 
   // Additional security checks
   const dangerousPatterns = [
-    /[;&|`$(){}[\]<>]/,  // Shell metacharacters
-    /\.\./,              // Path traversal
-    /^[._]/,             // Hidden files
-    /\0/,                // Null bytes
+    /[;&|`$(){}[\]<>]/, // Shell metacharacters
+    /\.\./, // Path traversal
+    /^[._]/, // Hidden files
+    /\0/, // Null bytes
   ];
 
   for (const pattern of dangerousPatterns) {
@@ -38,7 +40,7 @@ export function validatePackageName(packageName: string): string {
       throw new Error(`Package name contains unsafe characters: ${packageName}`);
     }
   }
-  
+
   return packageName;
 }
 
@@ -59,19 +61,19 @@ export function validateVersion(version: string): string {
   // Semantic version pattern (simplified to reduce complexity)
   // Basic format: major.minor.patch[-prerelease][+build]
   const semverPattern = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$/;
-  
+
   // Also allow npm dist-tags like 'latest', 'next', 'beta'
   const distTagPattern = /^[a-z][a-z0-9-]*$/i;
-  
+
   if (!semverPattern.test(version) && !distTagPattern.test(version)) {
     throw new Error(`Invalid version format: ${version}`);
   }
 
   // Security checks for versions
   const dangerousPatterns = [
-    /[;&|`$(){}[\]<>]/,  // Shell metacharacters
-    /\.\./,              // Path traversal
-    /\0/,                // Null bytes
+    /[;&|`$(){}[\]<>]/, // Shell metacharacters
+    /\.\./, // Path traversal
+    /\0/, // Null bytes
   ];
 
   for (const pattern of dangerousPatterns) {
@@ -79,7 +81,7 @@ export function validateVersion(version: string): string {
       throw new Error(`Version contains unsafe characters: ${version}`);
     }
   }
-  
+
   return version;
 }
 
@@ -89,13 +91,15 @@ export function validateVersion(version: string): string {
 export function validateUrl(url: string): string {
   try {
     const parsed = new URL(url);
-    
+
     // Only allow https (and http for localhost)
-    if (parsed.protocol !== 'https:' && 
-        !(parsed.protocol === 'http:' && parsed.hostname === 'localhost')) {
+    if (
+      parsed.protocol !== 'https:' &&
+      !(parsed.protocol === 'http:' && parsed.hostname === 'localhost')
+    ) {
       throw new Error('Only HTTPS URLs are allowed');
     }
-    
+
     // Validate hostname
     const validHosts = [
       'pypi.org',
@@ -106,17 +110,16 @@ export function validateUrl(url: string): string {
       'github.com',
       'raw.githubusercontent.com',
     ];
-    
+
     // Allow localhost for development
     if (parsed.hostname === 'localhost') {
       return url;
     }
-    
-    if (!validHosts.includes(parsed.hostname) && 
-        !parsed.hostname.endsWith('.npmjs.org')) {
+
+    if (!validHosts.includes(parsed.hostname) && !parsed.hostname.endsWith('.npmjs.org')) {
       throw new Error(`Untrusted host: ${parsed.hostname}`);
     }
-    
+
     return url;
   } catch (error) {
     if (error instanceof Error) {
@@ -145,7 +148,7 @@ export function validatePythonPackageName(packageName: string): string {
   // Python package name pattern (PEP 508)
   // Allows letters, numbers, hyphens, underscores, and dots
   const pythonPackagePattern = /^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
-  
+
   if (!pythonPackagePattern.test(packageName)) {
     throw new Error(`Invalid Python package name format: ${packageName}`);
   }
@@ -153,6 +156,6 @@ export function validatePythonPackageName(packageName: string): string {
   // Normalize package name (PEP 503)
   // Replace underscores and dots with hyphens, convert to lowercase
   const normalized = packageName.toLowerCase().replace(/[._]/g, '-');
-  
+
   return normalized;
 }

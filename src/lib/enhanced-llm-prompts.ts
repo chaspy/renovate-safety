@@ -1,4 +1,10 @@
-import type { PackageUpdate, ChangelogDiff, BreakingChange, CodeDiff, DependencyUsage } from '../types/index.js';
+import type {
+  PackageUpdate,
+  ChangelogDiff,
+  BreakingChange,
+  CodeDiff,
+  DependencyUsage,
+} from '../types/index.js';
 import type { EnhancedDependencyAnalysis } from './enhanced-dependency-analysis.js';
 import type { LibraryIntelligence } from './library-intelligence.js';
 import type { EnhancedCodeAnalysis } from './enhanced-code-analysis.js';
@@ -25,7 +31,7 @@ export function buildSuperEnhancedPrompt(context: EnhancedPromptContext): string
     enhancedDependencyAnalysis,
     libraryIntelligence,
     enhancedCodeAnalysis,
-    language
+    language,
   } = context;
 
   const sections: string[] = [];
@@ -37,14 +43,16 @@ export function buildSuperEnhancedPrompt(context: EnhancedPromptContext): string
   sections.push(buildPackageOverview(packageUpdate, libraryIntelligence));
 
   // Comprehensive analysis data
-  sections.push(buildAnalysisData(
-    changelogDiff,
-    codeDiff,
-    dependencyUsage,
-    breakingChanges,
-    enhancedDependencyAnalysis,
-    enhancedCodeAnalysis
-  ));
+  sections.push(
+    buildAnalysisData(
+      changelogDiff,
+      codeDiff,
+      dependencyUsage,
+      breakingChanges,
+      enhancedDependencyAnalysis,
+      enhancedCodeAnalysis
+    )
+  );
 
   // Context about project impact
   sections.push(buildProjectImpactContext(dependencyUsage, enhancedDependencyAnalysis));
@@ -96,7 +104,10 @@ Always respond in JSON format with:
 - Estimated effort`;
 }
 
-function buildPackageOverview(packageUpdate: PackageUpdate, libraryIntelligence?: LibraryIntelligence): string {
+function buildPackageOverview(
+  packageUpdate: PackageUpdate,
+  libraryIntelligence?: LibraryIntelligence
+): string {
   let overview = `📦 PACKAGE UPDATE ANALYSIS
 
 Package: ${packageUpdate.name}
@@ -104,7 +115,7 @@ Version Change: ${packageUpdate.fromVersion} → ${packageUpdate.toVersion}`;
 
   if (libraryIntelligence) {
     const { packageInfo, popularityMetrics, maintenanceInfo } = libraryIntelligence;
-    
+
     overview += `
 Package Details:
 - Description: ${packageInfo.description}
@@ -125,9 +136,9 @@ Package Details:
 function buildAnalysisData(
   changelogDiff: ChangelogDiff | null,
   codeDiff: CodeDiff | null,
-  dependencyUsage: DependencyUsage | null,
+  _dependencyUsage: DependencyUsage | null,
   breakingChanges: BreakingChange[],
-  enhancedDependencyAnalysis?: EnhancedDependencyAnalysis,
+  _enhancedDependencyAnalysis?: EnhancedDependencyAnalysis,
   enhancedCodeAnalysis?: EnhancedCodeAnalysis
 ): string {
   const sections: string[] = ['🔍 COMPREHENSIVE ANALYSIS DATA'];
@@ -143,20 +154,26 @@ ${breakingChanges.map((bc, i) => `${i + 1}. [${bc.severity.toUpperCase()}] ${bc.
   // Enhanced code analysis
   if (enhancedCodeAnalysis?.semanticChanges.length) {
     sections.push(`Semantic Code Changes (${enhancedCodeAnalysis.semanticChanges.length}):
-${enhancedCodeAnalysis.semanticChanges.map((change, i) => 
-  `${i + 1}. [${change.severity.toUpperCase()}] ${change.type}: ${change.description}
+${enhancedCodeAnalysis.semanticChanges
+  .map(
+    (change, i) =>
+      `${i + 1}. [${change.severity.toUpperCase()}] ${change.type}: ${change.description}
      File: ${change.file}
      Impact: ${change.impact}`
-).join('\n')}`);
+  )
+  .join('\n')}`);
   }
 
   // API changes
   if (enhancedCodeAnalysis?.apiChanges.length) {
     sections.push(`API Changes (${enhancedCodeAnalysis.apiChanges.length}):
-${enhancedCodeAnalysis.apiChanges.map((api, i) => 
-  `${i + 1}. ${api.api} - ${api.changeType} (${api.compatibility})
+${enhancedCodeAnalysis.apiChanges
+  .map(
+    (api, i) =>
+      `${i + 1}. ${api.api} - ${api.changeType} (${api.compatibility})
      File: ${api.file}:${api.line}`
-).join('\n')}`);
+  )
+  .join('\n')}`);
   }
 
   // Changelog analysis
@@ -166,7 +183,9 @@ Source: ${changelogDiff.source}
 Content Preview:
 ${changelogDiff.content.substring(0, 2000)}${changelogDiff.content.length > 2000 ? '\n...(truncated)' : ''}`);
   } else {
-    sections.push('📋 Changelog: Not available - requires code analysis for breaking change detection');
+    sections.push(
+      '📋 Changelog: Not available - requires code analysis for breaking change detection'
+    );
   }
 
   // Code diff analysis
@@ -199,14 +218,17 @@ function buildProjectImpactContext(
 - Dependents: ${dependencyUsage.dependents.length} packages affected
 
 Dependency Chain:
-${dependencyUsage.dependents.slice(0, 8).map(dep => 
-  `- ${dep.name} (${dep.version}) [${dep.type}] via: ${dep.path.join(' → ')}`
-).join('\n')}${dependencyUsage.dependents.length > 8 ? `\n- ... and ${dependencyUsage.dependents.length - 8} more` : ''}`);
+${dependencyUsage.dependents
+  .slice(0, 8)
+  .map((dep) => `- ${dep.name} (${dep.version}) [${dep.type}] via: ${dep.path.join(' → ')}`)
+  .join(
+    '\n'
+  )}${dependencyUsage.dependents.length > 8 ? `\n- ... and ${dependencyUsage.dependents.length - 8} more` : ''}`);
   }
 
   if (enhancedDependencyAnalysis) {
     const { impactAnalysis, updateCompatibility } = enhancedDependencyAnalysis;
-    
+
     sections.push(`Enhanced Impact Analysis:
 - Runtime Impact: ${impactAnalysis.runtimeImpact}
 - Build Impact: ${impactAnalysis.buildTimeImpact}
@@ -220,9 +242,12 @@ ${updateCompatibility.blockers.length > 0 ? `- Blockers: ${updateCompatibility.b
 
     if (impactAnalysis.directUsages.length > 0) {
       sections.push(`Direct Usage Details:
-${impactAnalysis.directUsages.map(usage => 
-  `- ${usage.packageName}: ${usage.usageType} (${usage.purpose})${usage.workspaces ? ` in ${usage.workspaces.join(', ')}` : ''}`
-).join('\n')}`);
+${impactAnalysis.directUsages
+  .map(
+    (usage) =>
+      `- ${usage.packageName}: ${usage.usageType} (${usage.purpose})${usage.workspaces ? ` in ${usage.workspaces.join(', ')}` : ''}`
+  )
+  .join('\n')}`);
     }
   }
 
@@ -231,16 +256,19 @@ ${impactAnalysis.directUsages.map(usage =>
 
 function buildSecurityMaintenanceContext(libraryIntelligence: LibraryIntelligence): string {
   const { securityInfo, maintenanceInfo, migrationIntelligence } = libraryIntelligence;
-  
+
   const sections: string[] = ['🛡️ SECURITY & MAINTENANCE CONTEXT'];
 
   // Security information
   if (securityInfo.vulnerabilities.length > 0) {
     sections.push(`Security Vulnerabilities (${securityInfo.vulnerabilities.length}):
-${securityInfo.vulnerabilities.map(vuln => 
-  `- [${vuln.severity.toUpperCase()}] ${vuln.title} (${vuln.id})
+${securityInfo.vulnerabilities
+  .map(
+    (vuln) =>
+      `- [${vuln.severity.toUpperCase()}] ${vuln.title} (${vuln.id})
     Affected: ${vuln.affectedVersions}${vuln.patchedIn ? ` | Fixed in: ${vuln.patchedIn}` : ''}`
-).join('\n')}`);
+  )
+  .join('\n')}`);
   } else {
     sections.push(`Security Status: Clean (Score: ${securityInfo.securityScore}/100)`);
   }
@@ -256,11 +284,14 @@ ${maintenanceInfo.sponsors.length > 0 ? `- Sponsors: ${maintenanceInfo.sponsors.
   // Migration intelligence
   if (migrationIntelligence.codemods.length > 0) {
     sections.push(`Available Migration Tools:
-${migrationIntelligence.codemods.map(codemod => 
-  `- ${codemod.name}: ${codemod.description}
+${migrationIntelligence.codemods
+  .map(
+    (codemod) =>
+      `- ${codemod.name}: ${codemod.description}
     Command: ${codemod.command}
     Coverage: ${codemod.coverage}% of changes`
-).join('\n')}`);
+  )
+  .join('\n')}`);
   }
 
   if (migrationIntelligence.migrationGuide) {
@@ -275,15 +306,10 @@ ${migrationIntelligence.codemods.map(codemod =>
   return sections.join('\n\n');
 }
 
-function buildAnalysisRequest(packageUpdate: PackageUpdate, language: 'en' | 'ja'): string {
-  const semver = import('semver');
-  const isMajorUpdate = semver.then(s => {
-    try {
-      return s.major(packageUpdate.toVersion) > s.major(packageUpdate.fromVersion);
-    } catch {
-      return packageUpdate.fromVersion.split('.')[0] !== packageUpdate.toVersion.split('.')[0];
-    }
-  });
+function buildAnalysisRequest(_packageUpdate: PackageUpdate, language: 'en' | 'ja'): string {
+  // TODO: Implement version comparison logic when needed
+  // const semver = import('semver');
+  // const isMajorUpdate = semver.then((s) => s.major(packageUpdate.toVersion) > s.major(packageUpdate.fromVersion));
 
   if (language === 'ja') {
     return `🎯 分析要求

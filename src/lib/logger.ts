@@ -9,7 +9,7 @@ export interface LogContext {
   operation: string;
   target?: string;
   error?: unknown;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -17,15 +17,15 @@ export interface LogContext {
  */
 export function logWarning(context: LogContext): void {
   const { operation, target, error, metadata } = context;
-  
+
   let message = `Failed to ${operation}`;
   if (target) {
     message += ` for ${target}`;
   }
   message += ':';
-  
+
   const errorMessage = error ? getErrorMessage(error) : 'Unknown error';
-  
+
   if (metadata) {
     console.warn(message, errorMessage, metadata);
   } else {
@@ -36,7 +36,7 @@ export function logWarning(context: LogContext): void {
 /**
  * Debug logger
  */
-export function logDebug(message: string, ...args: any[]): void {
+export function logDebug(message: string, ...args: unknown[]): void {
   if (process.env.DEBUG || process.env.VERBOSE) {
     console.debug(message, ...args);
   }
@@ -45,7 +45,7 @@ export function logDebug(message: string, ...args: any[]): void {
 /**
  * Info logger
  */
-export function logInfo(message: string, ...args: any[]): void {
+export function logInfo(message: string, ...args: unknown[]): void {
   console.log(message, ...args);
 }
 
@@ -57,34 +57,34 @@ export const loggers = {
     logWarning({
       operation: `fetch ${resource}`,
       target,
-      error
+      error,
     });
   },
-  
+
   npmOperationFailed: (operation: string, packageSpec: string, error: unknown) => {
     logWarning({
       operation,
       target: packageSpec,
-      error
+      error,
     });
   },
-  
+
   genericFailed: (operation: string, error: unknown) => {
     logWarning({
       operation,
-      error
+      error,
     });
   },
-  
-  debug: (message: string, ...args: any[]) => {
+
+  debug: (message: string, ...args: unknown[]) => {
     logDebug(message, ...args);
   },
-  
-  info: (message: string, ...args: any[]) => {
+
+  info: (message: string, ...args: unknown[]) => {
     logInfo(message, ...args);
   },
-  
-  warn: (message: string, ...args: any[]) => {
+
+  warn: (message: string, ...args: unknown[]) => {
     console.warn(message, ...args);
-  }
+  },
 };

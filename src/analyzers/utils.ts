@@ -9,43 +9,82 @@ import type { UsageLocation } from './base.js';
  */
 export function getFileContext(filePath: string): 'production' | 'test' | 'config' | 'build' {
   const lowerPath = filePath.toLowerCase();
-  
+
   // Test file patterns
   const testPatterns = [
-    'test', 'spec', '__tests__', '__mocks__', 
-    'test_', '_test', 'conftest', '.test.', '.spec.',
-    'tests/', 'specs/', 'e2e/', 'integration/'
+    'test',
+    'spec',
+    '__tests__',
+    '__mocks__',
+    'test_',
+    '_test',
+    'conftest',
+    '.test.',
+    '.spec.',
+    'tests/',
+    'specs/',
+    'e2e/',
+    'integration/',
   ];
-  
+
   // Config file patterns
   const configPatterns = [
-    'config', 'conf', '.rc', 'rc.', 'settings', 'setup',
-    '.config.', 'configuration', '.env', 'dotenv',
-    'webpack.', 'rollup.', 'vite.', 'tsconfig.', 'jest.',
-    'babel.', 'eslint', 'prettier', 'package.json',
-    'pyproject.toml', 'setup.py', 'setup.cfg', 'requirements'
+    'config',
+    'conf',
+    '.rc',
+    'rc.',
+    'settings',
+    'setup',
+    '.config.',
+    'configuration',
+    '.env',
+    'dotenv',
+    'webpack.',
+    'rollup.',
+    'vite.',
+    'tsconfig.',
+    'jest.',
+    'babel.',
+    'eslint',
+    'prettier',
+    'package.json',
+    'pyproject.toml',
+    'setup.py',
+    'setup.cfg',
+    'requirements',
   ];
-  
+
   // Build/dist file patterns
   const buildPatterns = [
-    'webpack', 'rollup', 'vite', 'esbuild', 'tsup', 
-    'build/', 'dist/', 'out/', 'output/', '.next/',
-    'bundle', 'compiled', 'transpiled', 'minified'
+    'webpack',
+    'rollup',
+    'vite',
+    'esbuild',
+    'tsup',
+    'build/',
+    'dist/',
+    'out/',
+    'output/',
+    '.next/',
+    'bundle',
+    'compiled',
+    'transpiled',
+    'minified',
   ];
-  
+
   // Check patterns in order of priority
-  if (testPatterns.some(pattern => lowerPath.includes(pattern))) {
+  if (testPatterns.some((pattern) => lowerPath.includes(pattern))) {
     return 'test';
   }
-  
-  if (configPatterns.some(pattern => lowerPath.includes(pattern))) {
+
+  if (configPatterns.some((pattern) => lowerPath.includes(pattern))) {
     return 'config';
   }
-  
-  if (buildPatterns.some(pattern => lowerPath.includes(pattern))) {
+
+  if (buildPatterns.some((pattern) => lowerPath.includes(pattern))) {
     return 'build';
   }
-  
+
   return 'production';
 }
 
@@ -69,40 +108,42 @@ export function categorizeUsages(locations: UsageLocation[]): UsageCategorizatio
     production: 0,
     test: 0,
     config: 0,
-    build: 0
+    build: 0,
   };
-  
+
   const criticalPaths = new Set<string>();
   let hasDynamicImports = false;
-  
+
   for (const location of locations) {
     // Count by context
     counts[location.context]++;
-    
+
     // Track critical production paths
     if (location.context === 'production') {
       criticalPaths.add(location.file);
     }
-    
+
     // Detect dynamic imports
-    if (location.type === 'require' && 
-        (location.code.includes('import(') || 
-         location.code.includes('importlib.import_module') ||
-         location.code.includes('__import__'))) {
+    if (
+      location.type === 'require' &&
+      (location.code.includes('import(') ||
+        location.code.includes('importlib.import_module') ||
+        location.code.includes('__import__'))
+    ) {
       hasDynamicImports = true;
     }
   }
-  
+
   // Build files are often config-related
   const configAndBuildCount = counts.config + counts.build;
-  
+
   return {
     totalUsageCount: locations.length,
     productionUsageCount: counts.production,
     testUsageCount: counts.test,
     configUsageCount: configAndBuildCount,
     criticalPaths: Array.from(criticalPaths).sort((a, b) => a.localeCompare(b)),
-    hasDynamicImports
+    hasDynamicImports,
   };
 }
 
@@ -114,17 +155,17 @@ export function isPackageImport(moduleSpecifier: string, packageName: string): b
   if (moduleSpecifier === packageName) {
     return true;
   }
-  
+
   // Subpath import (e.g., 'package/subpath')
   if (moduleSpecifier.startsWith(`${packageName}/`)) {
     return true;
   }
-  
+
   // Scoped package with subpath
   if (packageName.startsWith('@') && moduleSpecifier.startsWith(packageName)) {
     return true;
   }
-  
+
   return false;
 }
 
@@ -139,13 +180,10 @@ export function extractPackageNameFromImport(importStatement: string): string | 
     /import\s*{[^}]+}\s*from\s+['"]([^'"]+)['"]/,
     /import\s+\*\s+as\s+\w+\s+from\s+['"]([^'"]+)['"]/,
   ];
-  
+
   // CommonJS patterns
-  const cjsPatterns = [
-    /require\s*\(['"]([^'"]+)['"]\)/,
-    /require\.resolve\s*\(['"]([^'"]+)['"]\)/,
-  ];
-  
+  const cjsPatterns = [/require\s*\(['"]([^'"]+)['"]\)/, /require\.resolve\s*\(['"]([^'"]+)['"]\)/];
+
   // Python patterns
   const pythonPatterns = [
     /^import\s+(\S+)/,
@@ -153,40 +191,43 @@ export function extractPackageNameFromImport(importStatement: string): string | 
     /importlib\.import_module\(['"]([^'"]+)['"]\)/,
     /__import__\(['"]([^'"]+)['"]\)/,
   ];
-  
+
   const allPatterns = [...es6Patterns, ...cjsPatterns, ...pythonPatterns];
-  
+
   for (const pattern of allPatterns) {
     const match = pattern.exec(importStatement);
     if (match?.[1]) {
       return match[1];
     }
   }
-  
+
   return null;
 }
 
 /**
  * Normalizes package names across different ecosystems
  */
-export function normalizePackageName(name: string, ecosystem: 'npm' | 'pypi' | 'go' | 'maven' = 'npm'): string {
+export function normalizePackageName(
+  name: string,
+  ecosystem: 'npm' | 'pypi' | 'go' | 'maven' = 'npm'
+): string {
   switch (ecosystem) {
     case 'npm':
       // npm packages are case-sensitive but often referenced in lowercase
       return name;
-      
+
     case 'pypi':
       // PyPI normalizes names: lowercase, replace [._-] with -
       return name.toLowerCase().replace(/[._-]+/g, '-');
-      
+
     case 'go':
       // Go modules are case-sensitive
       return name;
-      
+
     case 'maven':
       // Maven uses groupId:artifactId format
       return name;
-      
+
     default:
       return name;
   }
@@ -212,14 +253,14 @@ export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
-  
+
   if (typeof error === 'string') {
     return error;
   }
-  
+
   if (error && typeof error === 'object' && 'message' in error) {
     return String(error.message);
   }
-  
+
   return 'Unknown error occurred';
 }

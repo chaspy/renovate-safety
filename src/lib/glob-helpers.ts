@@ -3,7 +3,6 @@
  */
 
 import { glob } from 'glob';
-import { join } from 'path';
 
 export interface GlobOptions {
   ecosystem?: 'node' | 'python' | 'general';
@@ -24,14 +23,9 @@ const COMMON_IGNORE_PATTERNS = {
     '**/coverage/**',
     '**/.cache/**',
     '**/tmp/**',
-    '**/.tmp/**'
+    '**/.tmp/**',
   ],
-  node: [
-    '**/.npm/**',
-    '**/.yarn/**',
-    '**/.pnp.*',
-    '**/bower_components/**'
-  ],
+  node: ['**/.npm/**', '**/.yarn/**', '**/.pnp.*', '**/bower_components/**'],
   python: [
     '**/__pycache__/**',
     '**/*.pyc',
@@ -40,7 +34,7 @@ const COMMON_IGNORE_PATTERNS = {
     '**/.venv/**',
     '**/site-packages/**',
     '**/.tox/**',
-    '**/.mypy_cache/**'
+    '**/.mypy_cache/**',
   ],
   test: [
     '**/*.test.*',
@@ -49,8 +43,8 @@ const COMMON_IGNORE_PATTERNS = {
     '**/tests/**',
     '**/__tests__/**',
     '**/test_*',
-    '**/*_test.*'
-  ]
+    '**/*_test.*',
+  ],
 };
 
 /**
@@ -58,21 +52,21 @@ const COMMON_IGNORE_PATTERNS = {
  */
 function getIgnorePatterns(options: GlobOptions): string[] {
   const patterns: string[] = [...COMMON_IGNORE_PATTERNS.base];
-  
+
   if (options.ecosystem === 'node') {
     patterns.push(...COMMON_IGNORE_PATTERNS.node);
   } else if (options.ecosystem === 'python') {
     patterns.push(...COMMON_IGNORE_PATTERNS.python);
   }
-  
+
   if (!options.includeTests) {
     patterns.push(...COMMON_IGNORE_PATTERNS.test);
   }
-  
+
   if (options.additionalIgnore) {
     patterns.push(...options.additionalIgnore);
   }
-  
+
   return patterns;
 }
 
@@ -85,17 +79,17 @@ export async function getFiles(
 ): Promise<string[]> {
   const patternArray = Array.isArray(patterns) ? patterns : [patterns];
   const ignorePatterns = getIgnorePatterns(options);
-  
+
   const allFiles: string[] = [];
-  
+
   for (const pattern of patternArray) {
     const files = await glob(pattern, {
       ignore: ignorePatterns,
-      absolute: options.absolute
+      absolute: options.absolute,
     });
     allFiles.push(...files);
   }
-  
+
   // Remove duplicates
   return [...new Set(allFiles)];
 }
@@ -104,19 +98,19 @@ export async function getFiles(
  * Get source files for a specific ecosystem
  */
 export async function getSourceFiles(
-  projectPath: string,
+  _projectPath: string,
   ecosystem: 'node' | 'python' | 'general' = 'general'
 ): Promise<string[]> {
   const patterns = {
     node: ['**/*.{js,jsx,ts,tsx,mjs,cjs}'],
     python: ['**/*.py', '**/*.pyi'],
-    general: ['**/*.{js,jsx,ts,tsx,py,java,cpp,c,h,go,rs,rb,php}']
+    general: ['**/*.{js,jsx,ts,tsx,py,java,cpp,c,h,go,rs,rb,php}'],
   };
-  
+
   return getFiles(patterns[ecosystem], {
     ecosystem,
     includeTests: false,
-    absolute: true
+    absolute: true,
   });
 }
 
@@ -124,7 +118,7 @@ export async function getSourceFiles(
  * Get configuration files
  */
 export async function getConfigFiles(
-  projectPath: string,
+  _projectPath: string,
   configPatterns?: string[]
 ): Promise<string[]> {
   const defaultPatterns = [
@@ -142,14 +136,14 @@ export async function getConfigFiles(
     'setup.cfg',
     'requirements*.txt',
     'Pipfile*',
-    '.pre-commit-config.yaml'
+    '.pre-commit-config.yaml',
   ];
-  
+
   const patterns = configPatterns || defaultPatterns;
-  
+
   return getFiles(patterns, {
     absolute: true,
-    additionalIgnore: ['**/node_modules/**', '**/venv/**']
+    additionalIgnore: ['**/node_modules/**', '**/venv/**'],
   });
 }
 
@@ -158,13 +152,11 @@ export async function getConfigFiles(
  */
 export function matchesPattern(filePath: string, patterns: string[]): boolean {
   const fileName = filePath.split('/').pop() || '';
-  
+
   for (const pattern of patterns) {
     if (pattern.includes('*')) {
       // Simple glob matching
-      const regex = new RegExp(
-        '^' + pattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$'
-      );
+      const regex = new RegExp('^' + pattern.replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
       if (regex.test(fileName)) {
         return true;
       }
@@ -172,7 +164,7 @@ export function matchesPattern(filePath: string, patterns: string[]): boolean {
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -180,8 +172,8 @@ export function matchesPattern(filePath: string, patterns: string[]): boolean {
  * Filter files by extension
  */
 export function filterByExtension(files: string[], extensions: string[]): string[] {
-  const extensionSet = new Set(extensions.map(ext => ext.startsWith('.') ? ext : `.${ext}`));
-  return files.filter(file => {
+  const extensionSet = new Set(extensions.map((ext) => (ext.startsWith('.') ? ext : `.${ext}`)));
+  return files.filter((file) => {
     const ext = file.substring(file.lastIndexOf('.'));
     return extensionSet.has(ext);
   });

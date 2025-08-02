@@ -22,18 +22,14 @@ export async function processInParallel<T, R>(
   processor: (item: T, index: number) => Promise<R>,
   options: ParallelOptions = {}
 ): Promise<Array<R | Error>> {
-  const {
-    concurrency = 10,
-    continueOnError = true,
-    timeout
-  } = options;
-  
+  const { concurrency = 10, continueOnError = true, timeout } = options;
+
   const limit = pLimit(concurrency);
-  
+
   const processWithTimeout = timeout
     ? (item: T, index: number) => withTimeout(processor(item, index), timeout)
     : processor;
-  
+
   const promises = items.map((item, index) =>
     limit(async () => {
       try {
@@ -46,7 +42,7 @@ export async function processInParallel<T, R>(
       }
     })
   );
-  
+
   return Promise.all(promises);
 }
 
@@ -63,7 +59,7 @@ export async function processFilesInParallel<R>(
   options: ParallelOptions = {}
 ): Promise<R[]> {
   const results = await processInParallel(files, processor, options);
-  
+
   // Filter out errors and return only successful results
   return results.filter((result): result is R => !(result instanceof Error));
 }
@@ -81,7 +77,7 @@ export async function mapInParallel<T, R>(
   concurrency: number = 10
 ): Promise<R[]> {
   const limit = pLimit(concurrency);
-  return Promise.all(items.map(item => limit(() => mapper(item))));
+  return Promise.all(items.map((item) => limit(() => mapper(item))));
 }
 
 /**
@@ -112,13 +108,13 @@ export async function batchProcessInParallel<T, R>(
   options: ParallelOptions = {}
 ): Promise<R[]> {
   const batches: T[][] = [];
-  
+
   for (let i = 0; i < items.length; i += batchSize) {
     batches.push(items.slice(i, Math.min(i + batchSize, items.length)));
   }
-  
+
   const results = await processInParallel(batches, processor, options);
-  
+
   // Filter out errors
   return results.filter((result): result is R => !(result instanceof Error));
 }
@@ -131,7 +127,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
     promise,
     new Promise<T>((_, reject) =>
       setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs)
-    )
+    ),
   ]);
 }
 
@@ -152,7 +148,7 @@ export async function collectInParallel<T, R>(
   const { onProgress, ...parallelOptions } = options;
   let completed = 0;
   const total = items.length;
-  
+
   const results = await processInParallel(
     items,
     async (item) => {
@@ -165,9 +161,7 @@ export async function collectInParallel<T, R>(
     },
     parallelOptions
   );
-  
+
   // Flatten and filter out errors
-  return results
-    .filter((result): result is R[] => !(result instanceof Error))
-    .flat();
+  return results.filter((result): result is R[] => !(result instanceof Error)).flat();
 }

@@ -4,7 +4,6 @@
  */
 
 import { secureNpmExec, parseJsonOutput, isSuccessful } from './secure-exec.js';
-import { getErrorMessage } from '../analyzers/utils.js';
 import { loggers } from './logger.js';
 import { tryWithLogging } from './error-handlers.js';
 
@@ -29,54 +28,53 @@ export interface PackageInfo {
  * Consolidates the duplicate pattern across multiple files
  */
 export async function getPackageRepository(packageName: string): Promise<string | null> {
-  return tryWithLogging(async () => {
-    const result = await secureNpmExec(
-      'view',
-      [packageName, 'repository.url', '--json']
-    );
+  return tryWithLogging(
+    async () => {
+      const result = await secureNpmExec('view', [packageName, 'repository.url', '--json']);
 
-    if (!isSuccessful(result)) {
+      if (!isSuccessful(result)) {
+        return null;
+      }
+
+      const data = parseJsonOutput(result.stdout);
+      if (!data) return null;
+
+      // Handle different response formats
+      if (typeof data === 'string') {
+        return data;
+      }
+
+      if (typeof data === 'object' && (data as any).repository) {
+        const repo = (data as any).repository;
+        return typeof repo === 'string' ? repo : repo.url;
+      }
+
       return null;
-    }
-
-    const data = parseJsonOutput(result.stdout);
-    if (!data) return null;
-
-    // Handle different response formats
-    if (typeof data === 'string') {
-      return data;
-    }
-    
-    if (typeof data === 'object' && data.repository) {
-      return typeof data.repository === 'string' 
-        ? data.repository 
-        : data.repository.url;
-    }
-
-    return null;
-  }, 'fetch repository', packageName);
+    },
+    'fetch repository',
+    packageName
+  );
 }
 
 /**
  * Get package metadata from npm registry
  * Replaces multiple instances of npm view --json
  */
-export async function getPackageMetadata(
-  packageSpec: string
-): Promise<PackageInfo | null> {
-  return tryWithLogging(async () => {
-    const result = await secureNpmExec(
-      'view',
-      [packageSpec, '--json']
-    );
+export async function getPackageMetadata(packageSpec: string): Promise<PackageInfo | null> {
+  return tryWithLogging(
+    async () => {
+      const result = await secureNpmExec('view', [packageSpec, '--json']);
 
-    if (!isSuccessful(result)) {
-      return null;
-    }
+      if (!isSuccessful(result)) {
+        return null;
+      }
 
-    const data = parseJsonOutput<PackageInfo>(result.stdout);
-    return data;
-  }, 'fetch metadata', packageSpec);
+      const data = parseJsonOutput<PackageInfo>(result.stdout);
+      return data;
+    },
+    'fetch metadata',
+    packageSpec
+  );
 }
 
 /**
@@ -85,12 +83,9 @@ export async function getPackageMetadata(
 export async function getPackageFields(
   packageSpec: string,
   fields: string[]
-): Promise<Record<string, any> | null> {
+): Promise<Record<string, unknown> | null> {
   try {
-    const result = await secureNpmExec(
-      'view',
-      [packageSpec, ...fields, '--json']
-    );
+    const result = await secureNpmExec('view', [packageSpec, ...fields, '--json']);
 
     if (!isSuccessful(result)) {
       return null;
@@ -106,14 +101,9 @@ export async function getPackageFields(
 /**
  * Get package readme content
  */
-export async function getPackageReadme(
-  packageSpec: string
-): Promise<string | null> {
+export async function getPackageReadme(packageSpec: string): Promise<string | null> {
   try {
-    const result = await secureNpmExec(
-      'view',
-      [packageSpec, 'readme']
-    );
+    const result = await secureNpmExec('view', [packageSpec, 'readme']);
 
     if (!isSuccessful(result)) {
       return null;
@@ -129,23 +119,21 @@ export async function getPackageReadme(
 /**
  * Get npm diff between two package versions
  */
-export async function getNpmDiff(
-  fromSpec: string,
-  toSpec: string
-): Promise<string | null> {
-  return tryWithLogging(async () => {
-    const result = await secureNpmExec(
-      'diff',
-      [fromSpec, toSpec]
-    );
+export async function getNpmDiff(fromSpec: string, toSpec: string): Promise<string | null> {
+  return tryWithLogging(
+    async () => {
+      const result = await secureNpmExec('diff', [fromSpec, toSpec]);
 
-    if (!isSuccessful(result)) {
-      console.warn(`npm diff failed for ${fromSpec} -> ${toSpec}`);
-      return null;
-    }
+      if (!isSuccessful(result)) {
+        console.warn(`npm diff failed for ${fromSpec} -> ${toSpec}`);
+        return null;
+      }
 
-    return result.stdout;
-  }, 'npm diff', `${fromSpec} -> ${toSpec}`);
+      return result.stdout;
+    },
+    'npm diff',
+    `${fromSpec} -> ${toSpec}`
+  );
 }
 
 /**
@@ -158,18 +146,18 @@ export async function listPackageDependencies(
     prod?: boolean;
     dev?: boolean;
   } = {}
-): Promise<any> {
+): Promise<unknown> {
   try {
     const args = ['ls', packageName, '--json'];
-    
+
     if (options.depth !== undefined) {
       args.push(`--depth=${options.depth}`);
     }
-    
+
     if (options.prod) {
       args.push('--prod');
     }
-    
+
     if (options.dev) {
       args.push('--dev');
     }
@@ -195,14 +183,14 @@ export async function runNpmAudit(
     json?: boolean;
     level?: 'low' | 'moderate' | 'high' | 'critical';
   } = {}
-): Promise<any> {
+): Promise<unknown> {
   try {
     const args = ['audit'];
-    
+
     if (options.json) {
       args.push('--json');
     }
-    
+
     if (options.level) {
       args.push(`--audit-level=${options.level}`);
     }
@@ -233,12 +221,11 @@ export async function packageExists(packageName: string): Promise<boolean> {
 /**
  * Get package download stats
  */
-export async function getPackageDownloads(
-  packageName: string
-): Promise<number | null> {
+export async function getPackageDownloads(packageName: string): Promise<number | null> {
   try {
     const data = await getPackageFields(packageName, ['downloads']);
-    return data?.downloads || null;
+    const downloads = data?.downloads;
+    return typeof downloads === 'number' ? downloads : null;
   } catch (error) {
     loggers.npmOperationFailed('fetch downloads', packageName, error);
     return null;
@@ -265,7 +252,7 @@ export function extractGitHubRepo(repositoryUrl: string | undefined): {
     if (match) {
       return {
         owner: match[1],
-        repo: match[2].replace(/\.git$/, '')
+        repo: match[2].replace(/\.git$/, ''),
       };
     }
   }

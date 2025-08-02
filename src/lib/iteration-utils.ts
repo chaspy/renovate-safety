@@ -120,20 +120,23 @@ export async function mapWithConcurrency<T, R>(
 ): Promise<R[]> {
   const results: R[] = new Array(items.length);
   const executing: Promise<void>[] = [];
-  
+
   for (let i = 0; i < items.length; i++) {
-    const promise = callback(items[i]).then(result => {
+    const promise = callback(items[i]).then((result) => {
       results[i] = result;
     });
-    
+
     executing.push(promise);
-    
+
     if (executing.length >= concurrency) {
       await Promise.race(executing);
-      executing.splice(executing.findIndex(p => p === promise), 1);
+      executing.splice(
+        executing.findIndex((p) => p === promise),
+        1
+      );
     }
   }
-  
+
   await Promise.all(executing);
   return results;
 }

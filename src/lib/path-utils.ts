@@ -29,7 +29,8 @@ export function getHomePath(...paths: string[]): string {
  * @returns Cache directory path
  */
 export function getCachePath(...paths: string[]): string {
-  const cacheBase = process.env.RENOVATE_SAFETY_CACHE_DIR || join(homedir(), '.cache', 'renovate-safety');
+  const cacheBase =
+    process.env.RENOVATE_SAFETY_CACHE_DIR || join(homedir(), '.cache', 'renovate-safety');
   return join(cacheBase, ...paths);
 }
 
@@ -91,7 +92,7 @@ export function ensureAbsolutePath(path: string, basePath?: string): string {
 export function getRelativePath(from: string, to: string): string {
   const fromParts = normalizePath(resolve(from)).split('/');
   const toParts = normalizePath(resolve(to)).split('/');
-  
+
   let commonLength = 0;
   for (let i = 0; i < Math.min(fromParts.length, toParts.length); i++) {
     if (fromParts[i] === toParts[i]) {
@@ -100,11 +101,11 @@ export function getRelativePath(from: string, to: string): string {
       break;
     }
   }
-  
+
   const upCount = fromParts.length - commonLength - 1;
   const upPath = '../'.repeat(upCount);
   const downPath = toParts.slice(commonLength).join('/');
-  
+
   return upPath + downPath;
 }
 

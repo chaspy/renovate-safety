@@ -1,5 +1,4 @@
 import pacote from 'pacote';
-import { Octokit } from '@octokit/rest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'crypto';
@@ -8,6 +7,7 @@ import type { PackageUpdate, ChangelogDiff } from '../types/index.js';
 import { httpGet } from './http-client.js';
 import { fileExists, readJsonFile, ensureDirectory } from './file-helpers.js';
 import { getGitHubClient } from './github-client.js';
+import { executeInParallel } from './parallel-helpers.js';
 
 export async function fetchChangelogDiff(
   packageUpdate: PackageUpdate,
@@ -146,10 +146,13 @@ async function fetchFromGitHubReleases(
 async function fetchFromNpmRegistry(packageUpdate: PackageUpdate): Promise<ChangelogDiff | null> {
   try {
     // Fetch both versions - we only use the to version for extraction
-    await Promise.all([
-      pacote.manifest(`${packageUpdate.name}@${packageUpdate.fromVersion}`),
-      pacote.manifest(`${packageUpdate.name}@${packageUpdate.toVersion}`),
-    ]);
+    await executeInParallel(
+      [
+        () => pacote.manifest(`${packageUpdate.name}@${packageUpdate.fromVersion}`),
+        () => pacote.manifest(`${packageUpdate.name}@${packageUpdate.toVersion}`),
+      ],
+      { concurrency: 2 }
+    );
 
     // Extract tarball and look for changelog
     const tempDir = await fs.mkdtemp(path.join(process.cwd(), '.tmp-'));
@@ -304,19 +307,19 @@ function extractRelevantSections(
 
 function normalizeVersion(version: string): string | null {
   const cleaned = version.replace(/^v/, '');
-  
+
   // Try to coerce to valid semver if it's not already valid
   const valid = semver.valid(cleaned);
   if (valid) {
     return valid;
   }
-  
+
   // Try to coerce partial versions (e.g., "16" -> "16.0.0", "16.2" -> "16.2.0")
   const coerced = semver.coerce(cleaned);
   if (coerced) {
     return coerced.version;
   }
-  
+
   return null;
 }
 
@@ -344,18 +347,24 @@ function detectPackageType(packageName: string): 'javascript' | 'python' | 'unkn
   return 'javascript';
 }
 
+interface PyPIPackageInfo {
+  info?: {
+    project_urls?: Record<string, string>;
+    home_page?: string;
+  };
+}
+
 async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDiff | null> {
   try {
     // Fetch package info from PyPI
     const packageName = packageUpdate.name.toLowerCase();
-    const response = await httpGet<any>(`https://pypi.org/pypi/${packageName}/json`);
+    const response = await httpGet<unknown>(`https://pypi.org/pypi/${packageName}/json`);
 
     if (!response.ok || !response.data) {
       return null;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = response.data;
+    const data = response.data as PyPIPackageInfo;
 
     // Try to find GitHub URL from project URLs
     const projectUrls = data.info?.project_urls || {};
@@ -390,7 +399,7 @@ async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDif
 
     // Try to extract from package description or release notes
     // const fromRelease = data.releases?.[packageUpdate.fromVersion]?.[0];
-    const toRelease = data.releases?.[packageUpdate.toVersion]?.[0];
+    const toRelease = (data as any).releases?.[packageUpdate.toVersion]?.[0];
 
     if (toRelease?.description) {
       // PyPI descriptions often contain changelog info
