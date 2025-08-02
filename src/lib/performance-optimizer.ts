@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createHash } from 'crypto';
+import { generateCacheKey, generateMultiParamCacheKey } from './cache-utils.js';
 import { clearTimeout } from 'node:timers';
 import { readJsonFile, ensureDirectory } from './file-helpers.js';
 import { processInParallel, executeInParallel } from './parallel-helpers.js';
@@ -168,7 +168,7 @@ class FileBasedCache implements SmartCache {
   }
 
   private hashKey(key: string): string {
-    return createHash('md5').update(key).digest('hex');
+    return generateCacheKey(key);
   }
 
   private isExpired(entry: CacheEntry<unknown>): boolean {
@@ -485,6 +485,5 @@ export function getCacheKey(
   version: string,
   ...additionalParams: string[]
 ): string {
-  const params = [type, packageName, version, ...additionalParams].join(':');
-  return createHash('md5').update(params).digest('hex');
+  return generateMultiParamCacheKey(type, packageName, version, ...additionalParams);
 }

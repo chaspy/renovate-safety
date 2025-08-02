@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createHash } from 'crypto';
+import { generatePackageCacheKey } from './cache-utils.js';
 import { secureSystemExec } from './secure-exec.js';
 import type {
   PackageUpdate,
@@ -310,8 +310,7 @@ async function cacheSummary(
 }
 
 function getSummaryCacheKey(packageUpdate: PackageUpdate): string {
-  const key = `${packageUpdate.name}@${packageUpdate.fromVersion}->${packageUpdate.toVersion}`;
-  return createHash('sha1').update(key).digest('hex');
+  return generatePackageCacheKey(packageUpdate);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -561,6 +560,5 @@ async function cacheEnhancedSummary(
 }
 
 function getEnhancedSummaryCacheKey(packageUpdate: PackageUpdate): string {
-  const key = `enhanced-${packageUpdate.name}@${packageUpdate.fromVersion}->${packageUpdate.toVersion}`;
-  return createHash('sha1').update(key).digest('hex');
+  return generatePackageCacheKey(packageUpdate, 'enhanced');
 }

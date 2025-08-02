@@ -154,7 +154,18 @@ export async function performEnhancedCodeAnalysis(
   const semanticChanges: SemanticChange[] = results[0] instanceof Error ? [] : results[0];
   const apiChanges: ApiChange[] = results[1] instanceof Error ? [] : results[1];
   const breakingPatterns: BreakingPattern[] = results[2] instanceof Error ? [] : results[2];
-  const fileImpactAnalysis: FileImpactAnalysis = results[3] instanceof Error ? { affectedFiles: [], criticalPaths: [], testCoverage: { covered: [], uncovered: [] }, estimatedEffort: 'unknown', categories: {}, riskDistribution: {}, affectedAreas: [] } : results[3];
+  const fileImpactAnalysis: FileImpactAnalysis =
+    results[3] instanceof Error
+      ? {
+          affectedFiles: [],
+          criticalPaths: [],
+          testCoverage: { covered: [], uncovered: [] },
+          estimatedEffort: 'unknown',
+          categories: {},
+          riskDistribution: {},
+          affectedAreas: [],
+        }
+      : results[3];
 
   const migrationComplexity = assessMigrationComplexity(
     semanticChanges,

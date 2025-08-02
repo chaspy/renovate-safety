@@ -1,7 +1,7 @@
 import pacote from 'pacote';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createHash } from 'crypto';
+import { generatePackageCacheKey } from './cache-utils.js';
 import semver from 'semver';
 import type { PackageUpdate, ChangelogDiff } from '../types/index.js';
 import { httpGet } from './http-client.js';
@@ -85,8 +85,7 @@ async function cacheChangelog(
 }
 
 function getCacheKey(packageUpdate: PackageUpdate): string {
-  const key = `${packageUpdate.name}@${packageUpdate.fromVersion}->${packageUpdate.toVersion}`;
-  return createHash('sha1').update(key).digest('hex');
+  return generatePackageCacheKey(packageUpdate);
 }
 
 async function fetchFromGitHubReleases(

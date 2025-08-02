@@ -247,7 +247,10 @@ async function gatherPackageInfo(packageName: string): Promise<PackageInfo> {
       license: data.license || 'Unknown',
       homepage: data.homepage,
       repository: typeof data.repository === 'object' ? data.repository.url : data.repository,
-      author: extendedData.author && typeof extendedData.author === 'object' ? extendedData.author.name : extendedData.author,
+      author:
+        extendedData.author && typeof extendedData.author === 'object'
+          ? extendedData.author.name
+          : extendedData.author,
       maintainers:
         extendedData.maintainers?.map((m: unknown) =>
           typeof m === 'object' && m !== null && 'name' in m ? (m as { name: string }).name : m

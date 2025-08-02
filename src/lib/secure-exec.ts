@@ -34,11 +34,17 @@ function handleExecError(error: unknown, options: SecureExecOptions): ExecResult
   const execaError = error as ExecaError;
   return {
     stdout: typeof execaError.stdout === 'string' ? execaError.stdout : '',
-    stderr: typeof execaError.stderr === 'string' ? execaError.stderr : execaError.message || 'Unknown error',
+    stderr:
+      typeof execaError.stderr === 'string'
+        ? execaError.stderr
+        : execaError.message || 'Unknown error',
     failed: true,
     exitCode: execaError.exitCode,
     success: false,
-    error: typeof execaError.stderr === 'string' ? execaError.stderr : execaError.message || 'Unknown error',
+    error:
+      typeof execaError.stderr === 'string'
+        ? execaError.stderr
+        : execaError.message || 'Unknown error',
   };
 }
 

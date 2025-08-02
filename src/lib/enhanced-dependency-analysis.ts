@@ -123,15 +123,40 @@ export async function performEnhancedDependencyAnalysis(
     { concurrency: 6 }
   );
 
-  const impactAnalysis: ImpactAnalysis = results[0] instanceof Error ? 
-    { directUsages: [], transitiveUsages: [], configurationUsages: [], runtimeImpact: 'none', buildImpact: 'none', testImpact: 'none', securityImpact: [] } : results[0];
+  const impactAnalysis: ImpactAnalysis =
+    results[0] instanceof Error
+      ? {
+          directUsages: [],
+          transitiveUsages: [],
+          configurationUsages: [],
+          runtimeImpact: 'none',
+          buildImpact: 'none',
+          testImpact: 'none',
+          securityImpact: [],
+        }
+      : results[0];
   const versionConstraints: VersionConstraints[] = results[1] instanceof Error ? [] : results[1];
-  const breakingChangeRisk: BreakingChangeRisk = results[2] instanceof Error ? 
-    { level: 'low', semverViolation: false, publicApiChanges: [], behaviorChanges: [], removalChanges: [] } : results[2];
+  const breakingChangeRisk: BreakingChangeRisk =
+    results[2] instanceof Error
+      ? {
+          level: 'low',
+          semverViolation: false,
+          publicApiChanges: [],
+          behaviorChanges: [],
+          removalChanges: [],
+        }
+      : results[2];
   const usagePatterns: UsagePattern[] = results[3] instanceof Error ? [] : results[3];
   const relatedPackages: RelatedPackage[] = results[4] instanceof Error ? [] : results[4];
-  const updateCompatibility: UpdateCompatibility = results[5] instanceof Error ? 
-    { compatible: true, breakingChanges: [], migrationEffort: 'minimal', alternativeVersions: [] } : results[5];
+  const updateCompatibility: UpdateCompatibility =
+    results[5] instanceof Error
+      ? {
+          compatible: true,
+          breakingChanges: [],
+          migrationEffort: 'minimal',
+          alternativeVersions: [],
+        }
+      : results[5];
 
   return {
     packageName,
