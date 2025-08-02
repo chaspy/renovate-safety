@@ -1,3 +1,5 @@
+import { URL } from 'node:url';
+
 /**
  * Common string validation and manipulation utilities to reduce code duplication
  */
@@ -81,8 +83,8 @@ export function toKebabCase(str: string): string {
  */
 export function toCamelCase(str: string): string {
   return str
-    .replace(/[-_\s]+(.)?/g, (_, char) => char ? char.toUpperCase() : '')
-    .replace(/^./, char => char.toLowerCase());
+    .replace(/[-_\s]+(.)?/g, (_, char) => (char ? char.toUpperCase() : ''))
+    .replace(/^./, (char) => char.toLowerCase());
 }
 
 /**
@@ -155,7 +157,7 @@ export function pluralize(word: string, count: number): string {
   if (count === 1) {
     return word;
   }
-  
+
   // Simple pluralization rules
   if (word.endsWith('y') && !/[aeiou]y$/i.test(word)) {
     return word.slice(0, -1) + 'ies';
@@ -173,7 +175,7 @@ export function joinWithGrammar(items: string[], conjunction: string = 'and'): s
   if (items.length === 0) return '';
   if (items.length === 1) return items[0];
   if (items.length === 2) return `${items[0]} ${conjunction} ${items[1]}`;
-  
+
   const last = items[items.length - 1];
   const rest = items.slice(0, -1);
   return `${rest.join(', ')}, ${conjunction} ${last}`;

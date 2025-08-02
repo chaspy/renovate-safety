@@ -1,6 +1,9 @@
 import type { AnalysisResult } from '../types/index.js';
 import { getRiskEmoji, getRiskDescription } from './grade.js';
-import { generateActionableRecommendations, generateMigrationChecklist } from './recommendations.js';
+import {
+  generateActionableRecommendations,
+  generateMigrationChecklist,
+} from './recommendations.js';
 import { analyzeSecurityImplications, generateSecurityChecklist } from './security-analysis.js';
 
 export async function generateReport(
@@ -31,15 +34,21 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
 
   // Header
   sections.push(`# Renovate Safety Analysis Report\n`);
-  sections.push(`## ${getRiskEmoji(riskAssessment.level)} Risk Assessment: ${riskAssessment.level.toUpperCase()}\n`);
+  sections.push(
+    `## ${getRiskEmoji(riskAssessment.level)} Risk Assessment: ${riskAssessment.level.toUpperCase()}\n`
+  );
 
   // Package info
   sections.push(`### 📦 Package Update`);
   sections.push(`- **Package**: \`${pkg.name}\``);
   sections.push(`- **Version**: ${pkg.fromVersion} → ${pkg.toVersion}`);
   sections.push(`- **Changelog Source**: ${changelogDiff ? changelogDiff.source : 'Not found'}`);
-  sections.push(`- **Code Diff**: ${codeDiff ? `${codeDiff.filesChanged} files changed (${codeDiff.fromTag} → ${codeDiff.toTag})` : 'Not available'}`);
-  sections.push(`- **Dependency Type**: ${dependencyUsage ? `${dependencyUsage.isDirect ? 'Direct' : 'Transitive'} ${dependencyUsage.usageType}` : 'Unknown'}\n`);
+  sections.push(
+    `- **Code Diff**: ${codeDiff ? `${codeDiff.filesChanged} files changed (${codeDiff.fromTag} → ${codeDiff.toTag})` : 'Not available'}`
+  );
+  sections.push(
+    `- **Dependency Type**: ${dependencyUsage ? `${dependencyUsage.isDirect ? 'Direct' : 'Transitive'} ${dependencyUsage.usageType}` : 'Unknown'}\n`
+  );
 
   // Summary
   if (llmSummary) {
@@ -60,12 +69,14 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
     sections.push(`### 🌳 Dependency Usage`);
     sections.push(`- **Type**: ${dependencyUsage.isDirect ? 'Direct' : 'Transitive'} dependency`);
     sections.push(`- **Category**: ${dependencyUsage.usageType}`);
-    sections.push(`- **Impact**: Affects ${dependencyUsage.dependents.length} package${dependencyUsage.dependents.length > 1 ? 's' : ''}`);
-    
+    sections.push(
+      `- **Impact**: Affects ${dependencyUsage.dependents.length} package${dependencyUsage.dependents.length > 1 ? 's' : ''}`
+    );
+
     if (dependencyUsage.dependents.length > 0) {
-      const directDeps = dependencyUsage.dependents.filter(dep => dep.type === 'direct');
-      const transitiveDeps = dependencyUsage.dependents.filter(dep => dep.type === 'transitive');
-      
+      const directDeps = dependencyUsage.dependents.filter((dep) => dep.type === 'direct');
+      const transitiveDeps = dependencyUsage.dependents.filter((dep) => dep.type === 'transitive');
+
       if (directDeps.length > 0) {
         sections.push(`\n**Direct Dependencies (${directDeps.length}):**`);
         for (const dep of directDeps.slice(0, 5)) {
@@ -75,7 +86,7 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
           sections.push(`- ... and ${directDeps.length - 5} more`);
         }
       }
-      
+
       if (transitiveDeps.length > 0) {
         sections.push(`\n**Transitive Dependencies (${transitiveDeps.length}):**`);
         for (const dep of transitiveDeps.slice(0, 3)) {
@@ -159,27 +170,37 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
     sections.push(`### 🔬 Deep Code Analysis`);
     sections.push(`**Package Usage Overview:**`);
     sections.push(`- **Total Files Scanned**: ${deepAnalysis.totalFiles}`);
-    sections.push(`- **Files Using Package**: ${deepAnalysis.filesUsingPackage} (${Math.round((deepAnalysis.filesUsingPackage / deepAnalysis.totalFiles) * 100)}%)`);
+    sections.push(
+      `- **Files Using Package**: ${deepAnalysis.filesUsingPackage} (${Math.round((deepAnalysis.filesUsingPackage / deepAnalysis.totalFiles) * 100)}%)`
+    );
     sections.push(`- **Import Statements**: ${deepAnalysis.imports.length}`);
     sections.push(`- **API Usages**: ${deepAnalysis.apiUsages.length}\n`);
 
     // Usage Summary
     sections.push(`**Usage Distribution:**`);
     const { testVsProduction, byFileType, byAPIType, mostUsedAPIs } = deepAnalysis.usageSummary;
-    
+
     if (testVsProduction.test > 0 || testVsProduction.production > 0) {
       sections.push(`- **Test Files**: ${testVsProduction.test}`);
       sections.push(`- **Production Files**: ${testVsProduction.production}`);
     }
-    
+
     if (Object.keys(byFileType).length > 0) {
-      sections.push(`- **By File Type**: ${Object.entries(byFileType).map(([type, count]) => `${type}: ${count}`).join(', ')}`);
+      sections.push(
+        `- **By File Type**: ${Object.entries(byFileType)
+          .map(([type, count]) => `${type}: ${count}`)
+          .join(', ')}`
+      );
     }
-    
+
     if (Object.keys(byAPIType).length > 0) {
-      sections.push(`- **By Usage Type**: ${Object.entries(byAPIType).map(([type, count]) => `${type}: ${count}`).join(', ')}`);
+      sections.push(
+        `- **By Usage Type**: ${Object.entries(byAPIType)
+          .map(([type, count]) => `${type}: ${count}`)
+          .join(', ')}`
+      );
     }
-    
+
     if (mostUsedAPIs.length > 0) {
       sections.push(`\n**Most Used APIs:**`);
       for (const api of mostUsedAPIs.slice(0, 5)) {
@@ -190,11 +211,14 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
     // Import Types
     if (deepAnalysis.imports.length > 0) {
       sections.push(`\n**Import Types:**`);
-      const importsByType = deepAnalysis.imports.reduce((acc, imp) => {
-        acc[imp.type] = (acc[imp.type] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      
+      const importsByType = deepAnalysis.imports.reduce(
+        (acc, imp) => {
+          acc[imp.type] = (acc[imp.type] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>
+      );
+
       for (const [type, count] of Object.entries(importsByType)) {
         sections.push(`- ${type.replace('-', ' ')}: ${count}`);
       }
@@ -211,11 +235,14 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
     // File Classifications
     if (deepAnalysis.fileClassifications.length > 0) {
       sections.push(`\n**File Classifications:**`);
-      const classificationSummary = deepAnalysis.fileClassifications.reduce((acc, file) => {
-        acc[file.category] = (acc[file.category] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      
+      const classificationSummary = deepAnalysis.fileClassifications.reduce(
+        (acc, file) => {
+          acc[file.category] = (acc[file.category] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>
+      );
+
       for (const [category, count] of Object.entries(classificationSummary)) {
         sections.push(`- ${category}: ${count} file${count > 1 ? 's' : ''}`);
       }
@@ -236,20 +263,27 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
   const actionableRecs = generateActionableRecommendations(result, riskAssessment);
   if (actionableRecs.length > 0) {
     sections.push(`### 🎯 Actionable Recommendations\n`);
-    
+
     for (const rec of actionableRecs) {
-      const priorityEmoji = rec.priority === 'immediate' ? '🚨' : 
-                           rec.priority === 'high' ? '🔴' :
-                           rec.priority === 'medium' ? '🟠' : '🟡';
-      
+      const priorityEmoji =
+        rec.priority === 'immediate'
+          ? '🚨'
+          : rec.priority === 'high'
+            ? '🔴'
+            : rec.priority === 'medium'
+              ? '🟠'
+              : '🟡';
+
       sections.push(`#### ${priorityEmoji} ${rec.title}`);
-      sections.push(`**Priority:** ${rec.priority.toUpperCase()} | **Time Required:** ${rec.estimatedTime} | **Automatable:** ${rec.automatable ? 'Yes' : 'No'}\n`);
-      
+      sections.push(
+        `**Priority:** ${rec.priority.toUpperCase()} | **Time Required:** ${rec.estimatedTime} | **Automatable:** ${rec.automatable ? 'Yes' : 'No'}\n`
+      );
+
       sections.push('**Actions:**');
       for (const action of rec.actions) {
         sections.push(`- ${action}`);
       }
-      
+
       if (rec.resources && rec.resources.length > 0) {
         sections.push('\n**Helpful Commands/Resources:**');
         for (const resource of rec.resources) {
@@ -267,26 +301,33 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
     sections.push(...checklist);
     sections.push('');
   }
-  
+
   // Security Analysis
   const securityIssues = await analyzeSecurityImplications(pkg, codeDiff, changelogDiff);
   if (securityIssues.length > 0) {
     sections.push(`### 🔒 Security Considerations\n`);
-    
-    const criticalSecurity = securityIssues.filter(i => i.severity === 'critical');
+
+    const criticalSecurity = securityIssues.filter((i) => i.severity === 'critical');
     if (criticalSecurity.length > 0) {
       sections.push('**🚨 CRITICAL SECURITY ISSUES DETECTED**\n');
     }
-    
+
     for (const issue of securityIssues) {
-      const severityEmoji = issue.severity === 'critical' ? '🚨' :
-                           issue.severity === 'high' ? '🔴' :
-                           issue.severity === 'medium' ? '🟠' : '🟡';
-      sections.push(`${severityEmoji} **${issue.type.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}** (${issue.severity.toUpperCase()})`);
+      const severityEmoji =
+        issue.severity === 'critical'
+          ? '🚨'
+          : issue.severity === 'high'
+            ? '🔴'
+            : issue.severity === 'medium'
+              ? '🟠'
+              : '🟡';
+      sections.push(
+        `${severityEmoji} **${issue.type.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}** (${issue.severity.toUpperCase()})`
+      );
       sections.push(`- ${issue.description}`);
       sections.push(`- **Action:** ${issue.recommendation}\n`);
     }
-    
+
     const securityChecklist = generateSecurityChecklist(securityIssues);
     sections.push(...securityChecklist);
     sections.push('');
@@ -307,7 +348,7 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
   sections.push(`- **API Usages Found**: ${apiUsages.length}`);
   sections.push(`- **AI Analysis**: ${llmSummary ? 'Completed' : 'Skipped'}`);
   sections.push(`- **Deep Analysis**: ${deepAnalysis ? 'Enabled' : 'Disabled'}`);
-  
+
   if (riskAssessment.factors.length > 0) {
     sections.push('\n**Risk Factors:**');
     for (const factor of riskAssessment.factors) {
@@ -328,34 +369,38 @@ function generateJSONReport(result: AnalysisResult): string {
     package: result.package,
     riskAssessment: result.riskAssessment,
     recommendation: result.recommendation,
-    actionableRecommendations: actionableRecs.map(rec => ({
+    actionableRecommendations: actionableRecs.map((rec) => ({
       title: rec.title,
       priority: rec.priority,
       actions: rec.actions,
       estimatedTime: rec.estimatedTime,
       automatable: rec.automatable,
-      resources: rec.resources || []
+      resources: rec.resources || [],
     })),
     changelogSource: result.changelogDiff?.source || null,
-    codeDiff: result.codeDiff ? {
-      filesChanged: result.codeDiff.filesChanged,
-      additions: result.codeDiff.additions,
-      deletions: result.codeDiff.deletions,
-      fromTag: result.codeDiff.fromTag,
-      toTag: result.codeDiff.toTag,
-      source: result.codeDiff.source,
-    } : null,
-    dependencyUsage: result.dependencyUsage ? {
-      isDirect: result.dependencyUsage.isDirect,
-      usageType: result.dependencyUsage.usageType,
-      dependentsCount: result.dependencyUsage.dependents.length,
-      dependents: result.dependencyUsage.dependents.map(dep => ({
-        name: dep.name,
-        version: dep.version,
-        type: dep.type,
-        path: dep.path,
-      })),
-    } : null,
+    codeDiff: result.codeDiff
+      ? {
+          filesChanged: result.codeDiff.filesChanged,
+          additions: result.codeDiff.additions,
+          deletions: result.codeDiff.deletions,
+          fromTag: result.codeDiff.fromTag,
+          toTag: result.codeDiff.toTag,
+          source: result.codeDiff.source,
+        }
+      : null,
+    dependencyUsage: result.dependencyUsage
+      ? {
+          isDirect: result.dependencyUsage.isDirect,
+          usageType: result.dependencyUsage.usageType,
+          dependentsCount: result.dependencyUsage.dependents.length,
+          dependents: result.dependencyUsage.dependents.map((dep) => ({
+            name: dep.name,
+            version: dep.version,
+            type: dep.type,
+            path: dep.path,
+          })),
+        }
+      : null,
     summary: result.llmSummary?.summary || null,
     breakingChanges: {
       total: result.breakingChanges.length,

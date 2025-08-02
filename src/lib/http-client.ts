@@ -11,7 +11,7 @@ export interface HttpRequestOptions {
   timeout?: number;
 }
 
-export interface HttpResponse<T = any> {
+export interface HttpResponse<T = unknown> {
   data: T | null;
   ok: boolean;
   status?: number;
@@ -21,42 +21,42 @@ export interface HttpResponse<T = any> {
 /**
  * Centralized HTTP GET request with validation and error handling
  */
-export async function httpGet<T = any>(
+export async function httpGet<T = unknown>(
   url: string,
   options: HttpRequestOptions = {}
 ): Promise<HttpResponse<T>> {
   try {
     // Validate URL
     validateUrl(url);
-    
+
     // Use dynamic import for node-fetch
     const { default: fetch } = await import('node-fetch');
-    
+
     const response = await fetch(url, {
       headers: options.headers,
       timeout: options.timeout || 30000,
     });
-    
+
     if (!response.ok) {
       return {
         data: null,
         ok: false,
         status: response.status,
-        error: `HTTP ${response.status}: ${response.statusText}`
+        error: `HTTP ${response.status}: ${response.statusText}`,
       };
     }
-    
+
     const data = await response.json();
     return {
       data,
       ok: true,
-      status: response.status
+      status: response.status,
     };
   } catch (error) {
     return {
       data: null,
       ok: false,
-      error: getErrorMessage(error)
+      error: getErrorMessage(error),
     };
   }
 }
@@ -67,7 +67,7 @@ export async function httpGet<T = any>(
 export async function fetchPyPiPackage(
   packageName: string,
   version: string
-): Promise<HttpResponse<any>> {
+): Promise<HttpResponse<unknown>> {
   const url = `https://pypi.org/pypi/${escapeForUrl(packageName)}/${escapeForUrl(version)}/json`;
   return httpGet(url);
 }
@@ -75,17 +75,17 @@ export async function fetchPyPiPackage(
 /**
  * Generic fetch with logging for debugging
  */
-export async function fetchWithLogging<T = any>(
+export async function fetchWithLogging<T = unknown>(
   url: string,
   context: string,
   options: HttpRequestOptions = {}
 ): Promise<T | null> {
   const response = await httpGet<T>(url, options);
-  
+
   if (!response.ok) {
     console.warn(`Failed to fetch ${context}:`, response.error);
     return null;
   }
-  
+
   return response.data;
 }

@@ -1,7 +1,7 @@
 import { Project, SourceFile, Node, SyntaxKind } from 'ts-morph';
 import * as path from 'path';
 import { getFiles } from './glob-helpers.js';
-import pLimit from 'p-limit';
+import { processInParallel } from './parallel-helpers.js';
 import type { APIUsage, BreakingChange } from '../types/index.js';
 
 const CONCURRENT_FILE_LIMIT = 10;
@@ -52,17 +52,22 @@ export async function scanAPIUsage(
   const sourceFiles = files.map((file) => project.addSourceFileAtPath(file));
 
   // Scan files concurrently
-  const limit = pLimit(CONCURRENT_FILE_LIMIT);
   const usages: APIUsage[] = [];
 
-  await Promise.all(
-    sourceFiles.map((sourceFile) =>
-      limit(async () => {
-        const fileUsages = await scanFile(sourceFile, packageName, apiPatterns);
-        usages.push(...fileUsages);
-      })
-    )
+  const results = await processInParallel(
+    sourceFiles,
+    async (sourceFile) => {
+      return await scanFile(sourceFile, packageName, apiPatterns);
+    },
+    { concurrency: CONCURRENT_FILE_LIMIT }
   );
+
+  // Collect all usages from successful results
+  for (const result of results) {
+    if (!(result instanceof Error)) {
+      usages.push(...result);
+    }
+  }
 
   // Remove duplicates and sort by file
   return deduplicateUsages(usages).sort((a, b) => {
@@ -83,22 +88,13 @@ async function findSourceFiles(): Promise<string[]> {
     '*.{ts,tsx,js,jsx}',
   ];
 
-  const ignorePatterns = [
-    '**/node_modules/**',
-    '**/dist/**',
-    '**/build/**',
-    '**/.next/**',
-    '**/coverage/**',
-    '**/*.test.{ts,tsx,js,jsx}',
-    '**/*.spec.{ts,tsx,js,jsx}',
-    '**/*.d.ts',
-  ];
+  // Ignore patterns are handled by getFiles function
 
   // Use getFiles from glob-helpers to avoid duplication
   return await getFiles(patterns, {
     ecosystem: 'node',
     includeTests: false,
-    absolute: true
+    absolute: true,
   });
 }
 
@@ -373,44 +369,33 @@ async function scanPythonAPIUsage(
   }));
 
   const usages: APIUsage[] = [];
-  const limit = pLimit(CONCURRENT_FILE_LIMIT);
 
   // Use simple regex-based scanning for Python files
-  await Promise.all(
-    files.map((file) =>
-      limit(async () => {
-        const fileUsages = await scanPythonFile(file, packageName, apiPatterns);
-        usages.push(...fileUsages);
-      })
-    )
+  const results = await processInParallel(
+    files,
+    async (file) => {
+      return await scanPythonFile(file, packageName, apiPatterns);
+    },
+    { concurrency: CONCURRENT_FILE_LIMIT }
   );
+
+  // Collect all usages from successful results
+  for (const result of results) {
+    if (!(result instanceof Error)) {
+      usages.push(...result);
+    }
+  }
 
   return deduplicateUsages(usages);
 }
 
 async function findPythonSourceFiles(): Promise<string[]> {
-  const patterns = [
-    '**/*.py',
-    '!**/venv/**',
-    '!**/.venv/**',
-    '!**/env/**',
-    '!**/.env/**',
-    '!**/virtualenv/**',
-    '!**/site-packages/**',
-    '!**/dist-packages/**',
-    '!**/__pycache__/**',
-    '!**/.pytest_cache/**',
-    '!**/.tox/**',
-    '!**/build/**',
-    '!**/dist/**',
-    '!**/*.egg-info/**',
-  ];
-
+  // Pattern and ignore rules are handled by getFiles function
   // Use getFiles from glob-helpers for Python files
   const files = await getFiles('**/*.py', {
     ecosystem: 'python',
     includeTests: false,
-    absolute: true
+    absolute: true,
   });
 
   return files;

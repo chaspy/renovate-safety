@@ -3,7 +3,7 @@ export interface CLIOptions {
   from?: string;
   to?: string;
   package?: string;
-  post?: 'always' | 'update' | 'never';  // Changed from boolean
+  post?: 'always' | 'update' | 'never'; // Changed from boolean
   noLlm: boolean;
   llm?: 'claude-cli' | 'anthropic' | 'openai';
   cacheDir: string;
@@ -78,7 +78,13 @@ export interface RiskAssessment {
   level: RiskLevel;
   factors: string[];
   estimatedEffort: 'none' | 'minimal' | 'moderate' | 'significant' | 'unknown';
-  testingScope: 'none' | 'unit' | 'integration' | 'full' | 'full regression' | 'full regression recommended';
+  testingScope:
+    | 'none'
+    | 'unit'
+    | 'integration'
+    | 'full'
+    | 'full regression'
+    | 'full regression recommended';
 }
 
 export interface AnalysisResult {
@@ -115,7 +121,13 @@ export interface APIUsageDetail {
   file: string;
   line: number;
   apiName: string;
-  usageType: 'function-call' | 'property-access' | 'constructor' | 'type-reference' | 'decorator' | 'jsx-component';
+  usageType:
+    | 'function-call'
+    | 'property-access'
+    | 'constructor'
+    | 'type-reference'
+    | 'decorator'
+    | 'jsx-component';
   context: string;
   arguments?: string[];
   chainedCalls?: string[];
@@ -130,9 +142,18 @@ export interface FileClassification {
 
 export interface ConfigFileUsage {
   file: string;
-  configType: 'package.json' | 'tsconfig.json' | 'webpack' | 'rollup' | 'vite' | 'babel' | 'eslint' | 'prettier' | 'other';
+  configType:
+    | 'package.json'
+    | 'tsconfig.json'
+    | 'webpack'
+    | 'rollup'
+    | 'vite'
+    | 'babel'
+    | 'eslint'
+    | 'prettier'
+    | 'other';
   usage: string;
-  content: any;
+  content: unknown;
 }
 
 export interface DeepAnalysisResult {

@@ -24,7 +24,7 @@ export async function fileExists(path: string): Promise<boolean> {
  * @param path Path to JSON file
  * @returns Parsed JSON data or null on error
  */
-export async function readJsonFile<T = any>(path: string): Promise<T | null> {
+export async function readJsonFile<T = unknown>(path: string): Promise<T | null> {
   try {
     const content = await fs.readFile(path, 'utf-8');
     return safeJsonParse(content, null);
@@ -49,7 +49,7 @@ export async function ensureDirectory(path: string): Promise<void> {
  */
 export async function writeJsonFile(
   path: string,
-  data: any,
+  data: unknown,
   indent: number = 2
 ): Promise<void> {
   await fs.writeFile(path, JSON.stringify(data, null, indent), 'utf-8');

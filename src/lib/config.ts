@@ -11,7 +11,7 @@ export interface Config {
 
 export async function loadConfig(): Promise<Config> {
   const config: Config = {};
-  
+
   // Priority 1: Look for config file in home directory (global)
   try {
     const globalConfigPath = path.join(homedir(), '.renovate-safety.json');
@@ -23,7 +23,7 @@ export async function loadConfig(): Promise<Config> {
   } catch {
     // No global config file
   }
-  
+
   // Priority 2: Look for config file in current directory (local)
   try {
     const localConfig = await fs.readFile('.renovate-safety.json', 'utf-8');
@@ -34,22 +34,22 @@ export async function loadConfig(): Promise<Config> {
   } catch {
     // No local config file
   }
-  
+
   // Priority 3: Environment variables override config files
   const lang = process.env.RENOVATE_SAFETY_LANGUAGE;
   if (lang === 'en' || lang === 'ja') {
     config.language = lang;
   }
-  
+
   const provider = process.env.RENOVATE_SAFETY_LLM_PROVIDER;
   if (provider === 'claude-cli' || provider === 'anthropic' || provider === 'openai') {
     config.llmProvider = provider;
   }
-  
+
   const cacheDir = process.env.RENOVATE_SAFETY_CACHE_DIR;
   if (cacheDir && typeof cacheDir === 'string' && cacheDir.length > 0) {
     config.cacheDir = cacheDir;
   }
-  
+
   return config;
 }

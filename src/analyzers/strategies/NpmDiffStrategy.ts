@@ -69,7 +69,7 @@ export class NpmDiffStrategy extends AnalysisStrategy {
 
     let currentFile = '';
     
-    lines.forEach((line, index) => {
+    lines.forEach((line, _index) => {
       // Track current file
       if (line.startsWith('diff --git')) {
         const match = /b\/(.+)$/.exec(line);

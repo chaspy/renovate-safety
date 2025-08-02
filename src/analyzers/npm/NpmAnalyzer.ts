@@ -1,16 +1,16 @@
 import { PackageAnalyzer, PackageMetadata, UsageAnalysis, UsageLocation, AdditionalContext } from '../base.js';
 import type { PackageUpdate, ChangelogDiff } from '../../types/index.js';
-import { readFile, access } from 'fs/promises';
+import { access } from 'fs/promises';
 import { join } from 'path';
 import { Project, SyntaxKind, Node } from 'ts-morph';
-import { getFileContext, categorizeUsages, isPackageImport, getErrorMessage } from '../utils.js';
+import { getFileContext, categorizeUsages, isPackageImport } from '../utils.js';
 import { getPackageMetadata, getPackageReadme, getNpmDiff, getPackageDownloads } from '../../lib/npm-registry.js';
 import { validatePackageName } from '../../lib/validation.js';
-import { findPackageInConfigFiles, findSourceFiles, CONFIG_PATTERNS, searchInGenericConfigs } from '../file-utils.js';
+import { findSourceFiles, searchInGenericConfigs } from '../file-utils.js';
 import { loggers } from '../../lib/logger.js';
 
 export class NpmAnalyzer extends PackageAnalyzer {
-  async canHandle(packageName: string, projectPath: string): Promise<boolean> {
+  async canHandle(_packageName: string, projectPath: string): Promise<boolean> {
     try {
       // Check for package.json
       await access(join(projectPath, 'package.json'));
@@ -56,7 +56,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
       if (fromContent || toContent) {
         return {
           content: this.generateChangelogDiff(fromContent || '', toContent || '', pkg),
-          source: 'npm registry',
+          source: 'npm',
           fromVersion: pkg.fromVersion,
           toVersion: pkg.toVersion
         };
@@ -67,7 +67,7 @@ export class NpmAnalyzer extends PackageAnalyzer {
 
     // Fallback to existing implementation
     const { fetchChangelogDiff } = await import('../../lib/changelog.js');
-    return fetchChangelogDiff(pkg, cacheDir);
+    return fetchChangelogDiff(pkg, cacheDir || '.');
   }
 
   async analyzeUsage(packageName: string, projectPath: string): Promise<UsageAnalysis> {

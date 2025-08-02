@@ -26,22 +26,19 @@ export interface ExecResult {
 /**
  * Common error handler for execa errors
  */
-function handleExecError(
-  error: unknown,
-  options: SecureExecOptions
-): ExecResult {
+function handleExecError(error: unknown, options: SecureExecOptions): ExecResult {
   if (options.throwOnError) {
     throw error;
   }
 
   const execaError = error as ExecaError;
   return {
-    stdout: execaError.stdout || '',
-    stderr: execaError.stderr || execaError.message || 'Unknown error',
+    stdout: typeof execaError.stdout === 'string' ? execaError.stdout : '',
+    stderr: typeof execaError.stderr === 'string' ? execaError.stderr : execaError.message || 'Unknown error',
     failed: true,
     exitCode: execaError.exitCode,
     success: false,
-    error: execaError.stderr || execaError.message || 'Unknown error'
+    error: typeof execaError.stderr === 'string' ? execaError.stderr : execaError.message || 'Unknown error',
   };
 }
 
@@ -59,7 +56,7 @@ async function executeCommand(
       cwd: options.cwd || cwdDefault || process.cwd(),
       timeout: options.timeout || 30000,
       reject: false,
-      env: options.env
+      env: options.env,
     });
 
     return {
@@ -67,7 +64,7 @@ async function executeCommand(
       stderr: result.stderr,
       failed: result.failed,
       exitCode: result.exitCode,
-      success: !result.failed
+      success: !result.failed,
     };
   } catch (error) {
     return handleExecError(error, options);
@@ -89,11 +86,11 @@ export async function secureNpmExec(
   }
 
   // Validate and sanitize arguments
-  const safeArgs = args.map(arg => {
+  const safeArgs = args.map((arg) => {
     // Skip flags
     if (arg.startsWith('-')) {
       const allowedFlags = ['--json', '--depth', '--prod', '--dev'];
-      if (!allowedFlags.some(flag => arg.startsWith(flag))) {
+      if (!allowedFlags.some((flag) => arg.startsWith(flag))) {
         throw new Error(`Unsafe flag: ${arg}`);
       }
       return arg;
@@ -148,7 +145,7 @@ export async function secureGhExec(
     pr: ['view', 'comment', 'list', 'create', 'edit'],
     auth: ['status', 'login', 'logout', 'token'],
     api: [], // API calls need special handling
-    repo: ['view', 'list', 'clone']
+    repo: ['view', 'list', 'clone'],
   };
 
   if (args[0] in commandValidation && args.length > 1) {
@@ -161,7 +158,7 @@ export async function secureGhExec(
   // Validate arguments (prevent injection)
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
-    
+
     // Allow flags
     if (arg.startsWith('-')) {
       continue;
@@ -199,10 +196,17 @@ export async function secureGitExec(
 
   // Validate git command
   const allowedCommands = [
-    'remote', 'log', 'diff', 'status', 'branch',
-    'rev-parse', 'show', 'describe', 'tag'
+    'remote',
+    'log',
+    'diff',
+    'status',
+    'branch',
+    'rev-parse',
+    'show',
+    'describe',
+    'tag',
   ];
-  
+
   if (!allowedCommands.includes(args[0])) {
     throw new Error(`Unsafe git command: ${args[0]}`);
   }
@@ -232,8 +236,12 @@ export async function secureClaudeExec(
 ): Promise<ExecResult> {
   // Validate claude command arguments
   const allowedFlags = [
-    '--version', '-p', '--max-turns', '--model',
-    '--temperature', '--max-tokens'
+    '--version',
+    '-p',
+    '--max-turns',
+    '--model',
+    '--temperature',
+    '--max-tokens',
   ];
 
   for (const arg of args) {
@@ -311,15 +319,17 @@ async function secureFindExec(
   options: SecureExecOptions = {}
 ): Promise<ExecResult> {
   // Very restrictive find validation
-  const safeArgs = args.filter(arg => {
+  const safeArgs = args.filter((arg) => {
     // Allow basic directory and name patterns
-    return /^[\w.\-/*]+$/.test(arg) || 
-           arg === '-name' || 
-           arg === '-not' || 
-           arg === '-path' ||
-           arg === '-type' ||
-           arg === 'f' ||
-           arg === 'd';
+    return (
+      /^[\w.\-/*]+$/.test(arg) ||
+      arg === '-name' ||
+      arg === '-not' ||
+      arg === '-path' ||
+      arg === '-type' ||
+      arg === 'f' ||
+      arg === 'd'
+    );
   });
 
   if (safeArgs.length !== args.length) {
@@ -339,7 +349,7 @@ export function isSuccessful(result: ExecResult): boolean {
 /**
  * Helper to parse JSON output safely
  */
-export function parseJsonOutput<T = any>(output: string): T | null {
+export function parseJsonOutput<T = unknown>(output: string): T | null {
   try {
     return JSON.parse(output);
   } catch {

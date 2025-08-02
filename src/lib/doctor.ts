@@ -1,9 +1,15 @@
 import chalk from 'chalk';
 import * as fs from 'fs/promises';
 import { secureSystemExec } from './secure-exec.js';
-import { getFiles, getSourceFiles } from './glob-helpers.js';
+import { getSourceFiles } from './glob-helpers.js';
 import { loggers } from './logger.js';
-import { logSection, logSeparator, logError, logWarningMessage, logSuccess } from './logger-extended.js';
+import {
+  logSection,
+  logSeparator,
+  logError,
+  logWarningMessage,
+  logSuccess,
+} from './logger-extended.js';
 
 interface HealthCheck {
   name: string;
@@ -96,11 +102,11 @@ async function checkGitRepository(): Promise<HealthCheck> {
 async function checkGitHubCLI(): Promise<HealthCheck> {
   try {
     const versionResult = await secureSystemExec('gh', ['--version']);
-    
+
     if (!versionResult.success) {
       throw new Error('gh command failed');
     }
-    
+
     const versionMatch = /gh version (\d+\.\d+\.\d+)/.exec(versionResult.stdout);
 
     if (versionMatch) {
@@ -150,7 +156,7 @@ async function checkGitHubCLI(): Promise<HealthCheck> {
 async function checkClaudeCLI(): Promise<HealthCheck> {
   try {
     const versionResult = await secureSystemExec('claude', ['--version']);
-    
+
     if (!versionResult.success) {
       throw new Error('claude command failed');
     }
@@ -161,7 +167,7 @@ async function checkClaudeCLI(): Promise<HealthCheck> {
         timeout: 5000,
         input: 'test',
       });
-      
+
       if (testResult.success) {
         return {
           name: 'Claude CLI (Priority 1)',

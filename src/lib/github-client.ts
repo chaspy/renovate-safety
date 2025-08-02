@@ -15,7 +15,7 @@ export function getGitHubClient(): Octokit {
   if (!octokitInstance) {
     octokitInstance = new Octokit({
       auth: getEnvVar('GITHUB_TOKEN'),
-      userAgent: 'renovate-safety'
+      userAgent: 'renovate-safety',
     });
   }
   return octokitInstance;

@@ -2,7 +2,7 @@
  * Common object building utilities to reduce code duplication
  */
 
-import type { RiskAssessment, PackageUpdate, AnalysisResult } from '../types/index.js';
+import type { RiskAssessment, PackageUpdate } from '../types/index.js';
 
 /**
  * Build a package info object with defaults
@@ -16,12 +16,12 @@ export function buildPackageInfo(
     repository?: string;
     license?: string;
     keywords?: string[];
-    maintainers?: any[];
+    maintainers?: unknown[];
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
     peerDependencies?: Record<string, string>;
   }> = {}
-): any {
+): unknown {
   return {
     name,
     version,
@@ -33,7 +33,7 @@ export function buildPackageInfo(
     maintainers: overrides.maintainers || [],
     dependencies: overrides.dependencies || {},
     devDependencies: overrides.devDependencies || {},
-    peerDependencies: overrides.peerDependencies || {}
+    peerDependencies: overrides.peerDependencies || {},
   };
 }
 
@@ -42,19 +42,15 @@ export function buildPackageInfo(
  */
 export function buildRiskAssessment(
   level: RiskAssessment['level'],
-  score: number,
+  _score: number,
   factors: string[],
   details?: Partial<RiskAssessment>
 ): RiskAssessment {
   return {
     level,
-    score: Math.max(0, Math.min(100, score)), // Clamp between 0-100
     factors,
-    breaking_changes: details?.breaking_changes || [],
-    security_issues: details?.security_issues || [],
-    maintenance_status: details?.maintenance_status || 'active',
-    community_health: details?.community_health || 'good',
-    code_quality_impact: details?.code_quality_impact || 'low'
+    estimatedEffort: details?.estimatedEffort || 'unknown',
+    testingScope: details?.testingScope || 'unit',
   };
 }
 
@@ -64,14 +60,14 @@ export function buildRiskAssessment(
 export function buildErrorResponse<T>(
   message: string,
   code?: string,
-  details?: Record<string, any>
+  details?: Record<string, unknown>
 ): T {
   return {
     error: true,
     message,
     code: code || 'UNKNOWN_ERROR',
     timestamp: new Date().toISOString(),
-    ...details
+    ...details,
   } as T;
 }
 
@@ -80,12 +76,12 @@ export function buildErrorResponse<T>(
  */
 export function buildSuccessResponse<T>(
   data: T,
-  metadata?: Record<string, any>
-): { success: true; data: T; metadata?: Record<string, any> } {
+  metadata?: Record<string, unknown>
+): { success: true; data: T; metadata?: Record<string, unknown> } {
   return {
     success: true,
     data,
-    ...(metadata && { metadata })
+    ...(metadata && { metadata }),
   };
 }
 
@@ -102,7 +98,7 @@ export function buildPackageUpdate(
     name,
     fromVersion,
     toVersion,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -115,14 +111,14 @@ export function buildUsageLocation(
   type: string,
   code: string,
   context: string = 'unknown'
-): any {
+): unknown {
   return {
     file,
     line,
     column: 0,
     type,
     code,
-    context
+    context,
   };
 }
 
@@ -132,13 +128,13 @@ export function buildUsageLocation(
 export function buildMetadata(
   source: string,
   timestamp: Date = new Date(),
-  additional?: Record<string, any>
-): Record<string, any> {
+  additional?: Record<string, unknown>
+): Record<string, unknown> {
   return {
     source,
     timestamp: timestamp.toISOString(),
     version: '1.0.0',
-    ...additional
+    ...additional,
   };
 }
 
@@ -150,13 +146,17 @@ export function buildChangelogEntry(
   date: Date,
   changes: string[],
   breaking: boolean = false
-): any {
+): unknown {
   return {
     version,
     date: date.toISOString(),
     changes,
     breaking,
-    type: breaking ? 'major' : changes.some(c => c.toLowerCase().includes('fix')) ? 'patch' : 'minor'
+    type: breaking
+      ? 'major'
+      : changes.some((c) => c.toLowerCase().includes('fix'))
+        ? 'patch'
+        : 'minor',
   };
 }
 
@@ -167,8 +167,8 @@ export function buildDependencyInfo(
   name: string,
   version: string,
   type: 'production' | 'development' | 'peer' | 'optional',
-  metadata?: Record<string, any>
-): any {
+  metadata?: Record<string, unknown>
+): unknown {
   return {
     name,
     version,
@@ -176,7 +176,7 @@ export function buildDependencyInfo(
     resolved: true,
     direct: true,
     vulnerabilities: [],
-    ...metadata
+    ...metadata,
   };
 }
 
@@ -188,14 +188,14 @@ export function buildFileAnalysis(
   usages: number,
   imports: string[] = [],
   exports: string[] = []
-): any {
+): unknown {
   return {
     file: filePath,
     usageCount: usages,
     imports,
     exports,
     complexity: 'low',
-    type: filePath.endsWith('.test.js') || filePath.endsWith('.spec.js') ? 'test' : 'source'
+    type: filePath.endsWith('.test.js') || filePath.endsWith('.spec.js') ? 'test' : 'source',
   };
 }
 
@@ -217,12 +217,12 @@ export function buildError(
     return {
       message: error.message,
       stack: error.stack,
-      ...(context && { context })
+      ...(context && { context }),
     };
   }
-  
+
   return {
     message: String(error),
-    ...(context && { context })
+    ...(context && { context }),
   };
 }

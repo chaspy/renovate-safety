@@ -3,7 +3,7 @@
  */
 
 import chalk from 'chalk';
-import { loggers } from './logger.js';
+import { setInterval, clearInterval } from 'node:timers';
 
 /**
  * Log a section header with optional emoji
@@ -93,19 +93,19 @@ export function logSeparator(char: string = '-', length: number = 40): void {
  */
 export function logBox(text: string, padding: number = 1): void {
   const lines = text.split('\n');
-  const maxLength = Math.max(...lines.map(line => line.length));
-  const boxWidth = maxLength + (padding * 2) + 2;
-  
+  const maxLength = Math.max(...lines.map((line) => line.length));
+  const boxWidth = maxLength + padding * 2 + 2;
+
   // Top border
   console.log('┌' + '─'.repeat(boxWidth - 2) + '┐');
-  
+
   // Content with padding
-  lines.forEach(line => {
+  lines.forEach((line) => {
     const paddedLine = line.padEnd(maxLength);
     const spacing = ' '.repeat(padding);
     console.log(`│${spacing}${paddedLine}${spacing}│`);
   });
-  
+
   // Bottom border
   console.log('└' + '─'.repeat(boxWidth - 2) + '┘');
 }
@@ -116,17 +116,17 @@ export function logBox(text: string, padding: number = 1): void {
 export function logTable(headers: string[], rows: string[][]): void {
   // Calculate column widths
   const columnWidths = headers.map((header, i) => {
-    const maxRowWidth = Math.max(...rows.map(row => (row[i] || '').length));
+    const maxRowWidth = Math.max(...rows.map((row) => (row[i] || '').length));
     return Math.max(header.length, maxRowWidth);
   });
-  
+
   // Print headers
   const headerRow = headers.map((header, i) => header.padEnd(columnWidths[i])).join(' │ ');
   console.log(headerRow);
-  console.log(columnWidths.map(w => '─'.repeat(w)).join('─┼─'));
-  
+  console.log(columnWidths.map((w) => '─'.repeat(w)).join('─┼─'));
+
   // Print rows
-  rows.forEach(row => {
+  rows.forEach((row) => {
     const formattedRow = row.map((cell, i) => (cell || '').padEnd(columnWidths[i])).join(' │ ');
     console.log(formattedRow);
   });
@@ -161,16 +161,16 @@ export function logCodeBlock(code: string, language?: string): void {
 export function logSpinner(message: string): { stop: () => void } {
   const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
   let i = 0;
-  
+
   const interval = setInterval(() => {
     process.stdout.write(`\r${frames[i]} ${message}`);
     i = (i + 1) % frames.length;
   }, 100);
-  
+
   return {
     stop: () => {
       clearInterval(interval);
       process.stdout.write('\r' + ' '.repeat(message.length + 3) + '\r');
-    }
+    },
   };
 }

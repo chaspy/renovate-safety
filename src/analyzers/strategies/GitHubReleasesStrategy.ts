@@ -50,7 +50,7 @@ export class GitHubReleasesStrategy extends AnalysisStrategy {
 
       return {
         content: combinedContent,
-        breakingChanges,
+        breakingChanges: breakingChanges.map(bc => bc.line),
         confidence: 0.9, // High confidence for official releases
         source: this.name,
         metadata: {
