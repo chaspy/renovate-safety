@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { getEnvironmentConfig } from './env-config.js';
 import * as fs from 'fs/promises';
 import { secureSystemExec } from './secure-exec.js';
 import { getSourceFiles } from './glob-helpers.js';
@@ -219,7 +220,8 @@ async function checkClaudeCLI(): Promise<HealthCheck> {
 }
 
 async function checkAnthropicAPI(): Promise<HealthCheck> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const config = getEnvironmentConfig();
+  const apiKey = config.anthropicApiKey;
 
   if (apiKey) {
     if (apiKey.startsWith('sk-ant-')) {
@@ -247,7 +249,8 @@ async function checkAnthropicAPI(): Promise<HealthCheck> {
 }
 
 async function checkOpenAIAPI(): Promise<HealthCheck> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const config = getEnvironmentConfig();
+  const apiKey = config.openaiApiKey;
 
   if (apiKey) {
     if (apiKey.startsWith('sk-')) {

@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { generatePackageCacheKey } from './cache-utils.js';
+import { getEnvironmentConfig } from './env-config.js';
 import { secureSystemExec } from './secure-exec.js';
 import type {
   PackageUpdate,
@@ -80,13 +81,15 @@ async function detectProvider(): Promise<'claude-cli' | 'anthropic' | 'openai' |
     // Claude CLI not available, continue to next option
   }
 
+  const config = getEnvironmentConfig();
+  
   // Priority 2: Anthropic API
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (config.anthropicApiKey) {
     return 'anthropic';
   }
 
   // Priority 3: OpenAI API
-  if (process.env.OPENAI_API_KEY) {
+  if (config.openaiApiKey) {
     return 'openai';
   }
 
@@ -160,8 +163,9 @@ async function summarizeWithClaudeCLI(prompt: string): Promise<LLMSummary | null
 }
 
 async function summarizeWithAnthropic(prompt: string): Promise<LLMSummary | null> {
+  const config = getEnvironmentConfig();
   const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
+    apiKey: config.anthropicApiKey!,
   });
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -199,8 +203,9 @@ async function summarizeWithAnthropic(prompt: string): Promise<LLMSummary | null
 }
 
 async function summarizeWithOpenAI(prompt: string): Promise<LLMSummary | null> {
+  const config = getEnvironmentConfig();
   const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: config.openaiApiKey!,
   });
 
   // Check if prompt is in Japanese
@@ -380,9 +385,10 @@ export async function enhancedLLMAnalysis(
       const fallbackProviders = ['anthropic', 'openai'].filter((p) => p !== llmProvider);
 
       for (const fallback of fallbackProviders) {
+        const config = getEnvironmentConfig();
         if (
-          (fallback === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
-          (fallback === 'openai' && process.env.OPENAI_API_KEY)
+          (fallback === 'anthropic' && config.anthropicApiKey) ||
+          (fallback === 'openai' && config.openaiApiKey)
         ) {
           try {
             switch (fallback) {

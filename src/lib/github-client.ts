@@ -3,7 +3,7 @@
  */
 
 import { Octokit } from '@octokit/rest';
-import { getEnvVar } from './env-validator.js';
+import { getEnvironmentConfig } from './env-config.js';
 
 let octokitInstance: Octokit | null = null;
 
@@ -13,8 +13,9 @@ let octokitInstance: Octokit | null = null;
  */
 export function getGitHubClient(): Octokit {
   if (!octokitInstance) {
+    const config = getEnvironmentConfig();
     octokitInstance = new Octokit({
-      auth: getEnvVar('GITHUB_TOKEN'),
+      auth: config.githubToken,
       userAgent: 'renovate-safety',
     });
   }
@@ -33,5 +34,6 @@ export function resetGitHubClient(): void {
  * @returns true if token is set
  */
 export function hasGitHubToken(): boolean {
-  return !!getEnvVar('GITHUB_TOKEN');
+  const config = getEnvironmentConfig();
+  return Boolean(config.githubToken);
 }

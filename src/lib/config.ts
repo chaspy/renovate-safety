@@ -2,6 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { homedir } from 'os';
 import { safeJsonParse, isConfigObject } from './safe-json.js';
+import { getEnvironmentConfig } from './env-config.js';
 
 export interface Config {
   language?: 'en' | 'ja';
@@ -36,19 +37,17 @@ export async function loadConfig(): Promise<Config> {
   }
 
   // Priority 3: Environment variables override config files
-  const lang = process.env.RENOVATE_SAFETY_LANGUAGE;
-  if (lang === 'en' || lang === 'ja') {
-    config.language = lang;
+  const envConfig = getEnvironmentConfig();
+
+  // Use validated environment config
+  config.language = envConfig.language;
+
+  if (envConfig.llmProvider) {
+    config.llmProvider = envConfig.llmProvider;
   }
 
-  const provider = process.env.RENOVATE_SAFETY_LLM_PROVIDER;
-  if (provider === 'claude-cli' || provider === 'anthropic' || provider === 'openai') {
-    config.llmProvider = provider;
-  }
-
-  const cacheDir = process.env.RENOVATE_SAFETY_CACHE_DIR;
-  if (cacheDir && typeof cacheDir === 'string' && cacheDir.length > 0) {
-    config.cacheDir = cacheDir;
+  if (envConfig.cacheDir) {
+    config.cacheDir = envConfig.cacheDir;
   }
 
   return config;

@@ -4,6 +4,7 @@
  */
 
 import { getErrorMessage } from '../analyzers/utils.js';
+import { getEnvironmentConfig } from './env-config.js';
 
 export interface LogContext {
   operation: string;
@@ -37,7 +38,8 @@ export function logWarning(context: LogContext): void {
  * Debug logger
  */
 export function logDebug(message: string, ...args: unknown[]): void {
-  if (process.env.DEBUG || process.env.VERBOSE) {
+  const config = getEnvironmentConfig();
+  if (config.debug || config.verbose) {
     console.debug(message, ...args);
   }
 }

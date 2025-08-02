@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import { getEnvironmentConfig } from './env-config.js';
 import { secureSystemExec } from './secure-exec.js';
 import type { CLIOptions, PackageUpdate } from '../types/index.js';
 import { safeJsonParse } from './safe-json.js';
@@ -92,7 +93,7 @@ export async function getRenovatePRs(): Promise<PRInfo[]> {
     try {
       const [owner, repo] = await getRepoInfo();
       const octokit = new Octokit({
-        auth: process.env.GITHUB_TOKEN,
+        auth: getEnvironmentConfig().githubToken,
       });
 
       const { data: allPRs } = await octokit.pulls.list({
@@ -143,8 +144,8 @@ interface PRData {
 
 async function getPRData(prNumber: number): Promise<PRData | null> {
   try {
-    const token = process.env.GITHUB_TOKEN;
-    if (!token) {
+    const config = getEnvironmentConfig();
+    if (!config.githubToken) {
       // Try using gh CLI
       const result = await secureSystemExec('gh', [
         'pr',
@@ -168,7 +169,7 @@ async function getPRData(prNumber: number): Promise<PRData | null> {
 
     // Use Octokit if token available
     const [owner, repo] = await getRepoInfo();
-    const octokit = new Octokit({ auth: token });
+    const octokit = new Octokit({ auth: config.githubToken });
 
     const { data } = await octokit.pulls.get({
       owner,

@@ -4,6 +4,7 @@
 
 import { join, resolve, dirname, basename, extname } from 'path';
 import { homedir } from 'os';
+import { getEnvironmentConfig } from './env-config.js';
 
 /**
  * Get absolute path relative to current working directory
@@ -29,8 +30,8 @@ export function getHomePath(...paths: string[]): string {
  * @returns Cache directory path
  */
 export function getCachePath(...paths: string[]): string {
-  const cacheBase =
-    process.env.RENOVATE_SAFETY_CACHE_DIR || join(homedir(), '.cache', 'renovate-safety');
+  const config = getEnvironmentConfig();
+  const cacheBase = config.cacheDir || join(homedir(), '.cache', 'renovate-safety');
   return join(cacheBase, ...paths);
 }
 
