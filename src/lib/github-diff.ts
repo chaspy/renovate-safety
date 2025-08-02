@@ -1,6 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import type { PackageUpdate } from '../types/index.js';
 import { getEnvVar } from './env-validator.js';
+import { loggers } from './logger.js';
 
 export interface CodeDiff {
   content: string;
@@ -17,7 +18,7 @@ export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeD
     // Get GitHub repository info for the package
     const githubInfo = await getGitHubInfo(packageUpdate.name);
     if (!githubInfo) {
-      console.debug(`No GitHub repository found for ${packageUpdate.name}`);
+      loggers.debug(`No GitHub repository found for ${packageUpdate.name}`);
       return null;
     }
 
@@ -46,7 +47,7 @@ export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeD
     });
 
     if (!comparison.files || comparison.files.length === 0) {
-      console.debug('No file changes found in comparison');
+      loggers.debug('No file changes found in comparison');
       return null;
     }
 
@@ -56,7 +57,7 @@ export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeD
     );
 
     if (relevantFiles.length === 0) {
-      console.debug('No relevant file changes found');
+      loggers.debug('No relevant file changes found');
       return null;
     }
 
@@ -73,7 +74,7 @@ export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeD
       toTag,
     };
   } catch (error) {
-    console.debug('Failed to fetch GitHub diff:', error);
+    loggers.debug('Failed to fetch GitHub diff:', error);
     return null;
   }
 }
