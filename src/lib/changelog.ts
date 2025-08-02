@@ -2,6 +2,7 @@ import pacote from 'pacote';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { generatePackageCacheKey } from './cache-utils.js';
+import { loggers } from './logger.js';
 import semver from 'semver';
 import type { PackageUpdate, ChangelogDiff } from '../types/index.js';
 import { httpGet } from './http-client.js';
@@ -80,7 +81,7 @@ async function cacheChangelog(
 
     await fs.writeFile(cachePath, JSON.stringify(changelog, null, 2));
   } catch (error) {
-    console.warn('Failed to cache changelog:', error);
+    loggers.genericFailed('cache changelog', error);
   }
 }
 
@@ -137,7 +138,7 @@ async function fetchFromGitHubReleases(
       source: 'github',
     };
   } catch (error) {
-    console.debug('Failed to fetch from GitHub:', error);
+    loggers.debug('Failed to fetch from GitHub:', error);
     return null;
   }
 }
@@ -184,7 +185,7 @@ async function fetchFromNpmRegistry(packageUpdate: PackageUpdate): Promise<Chang
       await fs.rm(tempDir, { recursive: true, force: true });
     }
   } catch (error) {
-    console.debug('Failed to fetch from npm:', error);
+    loggers.debug('Failed to fetch from npm:', error);
     return null;
   }
 }
@@ -412,7 +413,7 @@ async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDif
 
     return null;
   } catch (error) {
-    console.error('Failed to fetch from PyPI:', error);
+    loggers.genericFailed('fetch from PyPI', error);
     return null;
   }
 }

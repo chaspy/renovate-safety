@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { generateCacheKey, generateMultiParamCacheKey } from './cache-utils.js';
+import { loggers } from './logger.js';
 import { clearTimeout } from 'node:timers';
 import { readJsonFile, ensureDirectory } from './file-helpers.js';
 import { processInParallel, executeInParallel } from './parallel-helpers.js';
@@ -119,7 +120,7 @@ class FileBasedCache implements SmartCache {
       const cacheFile = this.getCacheFilePath(key);
       await fs.writeFile(cacheFile, JSON.stringify(entry, null, 2));
     } catch (error) {
-      console.debug('Failed to write cache file:', error);
+      loggers.debug('Failed to write cache file:', error);
     }
   }
 
@@ -354,7 +355,7 @@ class ConsoleProgressTracker implements ProgressTracker {
     this.description = description;
     this.startTime = Date.now();
 
-    console.log(`\n🚀 Starting: ${description}`);
+    loggers.info(`\n🚀 Starting: ${description}`);
     this.updateDisplay();
   }
 
@@ -365,7 +366,7 @@ class ConsoleProgressTracker implements ProgressTracker {
 
   finish(): void {
     const duration = Date.now() - this.startTime;
-    console.log(`\n✅ Completed: ${this.description} (${duration}ms)`);
+    loggers.info(`\n✅ Completed: ${this.description} (${duration}ms)`);
   }
 
   private updateDisplay(currentTask?: string): void {
