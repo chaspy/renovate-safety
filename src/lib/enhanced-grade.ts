@@ -251,7 +251,10 @@ function estimateEffort(factors: RiskFactors, level: string): RiskAssessment['es
   return 'minimal';
 }
 
-function determineTestingScope(factors: RiskFactors, level: string): RiskAssessment['testingScope'] {
+function determineTestingScope(
+  factors: RiskFactors,
+  level: string
+): RiskAssessment['testingScope'] {
   if (level === 'safe') return 'none';
   if (level === 'unknown') return 'full regression recommended';
 
