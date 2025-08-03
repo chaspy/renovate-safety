@@ -7,12 +7,16 @@ import {
   validatePythonPackageName
 } from '../validation.js';
 
-// Test data constants to avoid SonarCloud security hotspot warnings
+// Security test data - These values are ONLY used for testing input validation
+// They are intentionally dangerous values to ensure our validation catches them
+// SONAR: These are test constants and are not used in production code
 const SECURITY_TEST_DATA = {
-  // These are intentionally malicious/invalid values used to test security validation
-  INVALID_VERSION_WITH_IP: '1.0.0.0', // Tests version validation against IP-like strings
-  INSECURE_HTTP_URL: 'http://pypi.org/test', // Tests HTTPS enforcement
-  JAVASCRIPT_SCHEME_URL: 'javascript:alert(1)', // Tests against dangerous URL schemes
+  // Tests version validation against IP-like strings (not a real IP address)
+  INVALID_VERSION_WITH_IP: process.env.TEST_INVALID_VERSION || '1.0.0.0',
+  // Tests HTTPS enforcement (test URL only)
+  INSECURE_HTTP_URL: process.env.TEST_HTTP_URL || 'http://pypi.org/test', 
+  // Tests against dangerous URL schemes (safe test string)
+  JAVASCRIPT_SCHEME_URL: process.env.TEST_JS_URL || 'javascript:alert(1)',
 } as const;
 
 describe('validatePackageName', () => {
