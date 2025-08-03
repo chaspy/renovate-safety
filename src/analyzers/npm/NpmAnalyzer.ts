@@ -187,11 +187,13 @@ export class NpmAnalyzer extends PackageAnalyzer {
 
   getImportPatterns(): RegExp[] {
     return [
-      // Safe regex: use specific character classes instead of [^]+? to prevent ReDoS
-      /import\s+(?:[\w${}*,\s]+)\s+from\s+['"]([^'"]+)['"]/g,
-      /import\s*\(['"]([^'"]+)['"]\)/g,
-      /require\s*\(['"]([^'"]+)['"]\)/g,
-      /require\.resolve\s*\(['"]([^'"]+)['"]\)/g
+      // Specific import patterns to prevent ReDoS
+      /import\s+\w+\s+from\s+['"]([^'"]+)['"]/g,                    // import name from 'module'
+      /import\s*\{\s*[^}]{1,200}\s*\}\s*from\s+['"]([^'"]+)['"]/g, // import { ... } from 'module'
+      /import\s*\*\s*as\s*\w+\s*from\s+['"]([^'"]+)['"]/g,        // import * as name from 'module'
+      /import\s*\(['"]([^'"]+)['"]\)/g,                            // import('module')
+      /require\s*\(['"]([^'"]+)['"]\)/g,                           // require('module')
+      /require\.resolve\s*\(['"]([^'"]+)['"]\)/g                   // require.resolve('module')
     ];
   }
 

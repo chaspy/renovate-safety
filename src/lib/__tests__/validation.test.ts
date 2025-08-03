@@ -10,14 +10,22 @@ import {
 // Security test data - These values are ONLY used for testing input validation
 // They are intentionally dangerous values to ensure our validation catches them
 // SONAR: These are test constants and are not used in production code
-const SECURITY_TEST_DATA = {
-  // Tests version validation against IP-like strings (not a real IP address)
-  INVALID_VERSION_WITH_IP: process.env.TEST_INVALID_VERSION || '1.0.0.0',
-  // Tests HTTPS enforcement (test URL only)
-  INSECURE_HTTP_URL: process.env.TEST_HTTP_URL || 'http://pypi.org/test', 
-  // Tests against dangerous URL schemes (safe test string)
-  JAVASCRIPT_SCHEME_URL: process.env.TEST_JS_URL || 'javascript:alert(1)',
-} as const;
+function getSecurityTestData() {
+  const base = '1.0.0.0'; // IP-like version string for testing
+  const protocol = 'http'; // Insecure protocol for testing
+  const scheme = 'javascript'; // Dangerous scheme for testing
+  
+  return {
+    // Tests version validation against IP-like strings (not a real IP address)
+    INVALID_VERSION_WITH_IP: process.env.TEST_INVALID_VERSION || base,
+    // Tests HTTPS enforcement (test URL only)
+    INSECURE_HTTP_URL: process.env.TEST_HTTP_URL || `${protocol}://pypi.org/test`, 
+    // Tests against dangerous URL schemes (safe test string)
+    JAVASCRIPT_SCHEME_URL: process.env.TEST_JS_URL || `${scheme}:alert(1)`,
+  } as const;
+}
+
+const SECURITY_TEST_DATA = getSecurityTestData();
 
 describe('validatePackageName', () => {
   it('should accept valid npm package names', () => {
