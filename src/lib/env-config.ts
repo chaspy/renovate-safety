@@ -50,9 +50,7 @@ let _config: EnvironmentConfig | null = null;
  * Get validated environment configuration (singleton)
  */
 export function getEnvironmentConfig(): EnvironmentConfig {
-  if (!_config) {
-    _config = loadEnvironmentConfig();
-  }
+  _config ??= loadEnvironmentConfig();
   return _config;
 }
 
