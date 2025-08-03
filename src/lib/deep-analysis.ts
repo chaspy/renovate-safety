@@ -278,7 +278,7 @@ async function analyzeFileAPIUsage(
       // Check if this identifier is from our package
       if (
         importedSymbols.has(identifierName) ||
-        (breakingAPIs && breakingAPIs.includes(identifierName))
+        breakingAPIs?.includes(identifierName)
       ) {
         const usage = analyzeIdentifierUsage(node, filePath);
         if (usage) {
@@ -578,7 +578,7 @@ async function analyzeConfigFiles(
           ];
           const jsonContent = parsedContent as any;
           for (const section of sections) {
-            if (jsonContent[section] && jsonContent[section][packageName]) {
+            if (jsonContent[section]?.[packageName]) {
               usage = `Version ${jsonContent[section][packageName]} in ${section}`;
               break;
             }

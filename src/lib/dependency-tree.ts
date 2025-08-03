@@ -157,7 +157,7 @@ function parseNpmLsOutput(data: unknown, packageName: string): DependencyUsage |
 
   function traverse(node: unknown, path: string[]): void {
     const nodeWithDeps = node as any;
-    if (!nodeWithDeps || !nodeWithDeps.dependencies) return;
+    if (!nodeWithDeps?.dependencies) return;
 
     for (const [depName, depInfo] of Object.entries(nodeWithDeps.dependencies)) {
       if (depName === packageName) {
