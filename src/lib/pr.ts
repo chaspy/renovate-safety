@@ -1,6 +1,9 @@
 import { Octokit } from '@octokit/rest';
-import { execa } from 'execa';
+import { getEnvironmentConfig } from './env-config.js';
+import { secureSystemExec } from './secure-exec.js';
 import type { CLIOptions, PackageUpdate } from '../types/index.js';
+import { safeJsonParse } from './safe-json.js';
+import { logError } from './logger-extended.js';
 
 export async function extractPackageInfo(options: CLIOptions): Promise<PackageUpdate | null> {
   // If manual override provided, use it
@@ -48,7 +51,7 @@ export async function extractPackageInfo(options: CLIOptions): Promise<PackageUp
 export async function getRenovatePRs(): Promise<PRInfo[]> {
   try {
     // Try using gh CLI first
-    const { stdout } = await execa('gh', [
+    const result = await secureSystemExec('gh', [
       'pr',
       'list',
       '--json',
@@ -57,7 +60,11 @@ export async function getRenovatePRs(): Promise<PRInfo[]> {
       '100',
     ]);
 
-    const allPRs = JSON.parse(stdout);
+    if (!result.success) {
+      throw new Error(`gh CLI failed: ${result.error}`);
+    }
+
+    const allPRs = safeJsonParse(result.stdout, []);
 
     // Filter for Renovate PRs
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,7 +93,7 @@ export async function getRenovatePRs(): Promise<PRInfo[]> {
     try {
       const [owner, repo] = await getRepoInfo();
       const octokit = new Octokit({
-        auth: process.env.GITHUB_TOKEN,
+        auth: getEnvironmentConfig().githubToken,
       });
 
       const { data: allPRs } = await octokit.pulls.list({
@@ -116,7 +123,7 @@ export async function getRenovatePRs(): Promise<PRInfo[]> {
         body: pr.body || '',
       }));
     } catch {
-      console.error('Failed to fetch PRs:', error);
+      logError('Failed to fetch PRs:', error);
       return [];
     }
   }
@@ -137,27 +144,32 @@ interface PRData {
 
 async function getPRData(prNumber: number): Promise<PRData | null> {
   try {
-    const token = process.env.GITHUB_TOKEN;
-    if (!token) {
+    const config = getEnvironmentConfig();
+    if (!config.githubToken) {
       // Try using gh CLI
-      const { stdout } = await execa('gh', [
+      const result = await secureSystemExec('gh', [
         'pr',
         'view',
         prNumber.toString(),
         '--json',
         'title,headRefName,body',
       ]);
-      const data = JSON.parse(stdout);
+
+      if (!result.success) {
+        throw new Error(`gh CLI failed: ${result.error}`);
+      }
+
+      const data = safeJsonParse(result.stdout, {}) as any;
       return {
-        title: data.title,
-        branch: data.headRefName,
+        title: data.title || '',
+        branch: data.headRefName || '',
         body: data.body || '',
       };
     }
 
     // Use Octokit if token available
     const [owner, repo] = await getRepoInfo();
-    const octokit = new Octokit({ auth: token });
+    const octokit = new Octokit({ auth: config.githubToken });
 
     const { data } = await octokit.pulls.get({
       owner,
@@ -171,7 +183,7 @@ async function getPRData(prNumber: number): Promise<PRData | null> {
       body: data.body || '',
     };
   } catch (error) {
-    console.error('Failed to fetch PR data:', error);
+    logError('Failed to fetch PR data:', error);
     return null;
   }
 }
@@ -179,14 +191,25 @@ async function getPRData(prNumber: number): Promise<PRData | null> {
 async function getPRDataFromCurrentBranch(): Promise<PRData | null> {
   try {
     // Get current branch name
-    const { stdout: branch } = await execa('git', ['branch', '--show-current']);
+    const branchResult = await secureSystemExec('git', ['branch', '--show-current']);
+
+    if (!branchResult.success) {
+      throw new Error(`Failed to get current branch: ${branchResult.error}`);
+    }
+
+    const branch = branchResult.stdout.trim();
 
     // Try to find PR for this branch
     try {
-      const { stdout } = await execa('gh', ['pr', 'view', '--json', 'title,body']);
-      const data = JSON.parse(stdout);
+      const prResult = await secureSystemExec('gh', ['pr', 'view', '--json', 'title,body']);
+
+      if (!prResult.success) {
+        throw new Error('No PR found for current branch');
+      }
+
+      const data = safeJsonParse(prResult.stdout, {}) as any;
       return {
-        title: data.title,
+        title: data.title || branch,
         branch,
         body: data.body || '',
       };
@@ -199,15 +222,20 @@ async function getPRDataFromCurrentBranch(): Promise<PRData | null> {
       };
     }
   } catch (error) {
-    console.error('Failed to get current branch info:', error);
+    logError('Failed to get current branch info:', error);
     return null;
   }
 }
 
 async function getRepoInfo(): Promise<[string, string]> {
   try {
-    const { stdout } = await execa('git', ['remote', 'get-url', 'origin']);
-    const match = stdout.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+    const result = await secureSystemExec('git', ['remote', 'get-url', 'origin']);
+
+    if (!result.success) {
+      throw new Error(`Failed to get git remote URL: ${result.error}`);
+    }
+
+    const match = /github\.com[:/]([^/]+)\/([^/.]+)/.exec(result.stdout);
     if (match) {
       return [match[1], match[2]];
     }
@@ -231,9 +259,9 @@ function extractFromRenovatePR(prData: PRData): PackageUpdate | null {
       // Pattern for direct backtick versions
       /\|\s*\[?([^|\]]+)\]?(?:\([^)]*\))?\s*\|\s*`([^`]+)`\s*->\s*`([^`]+)`\s*\|/g,
     ];
-    
+
     let matches: RegExpMatchArray[] = [];
-    
+
     // Try both patterns
     for (const pattern of patterns) {
       const patternMatches = [...prData.body.matchAll(pattern)];
@@ -242,23 +270,23 @@ function extractFromRenovatePR(prData: PRData): PackageUpdate | null {
         break;
       }
     }
-    
+
     for (const match of matches) {
       if (match && match[1] && match[2] && match[3]) {
         const packageName = match[1].trim();
         const fromVersion = match[2].trim();
         const toVersion = match[3].trim();
-        
+
         // Skip header rows
         if (packageName.toLowerCase() === 'package') {
           continue;
         }
-        
+
         // For monorepos, return the first valid package found
         // Prefer the main package (e.g., 'jest' over '@types/jest')
         const normalizedFrom = normalizeVersion(fromVersion);
         const normalizedTo = normalizeVersion(toVersion);
-        
+
         if (normalizedFrom && normalizedTo) {
           // If we find the main package, use it; otherwise use the first valid one
           if (!packageName.startsWith('@types/')) {
@@ -271,13 +299,13 @@ function extractFromRenovatePR(prData: PRData): PackageUpdate | null {
         }
       }
     }
-    
+
     // If we only found @types packages, use the first one
     if (matches.length > 0 && matches[0][1] && matches[0][2] && matches[0][3]) {
       const firstMatch = matches[0];
       const normalizedFrom = normalizeVersion(firstMatch[2].trim());
       const normalizedTo = normalizeVersion(firstMatch[3].trim());
-      
+
       if (normalizedFrom && normalizedTo) {
         return {
           name: firstMatch[1].trim(),
@@ -317,11 +345,11 @@ function extractFromRenovatePR(prData: PRData): PackageUpdate | null {
         // Pattern with only to version - need to extract from version from PR body
         const packageName = match[1];
         const toVersionFromTitle = match[2];
-        
+
         // Extract full versions from body
         const fromVersion = extractFromVersion(prData.body, packageName);
         const toVersion = extractToVersion(prData.body, packageName);
-        
+
         // Use body version if available, otherwise try to use title version
         if (fromVersion && toVersion) {
           return {
@@ -366,7 +394,7 @@ function extractFromRenovatePR(prData: PRData): PackageUpdate | null {
 function extractFromVersion(body: string, packageName: string): string | null {
   // Clean HTML entities from body to avoid issues like &#8203;
   const cleanBody = body.replace(/&#\d+;/g, '');
-  
+
   const patterns = [
     // Markdown table with caret/tilde: | globals | `^14.0.0` -> `^16.2.0` |
     new RegExp(
@@ -384,8 +412,14 @@ function extractFromVersion(body: string, packageName: string): string | null {
       'i'
     ),
     // Fallback patterns
-    new RegExp(`${escapeRegex(packageName)}[\\s\\S]*?from[\\s\\S]*?v?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)`, 'i'),
-    new RegExp(`"${escapeRegex(packageName)}":[\\s]*"[~^]?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)"`, 'i'),
+    new RegExp(
+      `${escapeRegex(packageName)}.{0,200}?from.{0,50}?v?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)`,
+      'i'
+    ),
+    new RegExp(
+      `"${escapeRegex(packageName)}":[\\s]*"[~^]?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)"`,
+      'i'
+    ),
   ];
 
   for (const pattern of patterns) {
@@ -401,7 +435,7 @@ function extractFromVersion(body: string, packageName: string): string | null {
 function extractToVersion(body: string, packageName: string): string | null {
   // Clean HTML entities from body to avoid issues like &#8203;
   const cleanBody = body.replace(/&#\d+;/g, '');
-  
+
   const patterns = [
     // Markdown table with caret/tilde: | globals | `^14.0.0` -> `^16.2.0` |
     new RegExp(
@@ -419,8 +453,14 @@ function extractToVersion(body: string, packageName: string): string | null {
       'i'
     ),
     // Fallback patterns
-    new RegExp(`${escapeRegex(packageName)}[\\s\\S]*?to[\\s\\S]*?v?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)`, 'i'),
-    new RegExp(`"${escapeRegex(packageName)}":[\\s]*"[~^]?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)"[\\s\\S]*?###`, 'i'),
+    new RegExp(
+      `${escapeRegex(packageName)}.{0,200}?to.{0,50}?v?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)`,
+      'i'
+    ),
+    new RegExp(
+      `"${escapeRegex(packageName)}":[\\s]*"[~^]?([\\d]+\\.[\\d]+\\.[\\d]+(?:-[\\w.]+)?)"`,
+      'i'
+    ),
   ];
 
   for (const pattern of patterns) {

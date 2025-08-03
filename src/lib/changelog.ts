@@ -1,10 +1,14 @@
 import pacote from 'pacote';
-import { Octokit } from '@octokit/rest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createHash } from 'crypto';
+import { generatePackageCacheKey } from './cache-utils.js';
+import { loggers } from './logger.js';
 import semver from 'semver';
 import type { PackageUpdate, ChangelogDiff } from '../types/index.js';
+import { httpGet } from './http-client.js';
+import { fileExists, readJsonFile, ensureDirectory } from './file-helpers.js';
+import { getGitHubClient } from './github-client.js';
+import { executeInParallel } from './parallel-helpers.js';
 
 export async function fetchChangelogDiff(
   packageUpdate: PackageUpdate,
@@ -55,14 +59,10 @@ async function getCachedChangelog(
     const cacheKey = getCacheKey(packageUpdate);
     const cachePath = path.join(cacheDir, `${cacheKey}.json`);
 
-    const exists = await fs
-      .access(cachePath)
-      .then(() => true)
-      .catch(() => false);
+    const exists = await fileExists(cachePath);
     if (!exists) return null;
 
-    const content = await fs.readFile(cachePath, 'utf-8');
-    return JSON.parse(content);
+    return await readJsonFile<ChangelogDiff>(cachePath);
   } catch {
     return null;
   }
@@ -74,20 +74,19 @@ async function cacheChangelog(
   cacheDir: string
 ): Promise<void> {
   try {
-    await fs.mkdir(cacheDir, { recursive: true });
+    await ensureDirectory(cacheDir);
 
     const cacheKey = getCacheKey(packageUpdate);
     const cachePath = path.join(cacheDir, `${cacheKey}.json`);
 
     await fs.writeFile(cachePath, JSON.stringify(changelog, null, 2));
   } catch (error) {
-    console.warn('Failed to cache changelog:', error);
+    loggers.genericFailed('cache changelog', error);
   }
 }
 
 function getCacheKey(packageUpdate: PackageUpdate): string {
-  const key = `${packageUpdate.name}@${packageUpdate.fromVersion}->${packageUpdate.toVersion}`;
-  return createHash('sha1').update(key).digest('hex');
+  return generatePackageCacheKey(packageUpdate);
 }
 
 async function fetchFromGitHubReleases(
@@ -98,9 +97,7 @@ async function fetchFromGitHubReleases(
     const githubInfo = await getGitHubInfo(packageUpdate.name);
     if (!githubInfo) return null;
 
-    const octokit = new Octokit({
-      auth: process.env.GITHUB_TOKEN,
-    });
+    const octokit = getGitHubClient();
 
     // Fetch releases
     const { data: releases } = await octokit.repos.listReleases({
@@ -141,7 +138,7 @@ async function fetchFromGitHubReleases(
       source: 'github',
     };
   } catch (error) {
-    console.debug('Failed to fetch from GitHub:', error);
+    loggers.debug('Failed to fetch from GitHub:', error);
     return null;
   }
 }
@@ -149,10 +146,13 @@ async function fetchFromGitHubReleases(
 async function fetchFromNpmRegistry(packageUpdate: PackageUpdate): Promise<ChangelogDiff | null> {
   try {
     // Fetch both versions - we only use the to version for extraction
-    await Promise.all([
-      pacote.manifest(`${packageUpdate.name}@${packageUpdate.fromVersion}`),
-      pacote.manifest(`${packageUpdate.name}@${packageUpdate.toVersion}`),
-    ]);
+    await executeInParallel(
+      [
+        () => pacote.manifest(`${packageUpdate.name}@${packageUpdate.fromVersion}`),
+        () => pacote.manifest(`${packageUpdate.name}@${packageUpdate.toVersion}`),
+      ],
+      { concurrency: 2 }
+    );
 
     // Extract tarball and look for changelog
     const tempDir = await fs.mkdtemp(path.join(process.cwd(), '.tmp-'));
@@ -185,7 +185,7 @@ async function fetchFromNpmRegistry(packageUpdate: PackageUpdate): Promise<Chang
       await fs.rm(tempDir, { recursive: true, force: true });
     }
   } catch (error) {
-    console.debug('Failed to fetch from npm:', error);
+    loggers.debug('Failed to fetch from npm:', error);
     return null;
   }
 }
@@ -236,10 +236,7 @@ async function findChangelogFile(dir: string): Promise<string | null> {
 
   for (const name of possibleNames) {
     const filePath = path.join(dir, name);
-    const exists = await fs
-      .access(filePath)
-      .then(() => true)
-      .catch(() => false);
+    const exists = await fileExists(filePath);
     if (exists) {
       return filePath;
     }
@@ -310,19 +307,19 @@ function extractRelevantSections(
 
 function normalizeVersion(version: string): string | null {
   const cleaned = version.replace(/^v/, '');
-  
+
   // Try to coerce to valid semver if it's not already valid
   const valid = semver.valid(cleaned);
   if (valid) {
     return valid;
   }
-  
+
   // Try to coerce partial versions (e.g., "16" -> "16.0.0", "16.2" -> "16.2.0")
   const coerced = semver.coerce(cleaned);
   if (coerced) {
     return coerced.version;
   }
-  
+
   return null;
 }
 
@@ -350,18 +347,24 @@ function detectPackageType(packageName: string): 'javascript' | 'python' | 'unkn
   return 'javascript';
 }
 
+interface PyPIPackageInfo {
+  info?: {
+    project_urls?: Record<string, string>;
+    home_page?: string;
+  };
+}
+
 async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDiff | null> {
   try {
     // Fetch package info from PyPI
     const packageName = packageUpdate.name.toLowerCase();
-    const response = await fetch(`https://pypi.org/pypi/${packageName}/json`);
+    const response = await httpGet<unknown>(`https://pypi.org/pypi/${packageName}/json`);
 
-    if (!response.ok) {
+    if (!response.ok || !response.data) {
       return null;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = (await response.json()) as any;
+    const data = response.data as PyPIPackageInfo;
 
     // Try to find GitHub URL from project URLs
     const projectUrls = data.info?.project_urls || {};
@@ -382,7 +385,8 @@ async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDif
 
     // If we found a GitHub URL, try to fetch changelog from there
     if (githubUrl) {
-      const match = githubUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+      const githubRegex = /github\.com\/([^/]+)\/([^/]+)/;
+      const match = githubRegex.exec(githubUrl);
       if (match) {
         const githubInfo = { owner: match[1], repo: match[2].replace(/\.git$/, '') };
         // Use the existing GitHub releases fetcher with custom package name format
@@ -396,7 +400,7 @@ async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDif
 
     // Try to extract from package description or release notes
     // const fromRelease = data.releases?.[packageUpdate.fromVersion]?.[0];
-    const toRelease = data.releases?.[packageUpdate.toVersion]?.[0];
+    const toRelease = (data as any).releases?.[packageUpdate.toVersion]?.[0];
 
     if (toRelease?.description) {
       // PyPI descriptions often contain changelog info
@@ -410,7 +414,7 @@ async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDif
 
     return null;
   } catch (error) {
-    console.error('Failed to fetch from PyPI:', error);
+    loggers.genericFailed('fetch from PyPI', error);
     return null;
   }
 }

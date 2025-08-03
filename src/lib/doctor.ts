@@ -1,6 +1,16 @@
 import chalk from 'chalk';
-import { execa } from 'execa';
+import { getEnvironmentConfig } from './env-config.js';
 import * as fs from 'fs/promises';
+import { secureSystemExec } from './secure-exec.js';
+import { getSourceFiles } from './glob-helpers.js';
+import { loggers } from './logger.js';
+import {
+  logSection,
+  logSeparator,
+  logError,
+  logWarningMessage,
+  logSuccess,
+} from './logger-extended.js';
 
 interface HealthCheck {
   name: string;
@@ -10,7 +20,7 @@ interface HealthCheck {
 }
 
 export async function runDoctorCheck(): Promise<void> {
-  console.log(chalk.bold('\n🏥 Renovate Safety Doctor\n'));
+  logSection('Renovate Safety Doctor', '🏥');
 
   const checks: HealthCheck[] = [];
 
@@ -38,16 +48,16 @@ export async function runDoctorCheck(): Promise<void> {
   const hasErrors = checks.some((check) => check.status === 'error');
   const hasWarnings = checks.some((check) => check.status === 'warning');
 
-  console.log('\n' + '='.repeat(60));
+  logSeparator('=', 60);
 
   if (hasErrors) {
-    console.log(chalk.red('❌ Critical issues found. Please fix the errors above.'));
+    logError('❌ Critical issues found. Please fix the errors above.');
     process.exit(1);
   } else if (hasWarnings) {
-    console.log(chalk.yellow('⚠️  Some warnings found. Review the suggestions above.'));
-    console.log(chalk.green('✅ Ready to use renovate-safety with basic features.'));
+    logWarningMessage('⚠️  Some warnings found. Review the suggestions above.');
+    logSuccess('✅ Ready to use renovate-safety with basic features.');
   } else {
-    console.log(chalk.green('✅ All checks passed! Ready to use renovate-safety.'));
+    logSuccess('✅ All checks passed! Ready to use renovate-safety.');
   }
 }
 
@@ -57,8 +67,8 @@ async function checkGitRepository(): Promise<HealthCheck> {
 
     // Check if it's a GitHub repository
     try {
-      const { stdout } = await execa('git', ['remote', 'get-url', 'origin']);
-      if (stdout.includes('github.com')) {
+      const result = await secureSystemExec('git', ['remote', 'get-url', 'origin']);
+      if (result.success && result.stdout.includes('github.com')) {
         return {
           name: 'Git Repository',
           status: 'ok',
@@ -92,18 +102,32 @@ async function checkGitRepository(): Promise<HealthCheck> {
 
 async function checkGitHubCLI(): Promise<HealthCheck> {
   try {
-    const { stdout } = await execa('gh', ['--version']);
-    const versionMatch = stdout.match(/gh version (\d+\.\d+\.\d+)/);
+    const versionResult = await secureSystemExec('gh', ['--version']);
+
+    if (!versionResult.success) {
+      throw new Error('gh command failed');
+    }
+
+    const versionMatch = /gh version (\d+\.\d+\.\d+)/.exec(versionResult.stdout);
 
     if (versionMatch) {
       const version = versionMatch[1];
       try {
-        await execa('gh', ['auth', 'status']);
-        return {
-          name: 'GitHub CLI',
-          status: 'ok',
-          message: `Installed and authenticated (v${version})`,
-        };
+        const authResult = await secureSystemExec('gh', ['auth', 'status']);
+        if (authResult.success) {
+          return {
+            name: 'GitHub CLI',
+            status: 'ok',
+            message: `Installed and authenticated (v${version})`,
+          };
+        } else {
+          return {
+            name: 'GitHub CLI',
+            status: 'warning',
+            message: `Installed (v${version}) but not authenticated`,
+            suggestion: 'Run "gh auth login" to enable PR features',
+          };
+        }
       } catch {
         return {
           name: 'GitHub CLI',
@@ -132,19 +156,42 @@ async function checkGitHubCLI(): Promise<HealthCheck> {
 
 async function checkClaudeCLI(): Promise<HealthCheck> {
   try {
-    await execa('claude', ['--version']);
+    const versionResult = await secureSystemExec('claude', ['--version']);
+
+    if (!versionResult.success) {
+      throw new Error('claude command failed');
+    }
 
     // Check if logged in by trying a simple command
     try {
-      await execa('claude', ['-p', 'test', '--max-turns', '1'], {
+      const testResult = await secureSystemExec('claude', ['-p', 'test', '--max-turns', '1'], {
         timeout: 5000,
         input: 'test',
       });
-      return {
-        name: 'Claude CLI (Priority 1)',
-        status: 'ok',
-        message: 'Installed and ready - will be used for AI analysis (Max Plan subscription)',
-      };
+
+      if (testResult.success) {
+        return {
+          name: 'Claude CLI (Priority 1)',
+          status: 'ok',
+          message: 'Installed and ready - will be used for AI analysis (Max Plan subscription)',
+        };
+      } else {
+        const errorMsg = testResult.error || 'Unknown error';
+        if (errorMsg.includes('not logged in') || errorMsg.includes('authentication')) {
+          return {
+            name: 'Claude CLI (Priority 1)',
+            status: 'warning',
+            message: 'Installed but not authenticated',
+            suggestion: 'Run "claude login" to enable AI analysis for Pro/Max users',
+          };
+        } else {
+          return {
+            name: 'Claude CLI (Priority 1)',
+            status: 'ok',
+            message: 'Installed and ready - will be used for AI analysis (Max Plan subscription)',
+          };
+        }
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '';
       if (errorMsg.includes('not logged in') || errorMsg.includes('authentication')) {
@@ -173,7 +220,8 @@ async function checkClaudeCLI(): Promise<HealthCheck> {
 }
 
 async function checkAnthropicAPI(): Promise<HealthCheck> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const config = getEnvironmentConfig();
+  const apiKey = config.anthropicApiKey;
 
   if (apiKey) {
     if (apiKey.startsWith('sk-ant-')) {
@@ -201,7 +249,8 @@ async function checkAnthropicAPI(): Promise<HealthCheck> {
 }
 
 async function checkOpenAIAPI(): Promise<HealthCheck> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const config = getEnvironmentConfig();
+  const apiKey = config.openaiApiKey;
 
   if (apiKey) {
     if (apiKey.startsWith('sk-')) {
@@ -249,50 +298,23 @@ async function checkNodeVersion(): Promise<HealthCheck> {
 }
 
 async function checkSourceFiles(): Promise<HealthCheck> {
-  const jsPatterns = [
-    'src/**/*.{ts,tsx,js,jsx}',
-    'lib/**/*.{ts,tsx,js,jsx}',
-    '*.{ts,tsx,js,jsx}',
-    'app/**/*.{ts,tsx,js,jsx}',
-    'pages/**/*.{ts,tsx,js,jsx}',
-  ];
-
-  const pyPatterns = ['**/*.py'];
-
   let jsFileCount = 0;
   let pyFileCount = 0;
 
   // Check JavaScript/TypeScript files
-  for (const pattern of jsPatterns) {
-    try {
-      const { glob } = await import('glob');
-      const files = await glob(pattern, {
-        ignore: ['**/node_modules/**', '**/dist/**', '**/*.test.*', '**/*.spec.*'],
-      });
-      jsFileCount += files.length;
-    } catch {
-      // Ignore glob errors
-    }
+  try {
+    const jsFiles = await getSourceFiles(process.cwd(), 'node');
+    jsFileCount = jsFiles.length;
+  } catch {
+    // Ignore errors
   }
 
   // Check Python files
-  for (const pattern of pyPatterns) {
-    try {
-      const { glob } = await import('glob');
-      const files = await glob(pattern, {
-        ignore: [
-          '**/venv/**',
-          '**/.venv/**',
-          '**/env/**',
-          '**/.env/**',
-          '**/site-packages/**',
-          '**/__pycache__/**',
-        ],
-      });
-      pyFileCount += files.length;
-    } catch {
-      // Ignore glob errors
-    }
+  try {
+    const pyFiles = await getSourceFiles(process.cwd(), 'python');
+    pyFileCount = pyFiles.length;
+  } catch {
+    // Ignore errors
   }
 
   const totalFiles = jsFileCount + pyFileCount;
@@ -320,15 +342,35 @@ async function checkSourceFiles(): Promise<HealthCheck> {
 
 function displayResults(checks: HealthCheck[]): void {
   for (const check of checks) {
-    const icon = check.status === 'ok' ? '✅' : check.status === 'warning' ? '⚠️' : '❌';
-    const color =
-      check.status === 'ok' ? chalk.green : check.status === 'warning' ? chalk.yellow : chalk.red;
+    const icon = getStatusIcon(check.status);
+    const color = getStatusColor(check.status);
 
-    console.log(`${icon} ${chalk.bold(check.name)}: ${color(check.message)}`);
+    loggers.info(`${icon} ${chalk.bold(check.name)}: ${color(check.message)}`);
 
     if (check.suggestion) {
-      console.log(`   ${chalk.gray('💡 ' + check.suggestion)}`);
+      loggers.info(`   ${chalk.gray('💡 ' + check.suggestion)}`);
     }
-    console.log();
+  }
+}
+
+function getStatusIcon(status: HealthCheck['status']): string {
+  switch (status) {
+    case 'ok':
+      return '✅';
+    case 'warning':
+      return '⚠️';
+    default:
+      return '❌';
+  }
+}
+
+function getStatusColor(status: HealthCheck['status']) {
+  switch (status) {
+    case 'ok':
+      return chalk.green;
+    case 'warning':
+      return chalk.yellow;
+    default:
+      return chalk.red;
   }
 }

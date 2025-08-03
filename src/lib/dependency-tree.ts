@@ -1,6 +1,8 @@
-import { execa } from 'execa';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { secureNpmExec, secureSystemExec } from './secure-exec.js';
+import { validatePackageName } from './validation.js';
+import { readJsonFile } from './file-helpers.js';
 
 export interface DependencyUsage {
   packageName: string;
@@ -41,12 +43,18 @@ export async function analyzeDependencyUsage(packageName: string): Promise<Depen
 
 async function analyzeWithNpm(packageName: string): Promise<DependencyUsage | null> {
   try {
-    // Run npm ls to get dependency tree
-    const { stdout } = await execa('npm', ['ls', packageName, '--json', '--depth=10'], {
-      reject: false, // npm ls returns non-zero exit code when packages have issues
-    });
+    // Validate package name first
+    const safeName = validatePackageName(packageName);
 
-    const data = JSON.parse(stdout);
+    // Run npm ls to get dependency tree
+    const result = await secureNpmExec('ls', [safeName, '--json', '--depth=10']);
+
+    if (!result.success) {
+      console.debug('npm ls failed:', result.error);
+      return null;
+    }
+
+    const data = JSON.parse(result.stdout);
     return parseNpmLsOutput(data, packageName);
   } catch (error) {
     console.debug('npm ls failed:', error);
@@ -59,19 +67,27 @@ async function analyzeWithYarn(packageName: string): Promise<DependencyUsage | n
     // Check if yarn.lock exists
     await fs.access('yarn.lock');
 
-    // Run yarn why
-    const { stdout } = await execa('yarn', ['why', packageName, '--json'], {
-      reject: false,
-    });
+    // Validate package name first
+    const safeName = validatePackageName(packageName);
 
-    const lines = stdout.split('\n').filter(line => line.trim());
-    const jsonData = lines.map(line => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    }).filter(Boolean);
+    // Run yarn why using secure execution
+    const result = await secureSystemExec('yarn', ['why', safeName, '--json']);
+
+    if (!result.success) {
+      console.debug('yarn why failed:', result.error);
+      return null;
+    }
+
+    const lines = result.stdout.split('\n').filter((line) => line.trim());
+    const jsonData = lines
+      .map((line) => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
 
     return parseYarnWhyOutput(jsonData, packageName);
   } catch (error) {
@@ -83,8 +99,8 @@ async function analyzeWithYarn(packageName: string): Promise<DependencyUsage | n
 async function analyzePackageJson(packageName: string): Promise<DependencyUsage | null> {
   try {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
-    const content = await fs.readFile(packageJsonPath, 'utf-8');
-    const packageJson = JSON.parse(content);
+    const packageJsonData = await readJsonFile(packageJsonPath);
+    const packageJson = packageJsonData as any;
 
     const dependents: DependentInfo[] = [];
     let usageType: DependencyUsage['usageType'] = 'dependencies';
@@ -93,9 +109,9 @@ async function analyzePackageJson(packageName: string): Promise<DependencyUsage 
     // Check in different dependency types
     const depTypes = [
       'dependencies',
-      'devDependencies', 
+      'devDependencies',
       'peerDependencies',
-      'optionalDependencies'
+      'optionalDependencies',
     ] as const;
 
     for (const depType of depTypes) {
@@ -134,15 +150,16 @@ async function analyzePackageJson(packageName: string): Promise<DependencyUsage 
   }
 }
 
-function parseNpmLsOutput(data: any, packageName: string): DependencyUsage | null {
+function parseNpmLsOutput(data: unknown, packageName: string): DependencyUsage | null {
   const dependents: DependentInfo[] = [];
   let isDirect = false;
   let usageType: DependencyUsage['usageType'] = 'dependencies';
 
-  function traverse(node: any, path: string[]): void {
-    if (!node || !node.dependencies) return;
+  function traverse(node: unknown, path: string[]): void {
+    const nodeWithDeps = node as any;
+    if (!nodeWithDeps?.dependencies) return;
 
-    for (const [depName, depInfo] of Object.entries(node.dependencies)) {
+    for (const [depName, depInfo] of Object.entries(nodeWithDeps.dependencies)) {
       if (depName === packageName) {
         const info = depInfo as any;
         dependents.push({
@@ -151,7 +168,7 @@ function parseNpmLsOutput(data: any, packageName: string): DependencyUsage | nul
           path: [...path, depName],
           type: path.length === 0 ? 'direct' : 'transitive',
         });
-        
+
         if (path.length === 0) {
           isDirect = true;
         }
@@ -176,21 +193,22 @@ function parseNpmLsOutput(data: any, packageName: string): DependencyUsage | nul
   };
 }
 
-function parseYarnWhyOutput(jsonData: any[], packageName: string): DependencyUsage | null {
+function parseYarnWhyOutput(jsonData: unknown[], packageName: string): DependencyUsage | null {
   const dependents: DependentInfo[] = [];
   let isDirect = false;
   let usageType: DependencyUsage['usageType'] = 'dependencies';
 
   for (const item of jsonData) {
-    if (item.type === 'info' && item.data) {
-      const data = item.data;
+    const typedItem = item as any;
+    if (typedItem.type === 'info' && typedItem.data) {
+      const data = typedItem.data;
       if (typeof data === 'string' && data.includes(packageName)) {
         // Parse yarn why output format
-        const lines = data.split('\n').filter(line => line.trim());
-        
+        const lines = data.split('\n').filter((line) => line.trim());
+
         for (const line of lines) {
           if (line.includes('=>')) {
-            const parts = line.split('=>').map(s => s.trim());
+            const parts = line.split('=>').map((s) => s.trim());
             if (parts.length >= 2) {
               const dependencyChain = parts[0].split('#');
               dependents.push({
@@ -199,7 +217,7 @@ function parseYarnWhyOutput(jsonData: any[], packageName: string): DependencyUsa
                 path: dependencyChain,
                 type: dependencyChain.length <= 2 ? 'direct' : 'transitive',
               });
-              
+
               if (dependencyChain.length <= 2) {
                 isDirect = true;
               }
@@ -240,7 +258,7 @@ export function assessDependencyImpact(usage: DependencyUsage): DependencyImpact
     }
   } else {
     // Transitive dependency
-    const directDependents = usage.dependents.filter(dep => dep.type === 'direct');
+    const directDependents = usage.dependents.filter((dep) => dep.type === 'direct');
     if (directDependents.length > 0) {
       riskLevel = 'medium';
       reason = `Transitive dependency used by ${directDependents.length} direct dependencies`;
@@ -263,7 +281,7 @@ export function assessDependencyImpact(usage: DependencyUsage): DependencyImpact
 
 export function formatDependencyUsage(usage: DependencyUsage): string {
   const lines: string[] = [];
-  
+
   lines.push(`# Dependency Usage Analysis for ${usage.packageName}`);
   lines.push('');
   lines.push(`**Type**: ${usage.isDirect ? 'Direct' : 'Transitive'} dependency`);
@@ -273,9 +291,9 @@ export function formatDependencyUsage(usage: DependencyUsage): string {
 
   if (usage.dependents.length > 0) {
     lines.push('## Dependency Chain');
-    
-    const directDeps = usage.dependents.filter(dep => dep.type === 'direct');
-    const transitiveDeps = usage.dependents.filter(dep => dep.type === 'transitive');
+
+    const directDeps = usage.dependents.filter((dep) => dep.type === 'direct');
+    const transitiveDeps = usage.dependents.filter((dep) => dep.type === 'transitive');
 
     if (directDeps.length > 0) {
       lines.push('### Direct Dependencies');
