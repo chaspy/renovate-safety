@@ -187,7 +187,8 @@ export class NpmAnalyzer extends PackageAnalyzer {
 
   getImportPatterns(): RegExp[] {
     return [
-      /import\s+[^]+?\s+from\s+['"]([^'"]+)['"]/g,
+      // Safe regex: use specific character classes instead of [^]+? to prevent ReDoS
+      /import\s+(?:[\w${}*,\s]+)\s+from\s+['"]([^'"]+)['"]/g,
       /import\s*\(['"]([^'"]+)['"]\)/g,
       /require\s*\(['"]([^'"]+)['"]\)/g,
       /require\.resolve\s*\(['"]([^'"]+)['"]\)/g

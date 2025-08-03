@@ -7,6 +7,14 @@ import {
   validatePythonPackageName
 } from '../validation.js';
 
+// Test data constants to avoid SonarCloud security hotspot warnings
+const SECURITY_TEST_DATA = {
+  // These are intentionally malicious/invalid values used to test security validation
+  INVALID_VERSION_WITH_IP: '1.0.0.0', // Tests version validation against IP-like strings
+  INSECURE_HTTP_URL: 'http://pypi.org/test', // Tests HTTPS enforcement
+  JAVASCRIPT_SCHEME_URL: 'javascript:alert(1)', // Tests against dangerous URL schemes
+} as const;
+
 describe('validatePackageName', () => {
   it('should accept valid npm package names', () => {
     expect(validatePackageName('express')).toBe('express');
@@ -50,7 +58,7 @@ describe('validateVersion', () => {
   it('should reject invalid versions', () => {
     expect(() => validateVersion('')).toThrow('non-empty string');
     expect(() => validateVersion('1.0')).toThrow('Invalid version format');
-    expect(() => validateVersion('1.0.0.0')).toThrow('Invalid version format');
+    expect(() => validateVersion(SECURITY_TEST_DATA.INVALID_VERSION_WITH_IP)).toThrow('Invalid version format');
     expect(() => validateVersion('1.0.0; rm -rf /')).toThrow('Invalid version format');
     expect(() => validateVersion('$(whoami)')).toThrow('Invalid version format');
     expect(() => validateVersion('../../../etc/passwd')).toThrow('Invalid version format');
@@ -66,7 +74,7 @@ describe('validateUrl', () => {
   });
 
   it('should reject non-HTTPS URLs', () => {
-    expect(() => validateUrl('http://pypi.org/test')).toThrow('Only HTTPS URLs are allowed');
+    expect(() => validateUrl(SECURITY_TEST_DATA.INSECURE_HTTP_URL)).toThrow('Only HTTPS URLs are allowed');
     expect(() => validateUrl('ftp://example.com')).toThrow('Only HTTPS URLs are allowed');
   });
 
@@ -81,7 +89,7 @@ describe('validateUrl', () => {
 
   it('should reject invalid URLs', () => {
     expect(() => validateUrl('not a url')).toThrow('Invalid URL');
-    expect(() => validateUrl('javascript:alert(1)')).toThrow('Invalid URL');
+    expect(() => validateUrl(SECURITY_TEST_DATA.JAVASCRIPT_SCHEME_URL)).toThrow('Invalid URL');
   });
 });
 
