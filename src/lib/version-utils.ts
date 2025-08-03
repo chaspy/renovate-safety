@@ -58,7 +58,7 @@ export function isVersionInRange(version: string, fromVersion: string, toVersion
  * Sort versions in descending order (newest first)
  */
 export function sortVersionsDescending(versions: string[]): string[] {
-  return versions.sort((a, b) => compareVersions(b, a));
+  return versions.sort((first, second) => compareVersions(second, first));
 }
 
 /**
