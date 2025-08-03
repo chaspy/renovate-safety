@@ -342,14 +342,35 @@ async function checkSourceFiles(): Promise<HealthCheck> {
 
 function displayResults(checks: HealthCheck[]): void {
   for (const check of checks) {
-    const icon = check.status === 'ok' ? '✅' : check.status === 'warning' ? '⚠️' : '❌';
-    const color =
-      check.status === 'ok' ? chalk.green : check.status === 'warning' ? chalk.yellow : chalk.red;
+    const icon = getStatusIcon(check.status);
+    const color = getStatusColor(check.status);
 
     loggers.info(`${icon} ${chalk.bold(check.name)}: ${color(check.message)}`);
 
     if (check.suggestion) {
       loggers.info(`   ${chalk.gray('💡 ' + check.suggestion)}`);
     }
+  }
+}
+
+function getStatusIcon(status: HealthCheck['status']): string {
+  switch (status) {
+    case 'ok':
+      return '✅';
+    case 'warning':
+      return '⚠️';
+    default:
+      return '❌';
+  }
+}
+
+function getStatusColor(status: HealthCheck['status']) {
+  switch (status) {
+    case 'ok':
+      return chalk.green;
+    case 'warning':
+      return chalk.yellow;
+    default:
+      return chalk.red;
   }
 }

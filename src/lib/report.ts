@@ -43,12 +43,11 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
   sections.push(`- **Package**: \`${pkg.name}\``);
   sections.push(`- **Version**: ${pkg.fromVersion} → ${pkg.toVersion}`);
   sections.push(`- **Changelog Source**: ${changelogDiff ? changelogDiff.source : 'Not found'}`);
-  sections.push(
-    `- **Code Diff**: ${codeDiff ? `${codeDiff.filesChanged} files changed (${codeDiff.fromTag} → ${codeDiff.toTag})` : 'Not available'}`
-  );
-  sections.push(
-    `- **Dependency Type**: ${dependencyUsage ? `${dependencyUsage.isDirect ? 'Direct' : 'Transitive'} ${dependencyUsage.usageType}` : 'Unknown'}\n`
-  );
+  const codeDiffInfo = codeDiff ? (codeDiff.filesChanged + ' files changed (' + codeDiff.fromTag + ' → ' + codeDiff.toTag + ')') : 'Not available';
+  sections.push(`- **Code Diff**: ${codeDiffInfo}`);
+  
+  const dependencyTypeInfo = dependencyUsage ? ((dependencyUsage.isDirect ? 'Direct' : 'Transitive') + ' ' + dependencyUsage.usageType) : 'Unknown';
+  sections.push(`- **Dependency Type**: ${dependencyTypeInfo}\n`);
 
   // Summary
   if (llmSummary) {
