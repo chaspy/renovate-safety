@@ -175,7 +175,8 @@ export function isPackageImport(moduleSpecifier: string, packageName: string): b
 export function extractPackageNameFromImport(importStatement: string): string | null {
   // ES6 import patterns
   const es6Patterns = [
-    /import\s+[^]+?\s+from\s+['"]([^'"]+)['"]/,
+    // Safe regex: use specific character classes instead of [^]+? to prevent ReDoS
+    /import\s+(?:[\w${}*,\s]+)\s+from\s+['"]([^'"]+)['"]/,
     /import\s*\(['"]([^'"]+)['"]\)/,
     /import\s*{[^}]+}\s*from\s+['"]([^'"]+)['"]/,
     /import\s+\*\s+as\s+\w+\s+from\s+['"]([^'"]+)['"]/,
