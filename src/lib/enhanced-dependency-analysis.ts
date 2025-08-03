@@ -261,7 +261,7 @@ function extractTransitiveUsages(
   visited = new Set<string>()
 ): void {
   const nodeWithDeps = node as any;
-  if (!nodeWithDeps || !nodeWithDeps.dependencies) return;
+  if (!nodeWithDeps?.dependencies) return;
 
   const nodeKey = `${path.join('>')}-${targetPackage}`;
   if (visited.has(nodeKey)) return;
