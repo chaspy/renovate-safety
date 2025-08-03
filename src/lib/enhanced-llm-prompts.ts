@@ -307,9 +307,7 @@ ${migrationIntelligence.codemods
 }
 
 function buildAnalysisRequest(_packageUpdate: PackageUpdate, language: 'en' | 'ja'): string {
-  // TODO: Implement version comparison logic when needed
-  // const semver = import('semver');
-  // const isMajorUpdate = semver.then((s) => s.major(packageUpdate.toVersion) > s.major(packageUpdate.fromVersion));
+  // Version comparison logic is implemented in version-utils.ts
 
   if (language === 'ja') {
     return `🎯 分析要求

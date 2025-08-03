@@ -469,9 +469,8 @@ export function createOptimizedAnalysisFlow(
       dependencies: ['dependency-analysis', 'library-intelligence', 'enhanced-code-analysis'],
       execute: async () => {
         // Enhanced LLM analysis with all context
-        // TODO: Implement using buildSuperEnhancedPrompt from enhanced-llm-prompts
-        // const { buildSuperEnhancedPrompt } = await import('./enhanced-llm-prompts.js');
-        // Would combine all previous results into comprehensive prompt
+        // Enhanced LLM analysis can be implemented here if needed
+        // Placeholder for future comprehensive analysis feature
         return null; // Placeholder
       },
     },

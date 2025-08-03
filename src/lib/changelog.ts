@@ -385,7 +385,8 @@ async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDif
 
     // If we found a GitHub URL, try to fetch changelog from there
     if (githubUrl) {
-      const match = githubUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+      const githubRegex = /github\.com\/([^/]+)\/([^/]+)/;
+      const match = githubRegex.exec(githubUrl);
       if (match) {
         const githubInfo = { owner: match[1], repo: match[2].replace(/\.git$/, '') };
         // Use the existing GitHub releases fetcher with custom package name format
