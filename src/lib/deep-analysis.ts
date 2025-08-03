@@ -752,8 +752,9 @@ function getContextSnippet(node: Node): string {
     if (nodeStart >= 0) {
       const start = Math.max(0, nodeStart - 40);
       const end = Math.min(text.length, nodeStart + nodeText.length + 40);
-      text =
-        (start > 0 ? '...' : '') + text.substring(start, end) + (end < text.length ? '...' : '');
+      const startEllipsis = start > 0 ? '...' : '';
+      const endEllipsis = end < text.length ? '...' : '';
+      text = startEllipsis + text.substring(start, end) + endEllipsis;
     } else {
       text = text.substring(0, 117) + '...';
     }

@@ -30,7 +30,8 @@ export async function generateEnhancedReport(
   }
 
   report += `- **Changelog Source**: ${result.changelogDiff?.source || 'Not found'}\n`;
-  report += `- **Code Diff**: ${result.codeDiff ? `${result.codeDiff.filesChanged} files changed` : 'Not available'}\n`;
+  const codeDiffStatus = result.codeDiff ? (result.codeDiff.filesChanged + ' files changed') : 'Not available';
+  report += `- **Code Diff**: ${codeDiffStatus}\n`;
   report += `- **Dependency Type**: ${result.dependencyUsage?.isDirect ? 'Direct' : 'Transitive'} ${result.dependencyUsage?.usageType || 'dependencies'}\n`;
 
   // Information confidence indicator
@@ -81,13 +82,18 @@ export async function generateEnhancedReport(
 
     if (!result.dependencyUsage.isDirect) {
       const paths = result.dependencyUsage.dependents.slice(0, 5);
-      report += `**${paths[0].type === 'direct' ? 'Direct' : 'Transitive'} Dependencies (${Math.min(5, result.dependencyUsage.dependents.length)}${result.dependencyUsage.dependents.length > 5 ? ' of ' + result.dependencyUsage.dependents.length : ''}):**\n`;
+      const dependencyType = paths[0].type === 'direct' ? 'Direct' : 'Transitive';
+      const displayCount = Math.min(5, result.dependencyUsage.dependents.length);
+      const totalCount = result.dependencyUsage.dependents.length;
+      const countSuffix = totalCount > 5 ? (' of ' + totalCount) : '';
+      
+      report += `**${dependencyType} Dependencies (${displayCount}${countSuffix}):**\n`;
       paths.forEach((dep) => {
         const pathStr = dep.path.join(' → ');
         report += `- ${dep.name} (${dep.version}) - via ${pathStr}\n`;
       });
-      if (result.dependencyUsage.dependents.length > 5) {
-        report += `- ... and ${result.dependencyUsage.dependents.length - 5} more\n`;
+      if (totalCount > 5) {
+        report += `- ... and ${totalCount - 5} more\n`;
       }
       report += '\n';
     }
@@ -303,7 +309,10 @@ function formatBreakingChange(change: string): string {
 function groupBy<T>(array: T[], key: keyof T): Record<string, T[]> {
   return array.reduce(
     (result, item) => {
-      const group = String(item[key]);
+      const value = item[key];
+      const group = typeof value === 'object' && value !== null 
+        ? JSON.stringify(value) 
+        : String(value);
       if (!result[group]) result[group] = [];
       result[group].push(item);
       return result;
