@@ -1,10 +1,21 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { execa } from 'execa';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createHash } from 'crypto';
-import type { PackageUpdate, ChangelogDiff, BreakingChange, LLMSummary, CodeDiff, DependencyUsage } from '../types/index.js';
+import { generatePackageCacheKey } from './cache-utils.js';
+import { getEnvironmentConfig } from './env-config.js';
+import { secureSystemExec } from './secure-exec.js';
+import type {
+  PackageUpdate,
+  ChangelogDiff,
+  BreakingChange,
+  LLMSummary,
+  CodeDiff,
+  DependencyUsage,
+} from '../types/index.js';
+import { fileExists, readJsonFile, ensureDirectory } from './file-helpers.js';
+import { loggers } from './logger.js';
+import { logError } from './logger-extended.js';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
@@ -25,7 +36,7 @@ export async function summarizeWithLLM(
   // Determine provider
   const llmProvider = provider || (await detectProvider());
   if (!llmProvider) {
-    console.warn(
+    loggers.warn(
       'No LLM provider available. Install Claude CLI or set ANTHROPIC_API_KEY/OPENAI_API_KEY.'
     );
     return null;
@@ -54,7 +65,7 @@ export async function summarizeWithLLM(
 
     return summary;
   } catch (error) {
-    console.error('LLM summarization failed:', error);
+    logError('LLM summarization failed:', error);
     return null;
   }
 }
@@ -62,20 +73,23 @@ export async function summarizeWithLLM(
 async function detectProvider(): Promise<'claude-cli' | 'anthropic' | 'openai' | null> {
   // Priority 1: Claude CLI (for Pro/Max users - preferred for best model access)
   try {
-    const { execSync } = await import('child_process');
-    execSync('claude --version', { encoding: 'utf-8', stdio: 'pipe', timeout: 5000 });
-    return 'claude-cli';
-  } catch (error) {
+    const result = await secureSystemExec('claude', ['--version'], { timeout: 5000 });
+    if (result.success) {
+      return 'claude-cli';
+    }
+  } catch {
     // Claude CLI not available, continue to next option
   }
 
+  const config = getEnvironmentConfig();
+  
   // Priority 2: Anthropic API
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (config.anthropicApiKey) {
     return 'anthropic';
   }
 
   // Priority 3: OpenAI API
-  if (process.env.OPENAI_API_KEY) {
+  if (config.openaiApiKey) {
     return 'openai';
   }
 
@@ -89,7 +103,7 @@ function buildPrompt(
 ): string {
   const breakingSection =
     breakingChanges.length > 0
-      ? `\nIdentified Breaking Changes:\n${breakingChanges.map((bc) => `- [${bc.severity}] ${bc.line}`).join('\n')}`
+      ? ('\nIdentified Breaking Changes:\n' + breakingChanges.map((bc) => `- [${bc.severity}] ${bc.line}`).join('\n'))
       : '\nNo explicit breaking changes identified.';
 
   return `You are analyzing a dependency update for a software project.
@@ -120,21 +134,22 @@ async function summarizeWithClaudeCLI(prompt: string): Promise<LLMSummary | null
   if (prompt.length > 10000) {
     prompt = prompt.substring(0, 9000) + '\n\n... (truncated for analysis)';
   }
-  
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      const { stdout } = await execa('claude', [
-        '-p',
-        prompt,
-        '--output-format',
-        'json',
-        '--max-turns',
-        '1',
-      ], {
-        timeout: 30000, // 30 second timeout for Claude CLI stability
-      });
+      const result = await secureSystemExec(
+        'claude',
+        ['-p', prompt, '--output-format', 'json', '--max-turns', '1'],
+        {
+          timeout: 30000, // 30 second timeout for Claude CLI stability
+        }
+      );
 
-      return parseResponse(stdout);
+      if (!result.success) {
+        throw new Error(`Claude CLI failed: ${result.error}`);
+      }
+
+      return parseResponse(result.stdout);
     } catch (error) {
       if (attempt < MAX_RETRIES - 1) {
         await sleep(RETRY_DELAY * (attempt + 1));
@@ -148,8 +163,9 @@ async function summarizeWithClaudeCLI(prompt: string): Promise<LLMSummary | null
 }
 
 async function summarizeWithAnthropic(prompt: string): Promise<LLMSummary | null> {
+  const config = getEnvironmentConfig();
   const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
+    apiKey: config.anthropicApiKey!,
   });
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -187,8 +203,9 @@ async function summarizeWithAnthropic(prompt: string): Promise<LLMSummary | null
 }
 
 async function summarizeWithOpenAI(prompt: string): Promise<LLMSummary | null> {
+  const config = getEnvironmentConfig();
   const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: config.openaiApiKey!,
   });
 
   // Check if prompt is in Japanese
@@ -199,7 +216,7 @@ async function summarizeWithOpenAI(prompt: string): Promise<LLMSummary | null> {
       const systemPrompt = isJapanesePrompt
         ? 'あなたはソフトウェアの変更履歴を分析する有用なアシスタントです。常に有効なJSONで応答してください。日本語で回答してください。'
         : 'You are a helpful assistant that analyzes software changelogs. Always respond with valid JSON.';
-      
+
       const response = await openai.chat.completions.create({
         model: 'o3-mini',
         messages: [
@@ -239,7 +256,7 @@ function parseResponse(text: string): LLMSummary | null {
     // Extract JSON from the response (in case there's extra text)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn('No JSON found in LLM response');
+      loggers.warn('No JSON found in LLM response');
       return null;
     }
 
@@ -247,7 +264,7 @@ function parseResponse(text: string): LLMSummary | null {
 
     // Validate the response
     if (!parsed.summary || !parsed.language || !Array.isArray(parsed.breakingChanges)) {
-      console.warn('Invalid LLM response format');
+      loggers.warn('Invalid LLM response format');
       return null;
     }
 
@@ -257,7 +274,7 @@ function parseResponse(text: string): LLMSummary | null {
       breakingChanges: parsed.breakingChanges.filter((x: unknown) => typeof x === 'string'),
     };
   } catch (error) {
-    console.warn('Failed to parse LLM response:', error);
+    loggers.warn('Failed to parse LLM response:', error);
     return null;
   }
 }
@@ -270,14 +287,10 @@ async function getCachedSummary(
     const cacheKey = getSummaryCacheKey(packageUpdate);
     const cachePath = path.join(cacheDir, 'summaries', `${cacheKey}.json`);
 
-    const exists = await fs
-      .access(cachePath)
-      .then(() => true)
-      .catch(() => false);
+    const exists = await fileExists(cachePath);
     if (!exists) return null;
 
-    const content = await fs.readFile(cachePath, 'utf-8');
-    return JSON.parse(content);
+    return await readJsonFile<LLMSummary>(cachePath);
   } catch {
     return null;
   }
@@ -290,20 +303,19 @@ async function cacheSummary(
 ): Promise<void> {
   try {
     const summaryDir = path.join(cacheDir, 'summaries');
-    await fs.mkdir(summaryDir, { recursive: true });
+    await ensureDirectory(summaryDir);
 
     const cacheKey = getSummaryCacheKey(packageUpdate);
     const cachePath = path.join(summaryDir, `${cacheKey}.json`);
 
     await fs.writeFile(cachePath, JSON.stringify(summary, null, 2));
   } catch (error) {
-    console.warn('Failed to cache summary:', error);
+    loggers.warn('Failed to cache summary:', error);
   }
 }
 
 function getSummaryCacheKey(packageUpdate: PackageUpdate): string {
-  const key = `${packageUpdate.name}@${packageUpdate.fromVersion}->${packageUpdate.toVersion}`;
-  return createHash('sha1').update(key).digest('hex');
+  return generatePackageCacheKey(packageUpdate);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -325,7 +337,7 @@ export async function enhancedLLMAnalysis(
   if (typeof provider !== 'string' || !['claude-cli', 'anthropic', 'openai'].includes(provider)) {
     provider = undefined;
   }
-  
+
   // Check cache first
   if (cacheDir) {
     const cached = await getCachedEnhancedSummary(packageUpdate, cacheDir);
@@ -334,21 +346,28 @@ export async function enhancedLLMAnalysis(
 
   // Determine provider
   const llmProvider = provider || (await detectProvider());
-  
+
   if (!llmProvider) {
-    console.warn(
+    loggers.warn(
       'No LLM provider available. Install Claude CLI or set ANTHROPIC_API_KEY/OPENAI_API_KEY.'
     );
     return null;
   }
 
   try {
-    const prompt = buildEnhancedPrompt(packageUpdate, changelogDiff, codeDiff, dependencyUsage, breakingChanges, language);
+    const prompt = buildEnhancedPrompt(
+      packageUpdate,
+      changelogDiff,
+      codeDiff,
+      dependencyUsage,
+      breakingChanges,
+      language
+    );
 
     let summary: LLMSummary | null = null;
-    
+
     // Try primary provider first
-    
+
     try {
       switch (llmProvider) {
         case 'claude-cli':
@@ -361,15 +380,16 @@ export async function enhancedLLMAnalysis(
           summary = await summarizeWithOpenAI(prompt);
           break;
       }
-    } catch (primaryError) {
-      
+    } catch {
       // Try fallback providers
-      const fallbackProviders = ['anthropic', 'openai'].filter(p => p !== llmProvider);
-      
+      const fallbackProviders = ['anthropic', 'openai'].filter((p) => p !== llmProvider);
+
       for (const fallback of fallbackProviders) {
-        if ((fallback === 'anthropic' && process.env.ANTHROPIC_API_KEY) ||
-            (fallback === 'openai' && process.env.OPENAI_API_KEY)) {
-          
+        const config = getEnvironmentConfig();
+        if (
+          (fallback === 'anthropic' && config.anthropicApiKey) ||
+          (fallback === 'openai' && config.openaiApiKey)
+        ) {
           try {
             switch (fallback) {
               case 'anthropic':
@@ -379,11 +399,12 @@ export async function enhancedLLMAnalysis(
                 summary = await summarizeWithOpenAI(prompt);
                 break;
             }
-            
+
             if (summary) {
               break;
             }
-          } catch (fallbackError) {
+          } catch {
+            // Fallback provider failed, try next
           }
         }
       }
@@ -396,7 +417,7 @@ export async function enhancedLLMAnalysis(
 
     return summary;
   } catch (error) {
-    console.error('Enhanced LLM analysis failed:', error);
+    logError('Enhanced LLM analysis failed:', error);
     return null;
   }
 }
@@ -418,14 +439,17 @@ Package: ${packageUpdate.name}
 Version: ${packageUpdate.fromVersion} → ${packageUpdate.toVersion}`);
 
   // Breaking changes section
-  const breakingSection = breakingChanges.length > 0 
-    ? `\nPattern-Identified Breaking Changes:\n${breakingChanges.map((bc) => `- [${bc.severity}] ${bc.line}`).join('\n')}`
-    : '\nNo explicit breaking changes identified from patterns.';
+  const breakingSection =
+    breakingChanges.length > 0
+      ? ('\nPattern-Identified Breaking Changes:\n' + breakingChanges.map((bc) => `- [${bc.severity}] ${bc.line}`).join('\n'))
+      : '\nNo explicit breaking changes identified from patterns.';
   sections.push(breakingSection);
 
   // Changelog section
   if (changelogDiff) {
-    sections.push(`\nChangelog excerpt:\n${changelogDiff.content.substring(0, 3000)}${changelogDiff.content.length > 3000 ? '\n...(truncated)' : ''}`);
+    sections.push(
+      `\nChangelog excerpt:\n${changelogDiff.content.substring(0, 3000)}${changelogDiff.content.length > 3000 ? '\n...(truncated)' : ''}`
+    );
   } else {
     sections.push('\nNo changelog found for this version update.');
   }
@@ -452,9 +476,12 @@ ${codeDiff.content.substring(0, 4000)}${codeDiff.content.length > 4000 ? '\n...(
 - Number of dependents: ${dependencyUsage.dependents.length}
 
 Dependency chain:
-${dependencyUsage.dependents.slice(0, 5).map(dep => 
-  `- ${dep.name} (${dep.version}) [${dep.type}] - Path: ${dep.path.join(' → ')}`
-).join('\n')}${dependencyUsage.dependents.length > 5 ? `\n- ... and ${dependencyUsage.dependents.length - 5} more` : ''}`);
+${dependencyUsage.dependents
+  .slice(0, 5)
+  .map((dep) => `- ${dep.name} (${dep.version}) [${dep.type}] - Path: ${dep.path.join(' → ')}`)
+  .join(
+    '\n'
+  )}${dependencyUsage.dependents.length > 5 ? ('\n- ... and ' + (dependencyUsage.dependents.length - 5) + ' more') : ''}`);
   } else {
     sections.push('\nNo dependency usage information available.');
   }
@@ -511,14 +538,10 @@ async function getCachedEnhancedSummary(
     const cacheKey = getEnhancedSummaryCacheKey(packageUpdate);
     const cachePath = path.join(cacheDir, 'enhanced-summaries', `${cacheKey}.json`);
 
-    const exists = await fs
-      .access(cachePath)
-      .then(() => true)
-      .catch(() => false);
+    const exists = await fileExists(cachePath);
     if (!exists) return null;
 
-    const content = await fs.readFile(cachePath, 'utf-8');
-    return JSON.parse(content);
+    return await readJsonFile<LLMSummary>(cachePath);
   } catch {
     return null;
   }
@@ -531,18 +554,17 @@ async function cacheEnhancedSummary(
 ): Promise<void> {
   try {
     const summaryDir = path.join(cacheDir, 'enhanced-summaries');
-    await fs.mkdir(summaryDir, { recursive: true });
+    await ensureDirectory(summaryDir);
 
     const cacheKey = getEnhancedSummaryCacheKey(packageUpdate);
     const cachePath = path.join(summaryDir, `${cacheKey}.json`);
 
     await fs.writeFile(cachePath, JSON.stringify(summary, null, 2));
   } catch (error) {
-    console.warn('Failed to cache enhanced summary:', error);
+    loggers.warn('Failed to cache enhanced summary:', error);
   }
 }
 
 function getEnhancedSummaryCacheKey(packageUpdate: PackageUpdate): string {
-  const key = `enhanced-${packageUpdate.name}@${packageUpdate.fromVersion}->${packageUpdate.toVersion}`;
-  return createHash('sha1').update(key).digest('hex');
+  return generatePackageCacheKey(packageUpdate, 'enhanced');
 }

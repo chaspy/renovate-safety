@@ -1,5 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import type { PackageUpdate } from '../types/index.js';
+import { getEnvironmentConfig } from './env-config.js';
+import { loggers } from './logger.js';
 
 export interface CodeDiff {
   content: string;
@@ -16,12 +18,13 @@ export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeD
     // Get GitHub repository info for the package
     const githubInfo = await getGitHubInfo(packageUpdate.name);
     if (!githubInfo) {
-      console.debug(`No GitHub repository found for ${packageUpdate.name}`);
+      loggers.debug(`No GitHub repository found for ${packageUpdate.name}`);
       return null;
     }
 
+    const config = getEnvironmentConfig();
     const octokit = new Octokit({
-      auth: process.env.GITHUB_TOKEN,
+      auth: config.githubToken,
     });
 
     // Try to find appropriate tags for comparison
@@ -29,7 +32,9 @@ export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeD
     const toTag = await findClosestTag(octokit, githubInfo, packageUpdate.toVersion);
 
     if (!fromTag || !toTag) {
-      console.debug(`Could not find matching tags for ${packageUpdate.fromVersion} -> ${packageUpdate.toVersion}`);
+      console.debug(
+        `Could not find matching tags for ${packageUpdate.fromVersion} -> ${packageUpdate.toVersion}`
+      );
       return null;
     }
 
@@ -43,19 +48,17 @@ export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeD
     });
 
     if (!comparison.files || comparison.files.length === 0) {
-      console.debug('No file changes found in comparison');
+      loggers.debug('No file changes found in comparison');
       return null;
     }
 
     // Filter and format the diff content
-    const relevantFiles = comparison.files.filter(file => 
-      isRelevantFile(file.filename) && 
-      file.patch && 
-      file.patch.length > 0
+    const relevantFiles = (comparison.files as GitHubFile[]).filter(
+      (file) => isRelevantFile(file.filename) && file.patch && file.patch.length > 0
     );
 
     if (relevantFiles.length === 0) {
-      console.debug('No relevant file changes found');
+      loggers.debug('No relevant file changes found');
       return null;
     }
 
@@ -71,9 +74,8 @@ export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeD
       fromTag,
       toTag,
     };
-
   } catch (error) {
-    console.debug('Failed to fetch GitHub diff:', error);
+    loggers.debug('Failed to fetch GitHub diff:', error);
     return null;
   }
 }
@@ -112,8 +114,8 @@ async function getGitHubInfo(packageName: string): Promise<{ owner: string; repo
 }
 
 async function findClosestTag(
-  octokit: Octokit, 
-  githubInfo: { owner: string; repo: string }, 
+  octokit: Octokit,
+  githubInfo: { owner: string; repo: string },
   version: string
 ): Promise<string | null> {
   try {
@@ -124,19 +126,17 @@ async function findClosestTag(
     });
 
     // Try exact match first
-    const exactMatch = tags.find(tag => 
-      normalizeTagVersion(tag.name) === normalizeVersion(version)
+    const exactMatch = tags.find(
+      (tag) => normalizeTagVersion(tag.name) === normalizeVersion(version)
     );
     if (exactMatch) return exactMatch.name;
 
     // Try with v prefix
-    const vPrefixMatch = tags.find(tag => 
-      tag.name === `v${version}` || tag.name === version
-    );
+    const vPrefixMatch = tags.find((tag) => tag.name === `v${version}` || tag.name === version);
     if (vPrefixMatch) return vPrefixMatch.name;
 
     // Try partial match for major.minor versions
-    const partialMatch = tags.find(tag => {
+    const partialMatch = tags.find((tag) => {
       const tagVersion = normalizeTagVersion(tag.name);
       return tagVersion.startsWith(version) || version.startsWith(tagVersion);
     });
@@ -161,62 +161,104 @@ function normalizeVersion(version: string): string {
 function isRelevantFile(filename: string): boolean {
   // Focus on source code files and important config files
   const relevantExtensions = [
-    '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
-    '.py', '.rs', '.go', '.java', '.cs', '.cpp', '.c',
-    '.json', '.yaml', '.yml', '.toml'
+    '.ts',
+    '.tsx',
+    '.js',
+    '.jsx',
+    '.mjs',
+    '.cjs',
+    '.py',
+    '.rs',
+    '.go',
+    '.java',
+    '.cs',
+    '.cpp',
+    '.c',
+    '.json',
+    '.yaml',
+    '.yml',
+    '.toml',
   ];
-  
+
   const irrelevantPatterns = [
-    /test/i, /spec/i, /__tests__/i, /\.test\./i, /\.spec\./i,
-    /docs?/i, /examples?/i, /demo/i,
-    /\.md$/i, /\.txt$/i, /license/i, /readme/i,
-    /node_modules/i, /dist/i, /build/i, /coverage/i,
-    /\.lock$/i, /package-lock\.json$/i, /yarn\.lock$/i
+    /test/i,
+    /spec/i,
+    /__tests__/i,
+    /\.test\./i,
+    /\.spec\./i,
+    /docs?/i,
+    /examples?/i,
+    /demo/i,
+    /\.md$/i,
+    /\.txt$/i,
+    /license/i,
+    /readme/i,
+    /node_modules/i,
+    /dist/i,
+    /build/i,
+    /coverage/i,
+    /\.lock$/i,
+    /package-lock\.json$/i,
+    /yarn\.lock$/i,
   ];
 
   // Skip irrelevant files
-  if (irrelevantPatterns.some(pattern => pattern.test(filename))) {
+  if (irrelevantPatterns.some((pattern) => pattern.test(filename))) {
     return false;
   }
 
   // Include files with relevant extensions
-  if (relevantExtensions.some(ext => filename.endsWith(ext))) {
+  if (relevantExtensions.some((ext) => filename.endsWith(ext))) {
     return true;
   }
 
   // Include important root files
   const importantFiles = [
-    'package.json', 'tsconfig.json', 'babel.config.js', 
-    'webpack.config.js', 'rollup.config.js', 'vite.config.js'
+    'package.json',
+    'tsconfig.json',
+    'babel.config.js',
+    'webpack.config.js',
+    'rollup.config.js',
+    'vite.config.js',
   ];
-  
-  return importantFiles.some(file => filename.endsWith(file));
+
+  return importantFiles.some((file) => filename.endsWith(file));
 }
 
-function formatDiffContent(files: any[], packageUpdate: PackageUpdate): string {
+interface GitHubFile {
+  filename: string;
+  additions?: number;
+  deletions?: number;
+  status: string;
+  patch?: string;
+}
+
+function formatDiffContent(files: GitHubFile[], packageUpdate: PackageUpdate): string {
   const header = `# Code Changes Analysis\nPackage: ${packageUpdate.name}\nVersion: ${packageUpdate.fromVersion} → ${packageUpdate.toVersion}\n\n`;
-  
+
   let content = header;
-  
+
   // Add summary
   content += `## Summary\n`;
   content += `- Files changed: ${files.length}\n`;
   content += `- Total additions: ${files.reduce((sum, file) => sum + (file.additions || 0), 0)}\n`;
   content += `- Total deletions: ${files.reduce((sum, file) => sum + (file.deletions || 0), 0)}\n\n`;
-  
+
   // Add file changes (limit to most significant files)
   content += `## Key File Changes\n\n`;
-  
+
   const significantFiles = files
-    .filter(file => (file.additions || 0) + (file.deletions || 0) > 5) // Filter small changes
-    .sort((a, b) => ((b.additions || 0) + (b.deletions || 0)) - ((a.additions || 0) + (a.deletions || 0)))
+    .filter((file) => (file.additions || 0) + (file.deletions || 0) > 5) // Filter small changes
+    .sort(
+      (a, b) => (b.additions || 0) + (b.deletions || 0) - ((a.additions || 0) + (a.deletions || 0))
+    )
     .slice(0, 10); // Limit to top 10 files
 
   for (const file of significantFiles) {
     content += `### ${file.filename}\n`;
     content += `- Status: ${file.status}\n`;
     content += `- Changes: +${file.additions || 0} -${file.deletions || 0}\n\n`;
-    
+
     if (file.patch) {
       // Truncate very long patches
       let patch = file.patch;

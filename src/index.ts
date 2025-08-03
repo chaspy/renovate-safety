@@ -6,25 +6,33 @@ import { resolve } from 'path';
 import { homedir } from 'os';
 import { CLIOptions, AnalysisResult, RiskAssessment, DeepAnalysisResult } from './types/index.js';
 import { extractPackageInfo } from './lib/pr.js';
-import { fetchChangelogDiff } from './lib/changelog.js';
 import { extractBreakingChanges } from './lib/breaking.js';
 import { enhancedLLMAnalysis } from './lib/llm.js';
 import { fetchCodeDiff } from './lib/github-diff.js';
 import { analyzeDependencyUsage } from './lib/dependency-tree.js';
-import { scanAPIUsage } from './lib/scan.js';
 import { performDeepAnalysis } from './lib/deep-analysis.js';
-import { assessRisk } from './lib/grade.js';
-import { generateReport } from './lib/report.js';
+import { assessEnhancedRisk } from './lib/enhanced-grade.js';
+import { generateEnhancedReport } from './lib/enhanced-report.js';
 import { postToPR } from './lib/post.js';
 import { runDoctorCheck } from './lib/doctor.js';
 import { loadConfig } from './lib/config.js';
+import { getEnvironmentConfig } from './lib/env-config.js';
+import { packageKnowledgeBase } from './lib/package-knowledge.js';
+import { getErrorMessage } from './analyzers/utils.js';
+import { loggers } from './lib/logger.js';
+import { logSection, logListItem, logProgress, logWarningMessage, logError, logSeparator } from './lib/logger-extended.js';
+
+// Import new analyzer system
+import './analyzers/index.js';
+import { analyzerRegistry, UsageAnalysis } from './analyzers/base.js';
+import { createDefaultAnalysisChain } from './analyzers/strategies/index.js';
 
 const program = new Command();
 
 program
   .name('renovate-safety')
   .description('Analyze dependency update PRs for breaking changes')
-  .version('1.0.0');
+  .version('1.1.0');
 
 // Doctor subcommand
 program
@@ -48,7 +56,7 @@ program
   .option('--cache-dir <path>', 'Cache directory', resolve(homedir(), '.renovate-safety-cache'))
   .option('--json', 'Output as JSON instead of Markdown', false)
   .option('--force', 'Force analysis even for patch updates', false)
-  .option('--language <lang>', 'Language for AI analysis (en|ja)', /^(en|ja)$/i, process.env.RENOVATE_SAFETY_LANGUAGE || 'en')
+  .option('--language <lang>', 'Language for AI analysis (en|ja)', /^(en|ja)$/i, getEnvironmentConfig().language)
   .option('--deep', 'Perform deep code analysis', false)
   .action(async (options) => {
     await analyzeCommand(options);
@@ -78,13 +86,14 @@ async function analyzeCommand(options: CLIOptions) {
     options.cacheDir = config.cacheDir;
   }
   
-  console.log(chalk.gray(`- Language setting: ${options.language || 'en'}`));
+  loggers.info(chalk.gray(`- Language setting: ${options.language || 'en'}`));
+  loggers.info(chalk.gray(`- Using enhanced analyzer system v1.1`));
   
   // Ensure we're in a git repository
   try {
     await import('fs/promises').then(fs => fs.access('.git'));
   } catch {
-    console.error(chalk.red('Error: Not in a git repository. Please run from the root of your project.'));
+    logError('Error: Not in a git repository. Please run from the root of your project.');
     process.exit(1);
   }
   
@@ -136,6 +145,8 @@ function generateRecommendation(riskAssessment: RiskAssessment, breakingCount: n
       return `High risk update. Found ${breakingCount} breaking changes affecting ${usageCount} locations in codebase. ${riskAssessment.estimatedEffort} effort with ${riskAssessment.testingScope} testing required.`;
     case 'critical':
       return `Critical risk update. Found ${breakingCount} breaking changes affecting ${usageCount} locations. Requires ${riskAssessment.estimatedEffort} effort and ${riskAssessment.testingScope} testing. Manual intervention strongly recommended.`;
+    case 'unknown':
+      return `Risk level unknown due to insufficient information. Found ${breakingCount} potential issues. Manual review strongly recommended.`;
     default:
       return 'Unknown risk level.';
   }
@@ -151,18 +162,17 @@ async function analyzeAllRenovatePRs(options: CLIOptions) {
     
     if (prs.length === 0) {
       spinner.fail('No open Renovate PRs found');
-      console.log(chalk.yellow('\nTip: Use --pr <number> to analyze a specific PR'));
+      logWarningMessage('\nTip: Use --pr <number> to analyze a specific PR');
       process.exit(0);
     }
     
     spinner.succeed(`Found ${prs.length} Renovate PR${prs.length > 1 ? 's' : ''}`);
     
     // Display PR list
-    console.log('\n📋 Renovate PRs to analyze:');
+    logSection('Renovate PRs to analyze:', '📋');
     for (const pr of prs) {
-      console.log(`  #${pr.number}: ${pr.title}`);
+      logListItem(`#${pr.number}: ${pr.title}`);
     }
-    console.log();
     
     // Analyze each PR
     let hasReviewRequired = false;
@@ -170,7 +180,7 @@ async function analyzeAllRenovatePRs(options: CLIOptions) {
     
     for (let i = 0; i < prs.length; i++) {
       const pr = prs[i];
-      console.log(chalk.bold(`\n[${i + 1}/${prs.length}] Analyzing PR #${pr.number}: ${pr.title}\n`));
+      logProgress(i + 1, prs.length, `Analyzing PR #${pr.number}: ${pr.title}`);
       
       try {
         // Analyze single PR
@@ -181,37 +191,37 @@ async function analyzeAllRenovatePRs(options: CLIOptions) {
           hasReviewRequired = true;
         }
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error(chalk.red(`Failed to analyze PR #${pr.number}:`), errorMsg);
+        const errorMsg = getErrorMessage(error);
+        logError(`Failed to analyze PR #${pr.number}: ${errorMsg}`);
         
         // Provide helpful message for common issues
         if (errorMsg.includes('Could not extract package information')) {
-          console.log(chalk.yellow(`  ℹ️  This might be a non-JavaScript package. Currently only npm packages are fully supported.`));
+          logWarningMessage('ℹ️  This might be a non-JavaScript package. Currently only npm packages are fully supported.');
         } else if (errorMsg.includes('Invalid Version')) {
-          console.log(chalk.yellow(`  ℹ️  Version format not recognized. This tool expects semver-compatible versions.`));
+          logWarningMessage('ℹ️  Version format not recognized. This tool expects semver-compatible versions.');
         }
       }
     }
     
     // Summary
-    console.log(chalk.bold('\n📊 Summary\n'));
-    console.log('=' .repeat(60));
+    logSection('Summary', '📊');
+    logSeparator('=', 60);
     
     const safeCount = results.filter(r => r.result.riskAssessment.level === 'safe').length;
     const lowCount = results.filter(r => r.result.riskAssessment.level === 'low').length;
-    const reviewCount = results.filter(r => ['medium', 'high', 'critical'].includes(r.result.riskAssessment.level)).length;
+    const reviewCount = results.filter(r => ['medium', 'high', 'critical', 'unknown'].includes(r.result.riskAssessment.level)).length;
     
-    console.log(`✅ Safe: ${safeCount}`);
-    console.log(`⚠️  Low Risk: ${lowCount}`);
-    console.log(`🔍 Review Required: ${reviewCount}`);
-    console.log('=' .repeat(60));
+    loggers.info(`✅ Safe: ${safeCount}`);
+    loggers.info(`⚠️  Low Risk: ${lowCount}`);
+    loggers.info(`🔍 Review Required: ${reviewCount}`);
+    logSeparator('=', 60);
     
     // Exit with error if any PR requires review
     process.exit(hasReviewRequired ? 1 : 0);
     
   } catch (error) {
     spinner.fail('Failed to analyze Renovate PRs');
-    console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+    logError('Error:', error);
     process.exit(1);
   }
 }
@@ -234,7 +244,7 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
     
     // Check if we should skip patch updates
     if (!options.force && await isPatchUpdate(packageUpdate.fromVersion, packageUpdate.toVersion)) {
-      console.log(chalk.yellow('Skipping patch update (use --force to analyze)'));
+      logWarningMessage('Skipping patch update (use --force to analyze)');
       if (exitOnComplete) process.exit(0);
       return {
         package: packageUpdate,
@@ -254,17 +264,58 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       };
     }
     
-    // Step 2: Fetch changelog differences
-    spinner = ora('Fetching changelog differences...').start();
-    const changelogDiff = await fetchChangelogDiff(packageUpdate, options.cacheDir);
+    // Step 2: Find appropriate analyzer
+    spinner = ora('Finding appropriate package analyzer...').start();
+    const analyzer = await analyzerRegistry.findAnalyzer(packageUpdate.name, process.cwd());
     
+    if (!analyzer) {
+      spinner.warn('No specific analyzer found, using fallback strategies');
+    } else {
+      spinner.succeed(`Using ${analyzer.constructor.name} for analysis`);
+    }
+    
+    // Step 3: Fetch changelog/diff using analyzer or fallback
+    spinner = ora('Fetching package information...').start();
+    let changelogDiff = null;
+    let knowledgeBasedBreaking: string[] = [];
+    
+    if (analyzer) {
+      changelogDiff = await analyzer.fetchChangelog(packageUpdate, options.cacheDir);
+    }
+    
+    // Try package knowledge base
+    const knownBreaking = await packageKnowledgeBase.getBreakingChanges(
+      packageUpdate.name,
+      packageUpdate.fromVersion,
+      packageUpdate.toVersion
+    );
+    if (knownBreaking.length > 0) {
+      knowledgeBasedBreaking = knownBreaking;
+      spinner.succeed(`Found ${knownBreaking.length} known breaking changes from knowledge base`);
+    }
+    
+    // If no changelog, use fallback strategies
     if (!changelogDiff) {
-      spinner.warn('No changelog found');
+      spinner.text = 'Using fallback analysis strategies...';
+      const analysisChain = createDefaultAnalysisChain();
+      const strategyResult = await analysisChain.analyze(packageUpdate);
+      
+      if (strategyResult.confidence > 0) {
+        changelogDiff = {
+          content: strategyResult.content,
+          source: strategyResult.source as any,
+          fromVersion: packageUpdate.fromVersion,
+          toVersion: packageUpdate.toVersion
+        };
+        spinner.succeed(`Analysis completed using ${strategyResult.source} (confidence: ${Math.round(strategyResult.confidence * 100)}%)`);
+      } else {
+        spinner.warn('Limited information available from all sources');
+      }
     } else {
       spinner.succeed(`Fetched changelog from ${changelogDiff.source}`);
     }
     
-    // Step 3: Fetch code diff from GitHub
+    // Step 4: Fetch code diff from GitHub
     spinner = ora('Fetching code differences from GitHub...').start();
     const codeDiff = await fetchCodeDiff(packageUpdate);
     
@@ -274,7 +325,7 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       spinner.succeed(`Fetched code diff: ${codeDiff.filesChanged} files changed`);
     }
     
-    // Step 4: Analyze dependency usage
+    // Step 5: Analyze dependency usage
     spinner = ora('Analyzing dependency usage...').start();
     const dependencyUsage = await analyzeDependencyUsage(packageUpdate.name);
     
@@ -284,9 +335,28 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       spinner.succeed(`Dependency analysis: ${dependencyUsage.isDirect ? 'Direct' : 'Transitive'} (${dependencyUsage.dependents.length} dependents)`);
     }
     
-    // Step 5: Analyze for breaking changes
+    // Step 6: Analyze package usage with new analyzer
+    spinner = ora('Analyzing package usage in codebase...').start();
+    let usageAnalysis: UsageAnalysis | null = null;
+    
+    if (analyzer) {
+      usageAnalysis = await analyzer.analyzeUsage(packageUpdate.name, process.cwd());
+      spinner.succeed(`Found ${usageAnalysis.totalUsageCount} usage locations (${usageAnalysis.productionUsageCount} in production)`);
+    } else {
+      spinner.warn('Usage analysis not available for this package type');
+    }
+    
+    // Step 7: Extract breaking changes
     spinner = ora('Analyzing for breaking changes...').start();
-    const breakingChanges = changelogDiff ? extractBreakingChanges(changelogDiff.content) : [];
+    let breakingChanges = changelogDiff ? extractBreakingChanges(changelogDiff.content) : [];
+    
+    // Add knowledge-based breaking changes
+    knowledgeBasedBreaking.forEach(change => {
+      breakingChanges.push({
+        line: change,
+        severity: 'breaking'
+      });
+    });
     
     if (breakingChanges.length > 0) {
       spinner.succeed(`Found ${breakingChanges.length} potential breaking changes`);
@@ -294,12 +364,11 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       spinner.succeed('No breaking changes detected');
     }
     
-    // Step 6: Enhanced LLM analysis (works with or without changelog)
+    // Step 8: Enhanced LLM analysis
     let llmSummary = null;
     if (!options.noLlm) {
       spinner = ora('Generating enhanced AI analysis...').start();
       
-      // Use enhanced analysis that considers code diff and dependency usage
       llmSummary = await enhancedLLMAnalysis(
         packageUpdate,
         changelogDiff,
@@ -315,7 +384,8 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
         const analysisTypes = [
           changelogDiff ? 'changelog' : null,
           codeDiff ? 'code-diff' : null,
-          dependencyUsage ? 'dependency-tree' : null
+          dependencyUsage ? 'dependency-tree' : null,
+          knowledgeBasedBreaking.length > 0 ? 'knowledge-base' : null
         ].filter(Boolean);
         
         spinner.succeed(`Generated AI analysis (${analysisTypes.join(', ')})`);
@@ -324,16 +394,18 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       }
     }
     
-    spinner = ora('Scanning codebase for API usage...').start();
-    const apiUsages = await scanAPIUsage(packageUpdate.name, breakingChanges);
+    // Step 9: Convert usage analysis to API usages for compatibility
+    const apiUsages = usageAnalysis ? usageAnalysis.locations.map(loc => ({
+      filePath: loc.file,
+      line: loc.line,
+      column: loc.column,
+      apiName: packageUpdate.name,
+      usageType: loc.type as any,
+      snippet: loc.code,
+      context: loc.context
+    })) : [];
     
-    if (apiUsages.length > 0) {
-      spinner.succeed(`Found ${apiUsages.length} API usage locations`);
-    } else {
-      spinner.succeed('No direct API usage found');
-    }
-    
-    // Step 7: Deep analysis (optional)
+    // Step 10: Deep analysis (optional)
     let deepAnalysis: DeepAnalysisResult | undefined = undefined;
     if (options.deep) {
       spinner = ora('Performing deep code analysis...').start();
@@ -347,7 +419,27 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       spinner.succeed(`Deep analysis: ${deepAnalysis.filesUsingPackage}/${deepAnalysis.totalFiles} files use package`);
     }
     
-    const riskAssessment = await assessRisk(breakingChanges, apiUsages, llmSummary, packageUpdate, !!changelogDiff);
+    // Step 11: Enhanced risk assessment
+    const riskAssessment = await assessEnhancedRisk(
+      packageUpdate,
+      breakingChanges,
+      usageAnalysis,
+      llmSummary,
+      !!changelogDiff,
+      !!codeDiff
+    );
+    
+    // Get migration steps from knowledge base
+    const migrationSteps = await packageKnowledgeBase.getMigrationSteps(
+      packageUpdate.name,
+      packageUpdate.fromVersion,
+      packageUpdate.toVersion
+    );
+    
+    if (migrationSteps.length > 0) {
+      logSection('Known migration steps:', '📚');
+      migrationSteps.forEach(step => logListItem(step));
+    }
     
     const analysisResult: AnalysisResult = {
       package: packageUpdate,
@@ -362,7 +454,7 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       recommendation: generateRecommendation(riskAssessment, breakingChanges.length, apiUsages.length)
     };
     
-    const report = await generateReport(analysisResult, options.json ? 'json' : 'markdown');
+    const report = await generateEnhancedReport(analysisResult, options.json ? 'json' : 'markdown');
     
     console.log('\n' + report);
     
@@ -396,7 +488,7 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
     
   } catch (error) {
     spinner.fail('Analysis failed');
-    console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+    logError('Error:', error);
     if (exitOnComplete) process.exit(1);
     throw error;
   }

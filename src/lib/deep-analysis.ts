@@ -1,9 +1,10 @@
-import { Project, SourceFile, Node, SyntaxKind, Symbol as TsSymbol } from 'ts-morph';
+import { Project, SourceFile, Node, SyntaxKind } from 'ts-morph';
 import * as path from 'path';
-import { glob } from 'glob';
+import { getSourceFiles, getConfigFiles } from './glob-helpers.js';
 import * as fs from 'fs/promises';
-import pLimit from 'p-limit';
+import { processInParallel } from './parallel-helpers.js';
 import type { PackageUpdate } from '../types/index.js';
+import { safeJsonParse } from './safe-json.js';
 
 const CONCURRENT_FILE_LIMIT = 10;
 
@@ -22,7 +23,13 @@ export interface APIUsageDetail {
   file: string;
   line: number;
   apiName: string;
-  usageType: 'function-call' | 'property-access' | 'constructor' | 'type-reference' | 'decorator' | 'jsx-component';
+  usageType:
+    | 'function-call'
+    | 'property-access'
+    | 'constructor'
+    | 'type-reference'
+    | 'decorator'
+    | 'jsx-component';
   context: string;
   arguments?: string[];
   chainedCalls?: string[];
@@ -37,9 +44,18 @@ export interface FileClassification {
 
 export interface ConfigFileUsage {
   file: string;
-  configType: 'package.json' | 'tsconfig.json' | 'webpack' | 'rollup' | 'vite' | 'babel' | 'eslint' | 'prettier' | 'other';
+  configType:
+    | 'package.json'
+    | 'tsconfig.json'
+    | 'webpack'
+    | 'rollup'
+    | 'vite'
+    | 'babel'
+    | 'eslint'
+    | 'prettier'
+    | 'other';
   usage: string;
-  content: any;
+  content: unknown;
 }
 
 export interface DeepAnalysisResult {
@@ -64,10 +80,10 @@ export async function performDeepAnalysis(
   breakingAPIs?: string[]
 ): Promise<DeepAnalysisResult> {
   const { name: packageName } = packageUpdate;
-  
+
   // Find all source files
   const allFiles = await findAllProjectFiles();
-  
+
   // Create TypeScript project
   const project = new Project({
     compilerOptions: {
@@ -81,38 +97,48 @@ export async function performDeepAnalysis(
     },
     skipAddingFilesFromTsConfig: true,
   });
-  
+
   // Add source files to project
-  const sourceFiles = allFiles.sourceFiles.map(file => project.addSourceFileAtPath(file));
-  
+  const sourceFiles = allFiles.sourceFiles.map((file) => project.addSourceFileAtPath(file));
+
   // Analyze imports and usage
-  const limit = pLimit(CONCURRENT_FILE_LIMIT);
   const imports: PackageUsageDetail[] = [];
   const apiUsages: APIUsageDetail[] = [];
-  
-  await Promise.all(
-    sourceFiles.map(sourceFile =>
-      limit(async () => {
-        const fileImports = await analyzeFileImports(sourceFile, packageName);
-        imports.push(...fileImports);
-        
-        if (fileImports.length > 0) {
-          const fileApiUsages = await analyzeFileAPIUsage(sourceFile, packageName, breakingAPIs);
-          apiUsages.push(...fileApiUsages);
-        }
-      })
-    )
+
+  const results = await processInParallel(
+    sourceFiles,
+    async (sourceFile) => {
+      const fileImports = await analyzeFileImports(sourceFile, packageName);
+
+      let fileApiUsages: APIUsageDetail[] = [];
+      if (fileImports.length > 0) {
+        fileApiUsages = await analyzeFileAPIUsage(sourceFile, packageName, breakingAPIs);
+      }
+
+      return { fileImports, fileApiUsages };
+    },
+    { concurrency: CONCURRENT_FILE_LIMIT }
   );
-  
+
+  // Collect all results
+  for (const result of results) {
+    if (!(result instanceof Error)) {
+      imports.push(...result.fileImports);
+      apiUsages.push(...result.fileApiUsages);
+    }
+  }
+
   // Classify files
-  const fileClassifications = await classifyFiles([...new Set([...imports, ...apiUsages].map(u => u.file))]);
-  
+  const fileClassifications = await classifyFiles([
+    ...new Set([...imports, ...apiUsages].map((u) => u.file)),
+  ]);
+
   // Analyze config files
   const configUsages = await analyzeConfigFiles(allFiles.configFiles, packageName);
-  
+
   // Generate summary
   const usageSummary = generateUsageSummary(imports, apiUsages, fileClassifications);
-  
+
   // Generate recommendations
   const recommendations = await generateRecommendations(
     packageUpdate,
@@ -122,11 +148,11 @@ export async function performDeepAnalysis(
     configUsages,
     breakingAPIs
   );
-  
+
   return {
     packageName,
     totalFiles: allFiles.sourceFiles.length,
-    filesUsingPackage: new Set(imports.map(i => i.file)).size,
+    filesUsingPackage: new Set(imports.map((i) => i.file)).size,
     imports,
     apiUsages,
     fileClassifications,
@@ -137,64 +163,15 @@ export async function performDeepAnalysis(
 }
 
 async function findAllProjectFiles(): Promise<{ sourceFiles: string[]; configFiles: string[] }> {
-  const sourcePatterns = [
-    'src/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'lib/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'app/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'pages/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'components/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'utils/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'hooks/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    'services/**/*.{ts,tsx,js,jsx,mjs,cjs}',
-    '*.{ts,tsx,js,jsx,mjs,cjs}',
-  ];
-  
-  const configPatterns = [
-    'package.json',
-    'tsconfig*.json',
-    'webpack.config.{js,ts}',
-    'rollup.config.{js,ts}',
-    'vite.config.{js,ts}',
-    '.babelrc*',
-    'babel.config.{js,json}',
-    '.eslintrc*',
-    'eslint.config.{js,mjs}',
-    '.prettierrc*',
-    'prettier.config.{js,mjs}',
-  ];
-  
-  const ignorePatterns = [
-    '**/node_modules/**',
-    '**/dist/**',
-    '**/build/**',
-    '**/.next/**',
-    '**/coverage/**',
-    '**/*.d.ts',
-  ];
-  
-  const sourceFiles: string[] = [];
-  const configFiles: string[] = [];
-  
-  // Collect source files
-  for (const pattern of sourcePatterns) {
-    const matches = await glob(pattern, {
-      ignore: ignorePatterns,
-      absolute: true,
-    });
-    sourceFiles.push(...matches);
-  }
-  
-  // Collect config files
-  for (const pattern of configPatterns) {
-    const matches = await glob(pattern, {
-      absolute: true,
-    });
-    configFiles.push(...matches);
-  }
-  
+  // Use getSourceFiles from glob-helpers for JavaScript/TypeScript files
+  const sourceFiles = await getSourceFiles(process.cwd(), 'node');
+
+  // Use getConfigFiles from glob-helpers for configuration files
+  const configFiles = await getConfigFiles(process.cwd());
+
   return {
-    sourceFiles: [...new Set(sourceFiles)],
-    configFiles: [...new Set(configFiles)],
+    sourceFiles,
+    configFiles,
   };
 }
 
@@ -204,12 +181,12 @@ async function analyzeFileImports(
 ): Promise<PackageUsageDetail[]> {
   const imports: PackageUsageDetail[] = [];
   const filePath = path.relative(process.cwd(), sourceFile.getFilePath());
-  
+
   // Analyze import declarations
   const importDeclarations = sourceFile.getImportDeclarations();
   for (const importDecl of importDeclarations) {
     const moduleSpecifier = importDecl.getModuleSpecifierValue();
-    
+
     if (isPackageImport(moduleSpecifier, packageName)) {
       const importDetail: PackageUsageDetail = {
         file: filePath,
@@ -218,29 +195,29 @@ async function analyzeFileImports(
         importSpecifier: moduleSpecifier,
         isTypeOnly: importDecl.isTypeOnly(),
       };
-      
+
       // Get named imports
       const namedImports = importDecl.getNamedImports();
       if (namedImports.length > 0) {
-        importDetail.namedImports = namedImports.map(ni => ni.getName());
+        importDetail.namedImports = namedImports.map((ni) => ni.getName());
       }
-      
+
       // Get default import
       const defaultImport = importDecl.getDefaultImport();
       if (defaultImport) {
         importDetail.defaultImport = defaultImport.getText();
       }
-      
+
       // Get namespace import
       const namespaceImport = importDecl.getNamespaceImport();
       if (namespaceImport) {
         importDetail.namespaceImport = namespaceImport.getText();
       }
-      
+
       imports.push(importDetail);
     }
   }
-  
+
   // Analyze require calls
   const callExpressions = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression);
   for (const callExpr of callExpressions) {
@@ -249,7 +226,7 @@ async function analyzeFileImports(
       const args = callExpr.getArguments();
       if (args.length > 0 && Node.isStringLiteral(args[0])) {
         const moduleSpecifier = args[0].getLiteralValue();
-        
+
         if (isPackageImport(moduleSpecifier, packageName)) {
           imports.push({
             file: filePath,
@@ -260,13 +237,13 @@ async function analyzeFileImports(
         }
       }
     }
-    
+
     // Check for dynamic imports
     if (expression.getText() === 'import') {
       const args = callExpr.getArguments();
       if (args.length > 0 && Node.isStringLiteral(args[0])) {
         const moduleSpecifier = args[0].getLiteralValue();
-        
+
         if (isPackageImport(moduleSpecifier, packageName)) {
           imports.push({
             file: filePath,
@@ -278,7 +255,7 @@ async function analyzeFileImports(
       }
     }
   }
-  
+
   return imports;
 }
 
@@ -289,17 +266,20 @@ async function analyzeFileAPIUsage(
 ): Promise<APIUsageDetail[]> {
   const usages: APIUsageDetail[] = [];
   const filePath = path.relative(process.cwd(), sourceFile.getFilePath());
-  
+
   // Track imported symbols from the package
   const importedSymbols = getImportedSymbols(sourceFile, packageName);
-  
+
   // Find all identifiers and analyze their usage
   sourceFile.forEachDescendant((node) => {
     if (Node.isIdentifier(node)) {
       const identifierName = node.getText();
-      
+
       // Check if this identifier is from our package
-      if (importedSymbols.has(identifierName) || (breakingAPIs && breakingAPIs.includes(identifierName))) {
+      if (
+        importedSymbols.has(identifierName) ||
+        breakingAPIs?.includes(identifierName)
+      ) {
         const usage = analyzeIdentifierUsage(node, filePath);
         if (usage) {
           usages.push(usage);
@@ -307,28 +287,28 @@ async function analyzeFileAPIUsage(
       }
     }
   });
-  
+
   return usages;
 }
 
 function getImportedSymbols(sourceFile: SourceFile, packageName: string): Set<string> {
   const symbols = new Set<string>();
-  
+
   // From import declarations
   const importDeclarations = sourceFile.getImportDeclarations();
   for (const importDecl of importDeclarations) {
     const moduleSpecifier = importDecl.getModuleSpecifierValue();
-    
+
     if (isPackageImport(moduleSpecifier, packageName)) {
       // Named imports
-      importDecl.getNamedImports().forEach(ni => symbols.add(ni.getName()));
-      
+      importDecl.getNamedImports().forEach((ni) => symbols.add(ni.getName()));
+
       // Default import
       const defaultImport = importDecl.getDefaultImport();
       if (defaultImport) {
         symbols.add(defaultImport.getText());
       }
-      
+
       // Namespace import
       const namespaceImport = importDecl.getNamespaceImport();
       if (namespaceImport) {
@@ -336,24 +316,24 @@ function getImportedSymbols(sourceFile: SourceFile, packageName: string): Set<st
       }
     }
   }
-  
+
   return symbols;
 }
 
 function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDetail | null {
   const parent = identifier.getParent();
   if (!parent) return null;
-  
+
   const line = identifier.getStartLineNumber();
   const apiName = identifier.getText();
-  
+
   // Function call
   if (Node.isCallExpression(parent) && parent.getExpression() === identifier) {
-    const args = parent.getArguments().map(arg => {
+    const args = parent.getArguments().map((arg) => {
       const text = arg.getText();
       return text.length > 50 ? text.substring(0, 50) + '...' : text;
     });
-    
+
     return {
       file: filePath,
       line,
@@ -363,14 +343,14 @@ function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDet
       arguments: args,
     };
   }
-  
+
   // Constructor call
   if (Node.isNewExpression(parent) && parent.getExpression() === identifier) {
-    const args = parent.getArguments().map(arg => {
+    const args = parent.getArguments().map((arg) => {
       const text = arg.getText();
       return text.length > 50 ? text.substring(0, 50) + '...' : text;
     });
-    
+
     return {
       file: filePath,
       line,
@@ -380,19 +360,24 @@ function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDet
       arguments: args,
     };
   }
-  
+
   // Property access
   if (Node.isPropertyAccessExpression(parent)) {
     const chainedCalls = [];
-    let current = parent;
-    
-    while (Node.isPropertyAccessExpression(current.getParent()) || Node.isCallExpression(current.getParent())) {
+    let current: Node = parent;
+
+    while (
+      Node.isPropertyAccessExpression(current.getParent()) ||
+      Node.isCallExpression(current.getParent())
+    ) {
       if (Node.isPropertyAccessExpression(current)) {
         chainedCalls.push(current.getName());
       }
-      current = current.getParent()!;
+      const parent = current.getParent();
+      if (!parent) break;
+      current = parent;
     }
-    
+
     return {
       file: filePath,
       line,
@@ -402,7 +387,7 @@ function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDet
       chainedCalls: chainedCalls.length > 0 ? chainedCalls : undefined,
     };
   }
-  
+
   // Type reference
   if (Node.isTypeReference(parent)) {
     return {
@@ -413,7 +398,7 @@ function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDet
       context: getContextSnippet(parent),
     };
   }
-  
+
   // Decorator
   if (Node.isDecorator(parent)) {
     return {
@@ -424,7 +409,7 @@ function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDet
       context: getContextSnippet(parent),
     };
   }
-  
+
   // JSX Component
   if (Node.isJsxOpeningElement(parent) || Node.isJsxSelfClosingElement(parent)) {
     return {
@@ -435,18 +420,18 @@ function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDet
       context: getContextSnippet(parent),
     };
   }
-  
+
   return null;
 }
 
 async function classifyFiles(files: string[]): Promise<FileClassification[]> {
   const classifications: FileClassification[] = [];
-  
+
   for (const file of files) {
     const classification = await classifyFile(file);
     classifications.push(classification);
   }
-  
+
   return classifications;
 }
 
@@ -454,9 +439,9 @@ async function classifyFile(filePath: string): Promise<FileClassification> {
   const indicators: string[] = [];
   let category: FileClassification['category'] = 'production';
   let confidence = 0.5;
-  
+
   const normalizedPath = filePath.toLowerCase();
-  
+
   // Test files
   if (
     normalizedPath.includes('test') ||
@@ -472,7 +457,7 @@ async function classifyFile(filePath: string): Promise<FileClassification> {
     confidence = 0.9;
     indicators.push('test/spec in filename or path');
   }
-  
+
   // Config files
   else if (
     normalizedPath.includes('config') ||
@@ -484,7 +469,7 @@ async function classifyFile(filePath: string): Promise<FileClassification> {
     confidence = 0.8;
     indicators.push('config in filename or dotfile');
   }
-  
+
   // Build files
   else if (
     normalizedPath.includes('webpack') ||
@@ -498,7 +483,7 @@ async function classifyFile(filePath: string): Promise<FileClassification> {
     confidence = 0.8;
     indicators.push('build tool reference in filename');
   }
-  
+
   // Documentation files
   else if (
     normalizedPath.includes('docs') ||
@@ -509,12 +494,12 @@ async function classifyFile(filePath: string): Promise<FileClassification> {
     confidence = 0.7;
     indicators.push('docs/examples/demo in path');
   }
-  
+
   // Additional heuristics based on file content (if needed)
   try {
     const content = await fs.readFile(filePath, 'utf-8');
     const lines = content.split('\n').slice(0, 50); // Check first 50 lines
-    
+
     // Check for test frameworks
     if (category !== 'test') {
       const testPatterns = [
@@ -522,7 +507,7 @@ async function classifyFile(filePath: string): Promise<FileClassification> {
         /require\s*\(\s*['"](?:jest|mocha|chai|vitest|@testing-library)/,
         /(?:describe|it|test|expect)\s*\(/,
       ];
-      
+
       for (const line of lines) {
         for (const pattern of testPatterns) {
           if (pattern.test(line)) {
@@ -537,7 +522,7 @@ async function classifyFile(filePath: string): Promise<FileClassification> {
   } catch {
     // File read error, use path-based classification only
   }
-  
+
   return {
     file: filePath,
     category,
@@ -551,12 +536,12 @@ async function analyzeConfigFiles(
   packageName: string
 ): Promise<ConfigFileUsage[]> {
   const usages: ConfigFileUsage[] = [];
-  
+
   for (const configFile of configFiles) {
     try {
       const content = await fs.readFile(configFile, 'utf-8');
       const filename = path.basename(configFile);
-      
+
       // Determine config type
       let configType: ConfigFileUsage['configType'] = 'other';
       if (filename === 'package.json') configType = 'package.json';
@@ -567,32 +552,39 @@ async function analyzeConfigFiles(
       else if (filename.includes('babel') || filename === '.babelrc') configType = 'babel';
       else if (filename.includes('eslint') || filename === '.eslintrc') configType = 'eslint';
       else if (filename.includes('prettier') || filename === '.prettierrc') configType = 'prettier';
-      
+
       // Check if package is referenced
       if (content.includes(packageName)) {
-        let parsedContent: any = null;
-        
-        try {
-          if (filename.endsWith('.json') || filename === '.babelrc' || filename === '.eslintrc' || filename === '.prettierrc') {
-            parsedContent = JSON.parse(content);
-          }
-        } catch {
-          // Not JSON or parse error
+        let parsedContent: unknown = null;
+
+        if (
+          filename.endsWith('.json') ||
+          filename === '.babelrc' ||
+          filename === '.eslintrc' ||
+          filename === '.prettierrc'
+        ) {
+          parsedContent = safeJsonParse(content, null);
         }
-        
+
         // Extract usage context
         let usage = 'Package referenced in configuration';
-        
+
         if (configType === 'package.json' && parsedContent) {
-          const sections = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
+          const sections = [
+            'dependencies',
+            'devDependencies',
+            'peerDependencies',
+            'optionalDependencies',
+          ];
+          const jsonContent = parsedContent as any;
           for (const section of sections) {
-            if (parsedContent[section] && parsedContent[section][packageName]) {
-              usage = `Version ${parsedContent[section][packageName]} in ${section}`;
+            if (jsonContent[section]?.[packageName]) {
+              usage = `Version ${jsonContent[section][packageName]} in ${section}`;
               break;
             }
           }
         }
-        
+
         usages.push({
           file: path.relative(process.cwd(), configFile),
           configType,
@@ -604,12 +596,12 @@ async function analyzeConfigFiles(
       // Skip files that can't be read
     }
   }
-  
+
   return usages;
 }
 
 function generateUsageSummary(
-  imports: PackageUsageDetail[],
+  _imports: PackageUsageDetail[],
   apiUsages: APIUsageDetail[],
   fileClassifications: FileClassification[]
 ): DeepAnalysisResult['usageSummary'] {
@@ -618,29 +610,29 @@ function generateUsageSummary(
   for (const classification of fileClassifications) {
     byFileType[classification.category] = (byFileType[classification.category] || 0) + 1;
   }
-  
+
   // Count by API usage type
   const byAPIType: Record<string, number> = {};
   for (const usage of apiUsages) {
     byAPIType[usage.usageType] = (byAPIType[usage.usageType] || 0) + 1;
   }
-  
+
   // Count API frequency
   const apiCounts: Record<string, number> = {};
   for (const usage of apiUsages) {
     apiCounts[usage.apiName] = (apiCounts[usage.apiName] || 0) + 1;
   }
-  
+
   // Most used APIs
   const mostUsedAPIs = Object.entries(apiCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
     .map(([api, count]) => ({ api, count }));
-  
+
   // Test vs Production
-  const testFiles = fileClassifications.filter(f => f.category === 'test').length;
-  const productionFiles = fileClassifications.filter(f => f.category === 'production').length;
-  
+  const testFiles = fileClassifications.filter((f) => f.category === 'test').length;
+  const productionFiles = fileClassifications.filter((f) => f.category === 'production').length;
+
   return {
     byFileType,
     byAPIType,
@@ -661,99 +653,113 @@ async function generateRecommendations(
   breakingAPIs?: string[]
 ): Promise<string[]> {
   const recommendations: string[] = [];
-  
+
   // Check if package is heavily used
   if (imports.length > 20) {
-    recommendations.push(`Package is heavily used across ${imports.length} files. Consider gradual migration.`);
+    recommendations.push(
+      `Package is heavily used across ${imports.length} files. Consider gradual migration.`
+    );
   }
-  
+
   // Check test coverage
-  const testFiles = fileClassifications.filter(f => f.category === 'test');
-  const productionFiles = fileClassifications.filter(f => f.category === 'production');
-  
+  const testFiles = fileClassifications.filter((f) => f.category === 'test');
+  const productionFiles = fileClassifications.filter((f) => f.category === 'production');
+
   if (testFiles.length === 0 && productionFiles.length > 0) {
     recommendations.push('No test files found using this package. Add tests before updating.');
   } else if (testFiles.length < productionFiles.length * 0.5) {
     recommendations.push('Limited test coverage. Consider adding more tests for affected APIs.');
   }
-  
+
   // Check for breaking API usage
   if (breakingAPIs && breakingAPIs.length > 0) {
-    const affectedAPIs = apiUsages.filter(u => breakingAPIs.includes(u.apiName));
+    const affectedAPIs = apiUsages.filter((u) => breakingAPIs.includes(u.apiName));
     if (affectedAPIs.length > 0) {
-      const uniqueAPIs = [...new Set(affectedAPIs.map(a => a.apiName))];
-      recommendations.push(`Found ${affectedAPIs.length} usages of ${uniqueAPIs.length} breaking APIs. Manual review required.`);
+      const uniqueAPIs = [...new Set(affectedAPIs.map((a) => a.apiName))];
+      recommendations.push(
+        `Found ${affectedAPIs.length} usages of ${uniqueAPIs.length} breaking APIs. Manual review required.`
+      );
     }
   }
-  
+
   // Check for type-only imports
-  const typeOnlyImports = imports.filter(i => i.isTypeOnly);
+  const typeOnlyImports = imports.filter((i) => i.isTypeOnly);
   if (typeOnlyImports.length > 0) {
-    recommendations.push(`${typeOnlyImports.length} type-only imports found. These are generally safe to update.`);
+    recommendations.push(
+      `${typeOnlyImports.length} type-only imports found. These are generally safe to update.`
+    );
   }
-  
+
   // Check for dynamic imports
-  const dynamicImports = imports.filter(i => i.type === 'dynamic-import');
+  const dynamicImports = imports.filter((i) => i.type === 'dynamic-import');
   if (dynamicImports.length > 0) {
-    recommendations.push(`${dynamicImports.length} dynamic imports found. Ensure runtime compatibility.`);
+    recommendations.push(
+      `${dynamicImports.length} dynamic imports found. Ensure runtime compatibility.`
+    );
   }
-  
+
   // Check for config file usage
   if (configUsages.length > 0) {
-    const configTypes = [...new Set(configUsages.map(c => c.configType))];
-    recommendations.push(`Package referenced in ${configTypes.join(', ')} configs. Update configurations if needed.`);
+    const configTypes = [...new Set(configUsages.map((c) => c.configType))];
+    recommendations.push(
+      `Package referenced in ${configTypes.join(', ')} configs. Update configurations if needed.`
+    );
   }
-  
+
   // Version-specific recommendations
   try {
     const semver = await import('semver');
     const fromMajor = semver.major(packageUpdate.fromVersion);
     const toMajor = semver.major(packageUpdate.toVersion);
-    
+
     if (toMajor > fromMajor) {
       recommendations.push('Major version update. Review migration guide and test thoroughly.');
     }
   } catch {
     // Ignore semver parsing errors
   }
-  
+
   return recommendations;
 }
 
 function isPackageImport(moduleSpecifier: string, packageName: string): boolean {
-  return moduleSpecifier === packageName || 
-         moduleSpecifier.startsWith(`${packageName}/`) ||
-         moduleSpecifier.startsWith(`@types/${packageName}`);
+  return (
+    moduleSpecifier === packageName ||
+    moduleSpecifier.startsWith(`${packageName}/`) ||
+    moduleSpecifier.startsWith(`@types/${packageName}`)
+  );
 }
 
 function getContextSnippet(node: Node): string {
   let contextNode: Node | undefined = node;
-  
+
   // Find the containing statement
   while (contextNode && !isStatement(contextNode)) {
     contextNode = contextNode.getParent();
   }
-  
+
   if (!contextNode) {
     contextNode = node;
   }
-  
+
   let text = contextNode.getText();
-  
+
   // Limit length
   if (text.length > 120) {
     const nodeText = node.getText();
     const nodeStart = text.indexOf(nodeText);
-    
+
     if (nodeStart >= 0) {
       const start = Math.max(0, nodeStart - 40);
       const end = Math.min(text.length, nodeStart + nodeText.length + 40);
-      text = (start > 0 ? '...' : '') + text.substring(start, end) + (end < text.length ? '...' : '');
+      const startEllipsis = start > 0 ? '...' : '';
+      const endEllipsis = end < text.length ? '...' : '';
+      text = startEllipsis + text.substring(start, end) + endEllipsis;
     } else {
       text = text.substring(0, 117) + '...';
     }
   }
-  
+
   // Clean up whitespace
   return text.replace(/\s+/g, ' ').trim();
 }
