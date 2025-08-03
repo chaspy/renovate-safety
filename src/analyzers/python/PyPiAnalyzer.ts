@@ -267,7 +267,7 @@ export class PyPiAnalyzer extends PackageAnalyzer {
         const startIndex = match.index;
         // Extract until next major header or end
         const endMatch = /^#{1,2}\s+/m.exec(description.substring(startIndex + match[0].length));
-        const endIndex = endMatch ? startIndex + match[0].length + endMatch.index! : description.length;
+        const endIndex = endMatch ? startIndex + match[0].length + endMatch.index : description.length;
         
         return description.substring(startIndex, endIndex).trim();
       }

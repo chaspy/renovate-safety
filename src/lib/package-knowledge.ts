@@ -43,7 +43,7 @@ export class PackageKnowledgeBase {
       if (data) {
         // Each file can contain multiple packages
         for (const [packageName, knowledge] of Object.entries(data)) {
-          this.knowledge.set(packageName, knowledge as PackageKnowledge);
+          this.knowledge.set(packageName, knowledge);
         }
       }
     }

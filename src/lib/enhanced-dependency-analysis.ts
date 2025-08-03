@@ -214,7 +214,7 @@ async function findDirectUsages(packageName: string): Promise<DirectUsage[]> {
 
           usages.push({
             packageName,
-            usageType: depType as DirectUsage['usageType'],
+            usageType: depType,
             versionRange: packageJson[depType][packageName],
             workspaces: workspacePath === '.' ? undefined : [workspacePath],
             purpose,
