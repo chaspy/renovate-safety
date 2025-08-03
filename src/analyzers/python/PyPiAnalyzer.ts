@@ -106,7 +106,8 @@ export class PyPiAnalyzer extends PackageAnalyzer {
         const importPatterns = [
           new RegExp(`^import\\s+${packageName}(?:\\s|$|\\.)`, 'i'),
           new RegExp(`^from\\s+${packageName}(?:\\s|\\.)`, 'i'),
-          new RegExp(`^import\\s+.*?\\s*,\\s*${packageName}(?:\\s|$|,)`, 'i'),
+          // Safe regex: avoid ReDoS by limiting import statement matching
+          new RegExp(`^import\\s+(?:[\\w.,\\s]+)\\s*,\\s*${packageName}(?:\\s|$|,)`, 'i'),
           new RegExp(`\\s+as\\s+\\w+\\s*,\\s*${packageName}(?:\\s|$|,)`, 'i')
         ];
 

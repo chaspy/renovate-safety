@@ -64,7 +64,8 @@ export class NpmDiffStrategy extends AnalysisStrategy {
       { pattern: /^-\s*module\.exports\.(\w+)/, type: 'Removed module export' },
       { pattern: /^-\s*exports\.(\w+)/, type: 'Removed export' },
       { pattern: /^-\s*(\w+):\s*function/, type: 'Removed method' },
-      { pattern: /function\s+(\w+)\s*\([^)]*\)\s*{[\s\S]*?}\s*$/, multiline: true, type: 'Changed function signature' }
+      // Safe regex: avoid ReDoS vulnerability by limiting function body matching
+      { pattern: /function\s+(\w+)\s*\([^)]*\)\s*{[^{}]*(?:{[^{}]*}[^{}]*)*}\s*$/, multiline: true, type: 'Changed function signature' }
     ];
 
     let currentFile = '';
