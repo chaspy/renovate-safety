@@ -46,7 +46,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^0.0.30",
+    "@ai-sdk/openai": "^2.0.0",
     "@anthropic-ai/sdk": "^0.55.0",
     "@mastra/core": "^0.15.2",
     "@octokit/rest": "^22.0.0",
