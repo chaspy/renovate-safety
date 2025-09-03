@@ -183,9 +183,13 @@ function calculateRiskScore(factors: RiskFactors): number {
       score = Math.max(0, score - 10); // Patch updates for @types/* are very safe
     } else if (factors.versionJump.minor > 0 && factors.versionJump.major === 0) {
       score = Math.max(0, score - 5); // Minor updates for @types/* are relatively safe
+    } else if (factors.versionJump.major > 0) {
+      // Major updates should maintain at least LOW risk (score 10)
+      score = Math.max(score * 0.3, 10);
+    } else {
+      // Other cases: reduce overall risk for type definitions
+      score *= 0.3; // More aggressive reduction for @types/* packages
     }
-    // Reduce overall risk for type definitions
-    score *= 0.3; // More aggressive reduction for @types/* packages
   }
 
   // DevDependencies have lower risk
@@ -195,7 +199,8 @@ function calculateRiskScore(factors: RiskFactors): number {
 
   // Lockfile-only changes have lower risk
   if (factors.packageSpecific.isLockfileOnly) {
-    score -= 2;
+    // Lockfile-only changes get 30% reduction
+    score *= 0.7;
   }
 
   return Math.max(0, Math.min(100, score));
