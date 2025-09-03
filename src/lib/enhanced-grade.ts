@@ -22,6 +22,9 @@ export interface RiskFactors {
     breakingChangePatterns: string[];
     knownIssues: unknown[];
     migrationComplexity: 'simple' | 'moderate' | 'complex';
+    isTypeDefinition?: boolean;
+    isDevDependency?: boolean;
+    isLockfileOnly?: boolean;
   };
 }
 
@@ -92,6 +95,9 @@ function calculateRiskFactors(
     breakingChangePatterns: breakingChanges.map((bc) => bc.line),
     knownIssues: [],
     migrationComplexity: determineMigrationComplexity(breakingChanges, usage.directUsageCount),
+    isTypeDefinition: isTypeDefinitionPackage(packageUpdate.name),
+    isDevDependency: false, // Will be enhanced when we have access to package.json context
+    isLockfileOnly: false, // Will be enhanced when we have access to file changes
   };
 
   return { versionJump, usage, confidence, packageSpecific };
@@ -166,23 +172,69 @@ function calculateRiskScore(factors: RiskFactors): number {
   // Test coverage mitigation (-20 to 0 points)
   score -= (factors.usage.testCoverage / 100) * 20;
 
+  // Special handling for @types/* packages - apply reduction after all calculations
+  if (factors.packageSpecific.isTypeDefinition) {
+    // @types/* packages have much lower risk
+    if (
+      factors.versionJump.patch > 0 &&
+      factors.versionJump.major === 0 &&
+      factors.versionJump.minor === 0
+    ) {
+      score = Math.max(0, score - 10); // Patch updates for @types/* are very safe
+    } else if (factors.versionJump.minor > 0 && factors.versionJump.major === 0) {
+      score = Math.max(0, score - 5); // Minor updates for @types/* are relatively safe
+    }
+    // Reduce overall risk for type definitions
+    score *= 0.3; // More aggressive reduction for @types/* packages
+  }
+
+  // DevDependencies have lower risk
+  if (factors.packageSpecific.isDevDependency) {
+    score -= 1;
+  }
+
+  // Lockfile-only changes have lower risk
+  if (factors.packageSpecific.isLockfileOnly) {
+    score -= 2;
+  }
+
   return Math.max(0, Math.min(100, score));
 }
 
 function determineRiskLevel(score: number, factors: RiskFactors): RiskAssessment['level'] {
-  // If we have no information, return unknown
+  // Special handling for @types/* packages
+  if (factors.packageSpecific.isTypeDefinition) {
+    // @types/* patch updates are always safe
+    if (
+      factors.versionJump.patch > 0 &&
+      factors.versionJump.major === 0 &&
+      factors.versionJump.minor === 0
+    ) {
+      return 'safe';
+    }
+    // @types/* minor updates are low risk at most
+    if (factors.versionJump.minor > 0 && factors.versionJump.major === 0) {
+      return score <= 10 ? 'safe' : 'low';
+    }
+  }
+
+  // If we have no information and it's not a special package, return unknown
   if (
     factors.confidence.diffAnalysisDepth === 'none' &&
-    factors.packageSpecific.breakingChangePatterns.length === 0
+    factors.packageSpecific.breakingChangePatterns.length === 0 &&
+    !factors.packageSpecific.isTypeDefinition
   ) {
     return 'unknown'; // 'unknown' is valid RiskAssessment level
   }
 
-  if (score >= 70) return 'critical';
-  if (score >= 50) return 'high';
-  if (score >= 30) return 'medium';
-  if (score >= 10) return 'low';
-  return 'safe';
+  // Adjusted thresholds for better calibration
+  if (score <= 1) return 'safe'; // Very low score is safe
+  if (score <= 3) return 'low'; // Low score is low risk
+  if (score <= 10) return 'low'; // Keep existing threshold
+  if (score < 30) return 'medium';
+  if (score < 50) return 'high';
+  if (score >= 50) return 'critical';
+  return 'medium'; // Default to medium if somehow we get here
 }
 
 function calculateConfidence(factors: RiskFactors): number {
@@ -195,6 +247,10 @@ function calculateConfidence(factors: RiskFactors): number {
   if (factors.usage.testCoverage > 50) confidence += 0.2;
 
   return Math.min(confidence, 1);
+}
+
+function isTypeDefinitionPackage(packageName: string): boolean {
+  return packageName.startsWith('@types/');
 }
 
 function generateRiskFactorDescriptions(factors: RiskFactors, _level: string): string[] {
