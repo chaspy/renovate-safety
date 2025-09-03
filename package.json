@@ -48,7 +48,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^0.0.30",
     "@anthropic-ai/sdk": "^0.55.0",
-    "@mastra/core": "^0.1.0",
+    "@mastra/core": "^0.15.2",
     "@octokit/rest": "^22.0.0",
     "@types/glob": "^8.1.0",
     "ai": "^5.0.30",
