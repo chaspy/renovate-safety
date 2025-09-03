@@ -11,6 +11,10 @@ export const mastra = new Mastra({
   providers: {
     openai,
   },
+  // vector-syncエラーを回避するため、agents設定を明示的に空にする
+  agents: {},
+  workflows: {},
+  tools: {},
 });
 
 // 設定の検証
