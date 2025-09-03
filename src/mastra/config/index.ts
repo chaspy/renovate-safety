@@ -1,18 +1,13 @@
 import { Mastra } from '@mastra/core';
-import { createOpenAI } from '@ai-sdk/openai';
-
-// OpenAI プロバイダの設定
-export const openai = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
+import { pingAgent } from '../agents/ping-agent.js';
 
 // Mastra インスタンスの作成
+// 正しい方法：Agentを登録する（providersは存在しない）
 export const mastra = new Mastra({
-  providers: {
-    openai,
+  agents: {
+    ping: pingAgent,  // Agentを登録
   },
-  // 最小限の設定でvector-syncエラーを回避
-  agents: {},
+  // workflows と tools は任意（空でOK）
   workflows: {},
   tools: {},
 });
