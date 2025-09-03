@@ -42,7 +42,7 @@ async function testSetup() {
       // Mastraインスタンスの確認
       console.log('\n🔍 Verifying Mastra configuration:');
       console.log('   - Mastra instance created:', mastra ? '✅' : '❌');
-      console.log('   - OpenAI provider configured:', mastra.providers?.openai ? '✅' : '❌');
+      console.log('   - OpenAI provider available:', openai ? '✅' : '❌');
       console.log('   - API key set:', process.env.OPENAI_API_KEY ? '✅' : '❌');
     } catch (error) {
       console.error('❌ Mastra + OpenAI integration failed:', error);
