@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { validateConfig } from '../index';
+import { validateConfig, openai } from '../index';
 
 describe('Mastra Configuration', () => {
   const originalEnv = process.env;
