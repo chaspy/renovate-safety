@@ -1,5 +1,9 @@
 import { mastra, openai, validateConfig } from './config/index.js';
 import { generateText } from 'ai';
+import * as dotenv from 'dotenv';
+
+// .envファイルから環境変数を読み込み
+dotenv.config();
 
 async function testSetup() {
   const isDryRun = process.env.DRY_RUN === 'true' || !process.env.OPENAI_API_KEY;
@@ -54,8 +58,13 @@ async function testSetup() {
   
   // 使用方法の説明
   console.log('\n📚 Usage:');
-  console.log('   Dry-run mode: DRY_RUN=true npx tsx src/mastra/test-setup.ts');
-  console.log('   Actual API call: OPENAI_API_KEY=your-key npx tsx src/mastra/test-setup.ts');
+  console.log('   1. Set up your API key in .env file:');
+  console.log('      cp .env.example .env');
+  console.log('      # Edit .env and add your OPENAI_API_KEY');
+  console.log('   2. Run the test:');
+  console.log('      npx tsx src/mastra/test-setup.ts');
+  console.log('   3. Dry-run mode (no API calls):');
+  console.log('      DRY_RUN=true npx tsx src/mastra/test-setup.ts');
 }
 
 testSetup().catch(console.error);
