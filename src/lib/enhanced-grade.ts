@@ -97,6 +97,8 @@ function calculateRiskFactors(
     migrationComplexity: determineMigrationComplexity(breakingChanges, usage.directUsageCount),
     isTypeDefinition: isTypeDefinitionPackage(packageUpdate.name),
     isDevDependency: false, // Will be enhanced when we have access to package.json context
+    // TODO: Issue #20 - GitHub API統合で実装予定
+    // PRのfile changesを解析してlockfile-onlyを判定
     isLockfileOnly: false, // Will be enhanced when we have access to file changes
   };
 
@@ -197,10 +199,11 @@ function calculateRiskScore(factors: RiskFactors): number {
     score -= 1;
   }
 
-  // Lockfile-only changes have lower risk
+  // Lockfile-only changes have significantly lower risk
   if (factors.packageSpecific.isLockfileOnly) {
-    // Lockfile-only changes get 30% reduction
-    score *= 0.7;
+    // Lockfile-only changes are capped at score 10 (LOW risk threshold)
+    // This ensures lockfile-only changes are never higher than LOW risk
+    score = Math.min(score * 0.3, 10);
   }
 
   return Math.max(0, Math.min(100, score));
@@ -257,6 +260,16 @@ function calculateConfidence(factors: RiskFactors): number {
 function isTypeDefinitionPackage(packageName: string): boolean {
   return packageName.startsWith('@types/');
 }
+
+// TODO: Issue #20 - GitHub API統合で実装予定
+// PRのfile changesを取得して、lockfile-onlyの変更かを判定する
+// function isLockfileOnlyChange(files: string[]): boolean {
+//   return files.every(f => 
+//     f.endsWith('package-lock.json') ||
+//     f.endsWith('yarn.lock') ||
+//     f.endsWith('pnpm-lock.yaml')
+//   );
+// }
 
 function generateRiskFactorDescriptions(factors: RiskFactors, _level: string): string[] {
   const descriptions: string[] = [];
