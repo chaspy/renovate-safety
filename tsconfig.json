@@ -4,6 +4,9 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "paths": {
+      "@mastra/*": ["./src/mastra/*"]
+    },
     "noImplicitAny": true,
     "strictNullChecks": true,
     "strictFunctionTypes": true,
