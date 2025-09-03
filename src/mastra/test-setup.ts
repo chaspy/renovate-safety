@@ -1,5 +1,4 @@
-import { mastra, openai, validateConfig } from './config/index.js';
-import { generateText } from 'ai';
+import { mastra, validateConfig } from './config/index.js';
 import * as dotenv from 'dotenv';
 
 // .envファイルから環境変数を読み込み
@@ -21,35 +20,45 @@ async function testSetup() {
   }
   console.log('✅ Configuration valid');
   
-  console.log('🔍 Testing Mastra + OpenAI integration...');
+  console.log('🔍 Testing Mastra Agent integration...');
   
   if (isDryRun) {
-    console.log('📝 [DRY-RUN] Would call OpenAI API via Mastra with:');
+    console.log('📝 [DRY-RUN] Would call OpenAI API via Mastra Agent with:');
+    console.log('   - Agent: ping');
     console.log('   - Model: gpt-3.5-turbo');
-    console.log('   - Prompt: "Say \\"Hello, Mastra!\\""');
-    console.log('   - Max tokens: 10');
-    console.log('✅ [DRY-RUN] Mastra + OpenAI integration configured correctly');
+    console.log('   - Prompt: "Say hello to Mastra"');
+    console.log('✅ [DRY-RUN] Mastra Agent configured correctly');
   } else {
-    // 実際のAPI呼び出し - MastraのOpenAIプロバイダーを使用
+    // 正しいMastra統合：Agent経由でLLMを呼び出す
     try {
-      const { text, finishReason, usage } = await generateText({
-        model: openai('gpt-3.5-turbo'),
-        prompt: 'Say "Hello, Mastra!" in exactly 3 words.',
-        maxTokens: 10,
-      });
+      // MastraからAgentを取得
+      const agent = mastra.getAgent('ping');
+      if (!agent) {
+        throw new Error('Ping agent not found in Mastra registry');
+      }
       
-      console.log('✅ OpenAI response:', text);
+      // Agent.generateVNext()でLLMを呼び出す（V2モデル用）
+      const result = await agent.generateVNext([
+        { role: 'user', content: 'Say hello to Mastra' }
+      ]);
+      
+      console.log('✅ Mastra Agent response:', result.text);
       console.log('📊 Response details:');
-      console.log('   - Finish reason:', finishReason);
-      console.log('   - Tokens used:', usage?.totalTokens || 'N/A');
+      console.log('   - Response object:', result.object ? 'Present' : 'None');
+      console.log('   - Usage:', result.usage ? `${result.usage.totalTokens} tokens` : 'N/A');
       
-      // Mastraインスタンスの確認
-      console.log('\n🔍 Verifying Mastra configuration:');
-      console.log('   - Mastra instance created:', mastra ? '✅' : '❌');
-      console.log('   - OpenAI provider available:', openai ? '✅' : '❌');
+      // Mastra統合の確認
+      console.log('\n🔍 Verifying Mastra integration:');
+      console.log('   - Mastra instance:', mastra ? '✅' : '❌');
+      console.log('   - Agent registered:', agent ? '✅' : '❌');
+      console.log('   - Agent.generateVNext() worked:', result.text ? '✅' : '❌');
       console.log('   - API key set:', process.env.OPENAI_API_KEY ? '✅' : '❌');
+      
+      // 真のMastra統合の証明
+      console.log('\n✨ True Mastra integration verified:');
+      console.log('   Used mastra.getAgent() → agent.generateVNext() pattern (V2 models)');
     } catch (error) {
-      console.error('❌ Mastra + OpenAI integration failed:', error);
+      console.error('❌ Mastra Agent integration failed:', error);
       throw error;
     }
   }
