@@ -276,10 +276,7 @@ async function analyzeFileAPIUsage(
       const identifierName = node.getText();
 
       // Check if this identifier is from our package
-      if (
-        importedSymbols.has(identifierName) ||
-        breakingAPIs?.includes(identifierName)
-      ) {
+      if (importedSymbols.has(identifierName) || breakingAPIs?.includes(identifierName)) {
         const usage = analyzeIdentifierUsage(node, filePath);
         if (usage) {
           usages.push(usage);

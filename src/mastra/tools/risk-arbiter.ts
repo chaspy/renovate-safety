@@ -1,111 +1,107 @@
-import type { PackageUpdate, RiskAssessment, BreakingChange, LLMSummary } from '../types/index.js';
-import type { UsageAnalysis } from '../analyzers/base.js';
+import { createTool } from '@mastra/core/tools';
+import { z } from 'zod';
 import semver from 'semver';
 
-export interface RiskFactors {
-  versionJump: {
-    major: number;
-    minor: number;
-    patch: number;
-  };
-  usage: {
-    directUsageCount: number;
-    criticalPathUsage: boolean;
-    testCoverage: number;
-  };
-  confidence: {
-    changelogAvailable: boolean;
-    diffAnalysisDepth: 'full' | 'partial' | 'none';
-    communitySignals: number;
-  };
-  packageSpecific: {
-    breakingChangePatterns: string[];
-    knownIssues: unknown[];
-    migrationComplexity: 'simple' | 'moderate' | 'complex';
-    isTypeDefinition?: boolean;
-    isDevDependency?: boolean;
-    isLockfileOnly?: boolean;
-  };
-}
+// Input schema for risk assessment
+const inputSchema = z.object({
+  packageName: z.string().describe('Package name to assess'),
+  fromVersion: z.string().describe('Current version'),
+  toVersion: z.string().describe('Target version'),
+  isDevDependency: z.boolean().default(false).describe('Whether this is a devDependency'),
+  isTypeDefinition: z.boolean().optional().describe('Whether this is a @types/* package'),
+  isLockfileOnly: z.boolean().default(false).describe('Whether this is a lockfile-only change'),
+  breakingChanges: z.array(z.string()).default([]).describe('List of breaking changes detected'),
+  usageCount: z.number().default(0).describe('Number of usage locations in the codebase'),
+  hasChangelog: z.boolean().default(false).describe('Whether changelog is available'),
+  hasDiff: z.boolean().default(false).describe('Whether diff is available'),
+  testCoverage: z.number().default(0).describe('Test coverage percentage'),
+  criticalPathUsage: z.boolean().default(false).describe('Whether used in critical paths'),
+});
 
-export interface EnhancedRiskAssessment extends RiskAssessment {
-  confidence: number;
-  detailedFactors: RiskFactors;
-  mitigationSteps?: string[];
-}
+// Output schema
+const outputSchema = z.object({
+  level: z.enum(['safe', 'low', 'medium', 'high', 'critical']),
+  score: z.number(),
+  factors: z.array(z.string()),
+  confidence: z.number(),
+  mitigationSteps: z.array(z.string()),
+  estimatedEffort: z.enum(['none', 'minimal', 'moderate', 'significant', 'unknown']),
+  testingScope: z.enum(['none', 'unit', 'integration', 'full regression', 'full regression recommended']),
+});
 
-export async function assessEnhancedRisk(
-  packageUpdate: PackageUpdate,
-  breakingChanges: BreakingChange[],
-  usageAnalysis: UsageAnalysis | null,
-  llmSummary: LLMSummary | null,
-  hasChangelog: boolean,
-  hasDiff: boolean
-): Promise<EnhancedRiskAssessment> {
-  const factors = calculateRiskFactors(
-    packageUpdate,
+export const riskArbiterTool = createTool({
+  id: 'risk-arbiter',
+  description: 'Assess risk level of package updates with enhanced logic for @types/* and lockfile-only changes',
+  inputSchema,
+  outputSchema,
+  
+  execute: async ({ context: {
+    packageName,
+    fromVersion,
+    toVersion,
+    isDevDependency,
+    isTypeDefinition = packageName.startsWith('@types/'),
+    isLockfileOnly,
     breakingChanges,
-    usageAnalysis,
-    llmSummary,
+    usageCount,
     hasChangelog,
-    hasDiff
-  );
+    hasDiff,
+    testCoverage,
+    criticalPathUsage,
+  } }) => {
 
-  const riskScore = calculateRiskScore(factors);
-  const level = determineRiskLevel(riskScore, factors);
+    // Analyze version jump
+    const versionJump = analyzeVersionJump(fromVersion, toVersion);
+    
+    // Build risk factors
+    const factors = {
+      versionJump,
+      usage: {
+        directUsageCount: usageCount,
+        criticalPathUsage,
+        testCoverage,
+      },
+      confidence: {
+        changelogAvailable: hasChangelog,
+        diffAnalysisDepth: determineDiffDepth(hasChangelog, hasDiff),
+        communitySignals: 0,
+      },
+      packageSpecific: {
+        breakingChangePatterns: breakingChanges,
+        knownIssues: [],
+        migrationComplexity: determineMigrationComplexity(breakingChanges, usageCount),
+        isTypeDefinition,
+        isDevDependency,
+        isLockfileOnly,
+      },
+    };
 
-  return {
-    level,
-    factors: generateRiskFactorDescriptions(factors, level),
-    estimatedEffort: estimateEffort(factors, level),
-    testingScope: determineTestingScope(factors, level),
-    confidence: calculateConfidence(factors),
-    detailedFactors: factors,
-    mitigationSteps: generateMitigationSteps(factors, level, breakingChanges),
-  };
-}
+    // Calculate risk score
+    const score = calculateRiskScore(factors);
+    
+    // Determine risk level
+    const level = determineRiskLevel(score, factors);
+    
+    // Generate other outputs
+    const factorDescriptions = generateRiskFactorDescriptions(factors, level);
+    const confidence = calculateConfidence(factors);
+    const mitigationSteps = generateMitigationSteps(factors, level, breakingChanges);
+    const estimatedEffort = estimateEffort(factors, level);
+    const testingScope = determineTestingScope(factors, level);
 
-function calculateRiskFactors(
-  packageUpdate: PackageUpdate,
-  breakingChanges: BreakingChange[],
-  usageAnalysis: UsageAnalysis | null,
-  _llmSummary: LLMSummary | null,
-  hasChangelog: boolean,
-  hasDiff: boolean
-): RiskFactors {
-  // Version jump analysis
-  const versionJump = analyzeVersionJump(packageUpdate.fromVersion, packageUpdate.toVersion);
+    return {
+      level,
+      score,
+      factors: factorDescriptions,
+      confidence,
+      mitigationSteps,
+      estimatedEffort,
+      testingScope,
+    };
+  },
+});
 
-  // Usage analysis
-  const usage = {
-    directUsageCount: usageAnalysis?.productionUsageCount || 0,
-    criticalPathUsage: (usageAnalysis?.criticalPaths?.length || 0) > 0,
-    testCoverage: estimateTestCoverage(usageAnalysis),
-  };
-
-  // Confidence analysis
-  const confidence = {
-    changelogAvailable: hasChangelog,
-    diffAnalysisDepth: determineDiffDepth(hasChangelog, hasDiff),
-    communitySignals: 0, // Could be enhanced with GitHub stars, issues, etc.
-  };
-
-  // Package-specific analysis
-  const packageSpecific = {
-    breakingChangePatterns: breakingChanges.map((bc) => bc.line),
-    knownIssues: [],
-    migrationComplexity: determineMigrationComplexity(breakingChanges, usage.directUsageCount),
-    isTypeDefinition: isTypeDefinitionPackage(packageUpdate.name),
-    isDevDependency: false, // Will be enhanced when we have access to package.json context
-    // TODO: Issue #20 - GitHub API統合で実装予定
-    // PRのfile changesを解析してlockfile-onlyを判定
-    isLockfileOnly: false, // Will be enhanced when we have access to file changes
-  };
-
-  return { versionJump, usage, confidence, packageSpecific };
-}
-
-function analyzeVersionJump(fromVersion: string, toVersion: string): RiskFactors['versionJump'] {
+function analyzeVersionJump(fromVersion: string, toVersion: string) {
   try {
     const from = semver.coerce(fromVersion);
     const to = semver.coerce(toVersion);
@@ -125,17 +121,6 @@ function analyzeVersionJump(fromVersion: string, toVersion: string): RiskFactors
   }
 }
 
-function estimateTestCoverage(usageAnalysis: UsageAnalysis | null): number {
-  if (!usageAnalysis) return 0;
-
-  const { productionUsageCount, testUsageCount } = usageAnalysis;
-  if (productionUsageCount === 0) return 100;
-
-  // Simple heuristic: ratio of test usage to production usage
-  const ratio = testUsageCount / productionUsageCount;
-  return Math.min(ratio * 100, 100);
-}
-
 function determineDiffDepth(hasChangelog: boolean, hasDiff: boolean): 'full' | 'partial' | 'none' {
   if (hasChangelog && hasDiff) return 'full';
   if (hasChangelog || hasDiff) return 'partial';
@@ -143,7 +128,7 @@ function determineDiffDepth(hasChangelog: boolean, hasDiff: boolean): 'full' | '
 }
 
 function determineMigrationComplexity(
-  breakingChanges: BreakingChange[],
+  breakingChanges: string[],
   usageCount: number
 ): 'simple' | 'moderate' | 'complex' {
   if (breakingChanges.length === 0) return 'simple';
@@ -152,7 +137,7 @@ function determineMigrationComplexity(
   return 'simple';
 }
 
-function calculateRiskScore(factors: RiskFactors): number {
+function calculateRiskScore(factors: any): number {
   let score = 0;
 
   // Version jump impact (0-40 points)
@@ -209,7 +194,7 @@ function calculateRiskScore(factors: RiskFactors): number {
   return Math.max(0, Math.min(100, score));
 }
 
-function determineRiskLevel(score: number, factors: RiskFactors): RiskAssessment['level'] {
+function determineRiskLevel(score: number, factors: any): 'safe' | 'low' | 'medium' | 'high' | 'critical' {
   // Special handling for @types/* packages
   if (factors.packageSpecific.isTypeDefinition) {
     // @types/* patch updates are always safe
@@ -226,18 +211,8 @@ function determineRiskLevel(score: number, factors: RiskFactors): RiskAssessment
     }
   }
 
-  // If we have no information and it's not a special package, return unknown
-  if (
-    factors.confidence.diffAnalysisDepth === 'none' &&
-    factors.packageSpecific.breakingChangePatterns.length === 0 &&
-    !factors.packageSpecific.isTypeDefinition
-  ) {
-    return 'unknown'; // 'unknown' is valid RiskAssessment level
-  }
-
   // Adjusted thresholds for better calibration
   if (score <= 1) return 'safe'; // Very low score is safe
-  if (score <= 3) return 'low'; // Low score is low risk
   if (score <= 10) return 'low'; // Keep existing threshold
   if (score < 30) return 'medium';
   if (score < 50) return 'high';
@@ -245,7 +220,7 @@ function determineRiskLevel(score: number, factors: RiskFactors): RiskAssessment
   return 'medium'; // Default to medium if somehow we get here
 }
 
-function calculateConfidence(factors: RiskFactors): number {
+function calculateConfidence(factors: any): number {
   let confidence = 0;
 
   if (factors.confidence.changelogAvailable) confidence += 0.4;
@@ -257,21 +232,7 @@ function calculateConfidence(factors: RiskFactors): number {
   return Math.min(confidence, 1);
 }
 
-function isTypeDefinitionPackage(packageName: string): boolean {
-  return packageName.startsWith('@types/');
-}
-
-// TODO: Issue #20 - GitHub API統合で実装予定
-// PRのfile changesを取得して、lockfile-onlyの変更かを判定する
-// function isLockfileOnlyChange(files: string[]): boolean {
-//   return files.every(f =>
-//     f.endsWith('package-lock.json') ||
-//     f.endsWith('yarn.lock') ||
-//     f.endsWith('pnpm-lock.yaml')
-//   );
-// }
-
-function generateRiskFactorDescriptions(factors: RiskFactors, _level: string): string[] {
+function generateRiskFactorDescriptions(factors: any, _level: string): string[] {
   const descriptions: string[] = [];
 
   // Version jump
@@ -296,9 +257,22 @@ function generateRiskFactorDescriptions(factors: RiskFactors, _level: string): s
     descriptions.push('Used in critical paths');
   }
 
+  // Special flags
+  if (factors.packageSpecific.isTypeDefinition) {
+    descriptions.push('Type definitions package (@types/*)');
+  }
+
+  if (factors.packageSpecific.isDevDependency) {
+    descriptions.push('Development dependency');
+  }
+
+  if (factors.packageSpecific.isLockfileOnly) {
+    descriptions.push('Lockfile-only change');
+  }
+
   // Confidence
   if (factors.confidence.diffAnalysisDepth === 'none') {
-    descriptions.push('Limited information available (no changelog or diff)');
+    descriptions.push('Limited information available');
   }
 
   // Test coverage
@@ -311,9 +285,8 @@ function generateRiskFactorDescriptions(factors: RiskFactors, _level: string): s
   return descriptions;
 }
 
-function estimateEffort(factors: RiskFactors, level: string): RiskAssessment['estimatedEffort'] {
+function estimateEffort(factors: any, level: string): 'none' | 'minimal' | 'moderate' | 'significant' | 'unknown' {
   if (level === 'safe') return 'none';
-  if (level === 'unknown') return 'unknown';
 
   const complexity = factors.packageSpecific.migrationComplexity;
   const usageCount = factors.usage.directUsageCount;
@@ -326,11 +299,10 @@ function estimateEffort(factors: RiskFactors, level: string): RiskAssessment['es
 }
 
 function determineTestingScope(
-  factors: RiskFactors,
+  factors: any,
   level: string
-): RiskAssessment['testingScope'] {
+): 'none' | 'unit' | 'integration' | 'full regression' | 'full regression recommended' {
   if (level === 'safe') return 'none';
-  if (level === 'unknown') return 'full regression recommended';
 
   if (factors.usage.criticalPathUsage || level === 'critical') {
     return 'full regression';
@@ -348,9 +320,9 @@ function determineTestingScope(
 }
 
 function generateMitigationSteps(
-  factors: RiskFactors,
+  factors: any,
   level: string,
-  breakingChanges: BreakingChange[]
+  breakingChanges: string[]
 ): string[] {
   const steps: string[] = [];
 
@@ -373,10 +345,10 @@ function generateMitigationSteps(
 
   // Specific breaking change steps
   breakingChanges.slice(0, 3).forEach((change) => {
-    if (change.line.includes('removed') || change.line.includes('deleted')) {
-      steps.push(`Replace removed functionality: ${change.line.substring(0, 50)}...`);
-    } else if (change.line.includes('renamed')) {
-      steps.push(`Update renamed APIs: ${change.line.substring(0, 50)}...`);
+    if (change.includes('removed') || change.includes('deleted')) {
+      steps.push(`Replace removed functionality: ${change.substring(0, 50)}...`);
+    } else if (change.includes('renamed')) {
+      steps.push(`Update renamed APIs: ${change.substring(0, 50)}...`);
     }
   });
 
@@ -386,4 +358,14 @@ function generateMitigationSteps(
   }
 
   return steps;
+}
+
+// Convenience class for static method access
+export class RiskArbiter {
+  static async assess(input: z.infer<typeof inputSchema>) {
+    return await riskArbiterTool.execute({
+      context: input,
+      runtimeContext: undefined as any,
+    });
+  }
 }

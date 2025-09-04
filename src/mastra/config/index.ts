@@ -1,16 +1,36 @@
 import { Mastra } from '@mastra/core';
 import { pingAgent } from '../agents/ping-agent.js';
+import { ReleaseNotesAgent } from '../agents/release-notes-agent.js';
+import { CodeImpactAgent } from '../agents/code-impact-agent.js';
+import { analyzeRenovatePRWorkflow } from '../workflows/analyze-renovate-pr.js';
+import { 
+  dependencyReviewTool, 
+  githubCompareTool, 
+  prCommentTool, 
+  prLabelTool, 
+  getPRInfoTool 
+} from '../tools/index.js';
 
 // Mastra インスタンスの作成
-// 正しい方法：Agentを登録する（providersは存在しない）
 export const mastra = new Mastra({
   agents: {
-    ping: pingAgent,  // Agentを登録
+    ping: pingAgent,
+    releaseNotesAgent: ReleaseNotesAgent,
+    codeImpactAgent: CodeImpactAgent,
   },
-  // workflows と tools は任意（空でOK）
-  workflows: {},
-  tools: {},
+  workflows: {
+    analyzeRenovatePRWorkflow,
+  },
 });
+
+// GitHub API Tools をエクスポート
+export {
+  dependencyReviewTool,
+  githubCompareTool, 
+  prCommentTool,
+  prLabelTool,
+  getPRInfoTool
+};
 
 // 設定の検証
 export function validateConfig(): void {

@@ -82,7 +82,7 @@ async function detectProvider(): Promise<'claude-cli' | 'anthropic' | 'openai' |
   }
 
   const config = getEnvironmentConfig();
-  
+
   // Priority 2: Anthropic API
   if (config.anthropicApiKey) {
     return 'anthropic';
@@ -103,7 +103,8 @@ function buildPrompt(
 ): string {
   const breakingSection =
     breakingChanges.length > 0
-      ? ('\nIdentified Breaking Changes:\n' + breakingChanges.map((bc) => `- [${bc.severity}] ${bc.line}`).join('\n'))
+      ? '\nIdentified Breaking Changes:\n' +
+        breakingChanges.map((bc) => `- [${bc.severity}] ${bc.line}`).join('\n')
       : '\nNo explicit breaking changes identified.';
 
   return `You are analyzing a dependency update for a software project.
@@ -441,7 +442,8 @@ Version: ${packageUpdate.fromVersion} → ${packageUpdate.toVersion}`);
   // Breaking changes section
   const breakingSection =
     breakingChanges.length > 0
-      ? ('\nPattern-Identified Breaking Changes:\n' + breakingChanges.map((bc) => `- [${bc.severity}] ${bc.line}`).join('\n'))
+      ? '\nPattern-Identified Breaking Changes:\n' +
+        breakingChanges.map((bc) => `- [${bc.severity}] ${bc.line}`).join('\n')
       : '\nNo explicit breaking changes identified from patterns.';
   sections.push(breakingSection);
 
@@ -481,7 +483,7 @@ ${dependencyUsage.dependents
   .map((dep) => `- ${dep.name} (${dep.version}) [${dep.type}] - Path: ${dep.path.join(' → ')}`)
   .join(
     '\n'
-  )}${dependencyUsage.dependents.length > 5 ? ('\n- ... and ' + (dependencyUsage.dependents.length - 5) + ' more') : ''}`);
+  )}${dependencyUsage.dependents.length > 5 ? '\n- ... and ' + (dependencyUsage.dependents.length - 5) + ' more' : ''}`);
   } else {
     sections.push('\nNo dependency usage information available.');
   }

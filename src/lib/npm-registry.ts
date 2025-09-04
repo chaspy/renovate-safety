@@ -118,11 +118,13 @@ export async function getPackageReadme(packageSpec: string): Promise<string | nu
 
 /**
  * Get npm diff between two package versions
+ * Fixed: Now uses correct --diff syntax instead of positional arguments
  */
 export async function getNpmDiff(fromSpec: string, toSpec: string): Promise<string | null> {
   return tryWithLogging(
     async () => {
-      const result = await secureNpmExec('diff', [fromSpec, toSpec]);
+      // npm diff requires --diff flag for each package spec
+      const result = await secureNpmExec('diff', [`--diff=${fromSpec}`, `--diff=${toSpec}`]);
 
       if (!isSuccessful(result)) {
         console.warn(`npm diff failed for ${fromSpec} -> ${toSpec}`);
