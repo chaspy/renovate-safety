@@ -1,14 +1,15 @@
 {
   "name": "renovate-safety",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "CLI tool to analyze dependency update PRs for breaking changes",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "renovate-safety": "./dist/index.js"
+    "renovate-safety": "./dist/index.js",
+    "renovate-safety-agent": "./dist/mastra/cli/index.js"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && chmod +x dist/index.js dist/mastra/cli/index.js",
     "dev": "tsup --watch",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -30,6 +31,7 @@
   "homepage": "https://github.com/chaspy/renovate-safety#readme",
   "devDependencies": {
     "@eslint/js": "^9.30.0",
+    "@octokit/types": "^14.1.0",
     "@tsconfig/node18": "^18.2.4",
     "@types/node": "^24.0.6",
     "@types/pacote": "^11.1.8",

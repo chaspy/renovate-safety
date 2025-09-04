@@ -30,7 +30,9 @@ export async function generateEnhancedReport(
   }
 
   report += `- **Changelog Source**: ${result.changelogDiff?.source || 'Not found'}\n`;
-  const codeDiffStatus = result.codeDiff ? (result.codeDiff.filesChanged + ' files changed') : 'Not available';
+  const codeDiffStatus = result.codeDiff
+    ? result.codeDiff.filesChanged + ' files changed'
+    : 'Not available';
   report += `- **Code Diff**: ${codeDiffStatus}\n`;
   report += `- **Dependency Type**: ${result.dependencyUsage?.isDirect ? 'Direct' : 'Transitive'} ${result.dependencyUsage?.usageType || 'dependencies'}\n`;
 
@@ -85,8 +87,8 @@ export async function generateEnhancedReport(
       const dependencyType = paths[0].type === 'direct' ? 'Direct' : 'Transitive';
       const displayCount = Math.min(5, result.dependencyUsage.dependents.length);
       const totalCount = result.dependencyUsage.dependents.length;
-      const countSuffix = totalCount > 5 ? (' of ' + totalCount) : '';
-      
+      const countSuffix = totalCount > 5 ? ' of ' + totalCount : '';
+
       report += `**${dependencyType} Dependencies (${displayCount}${countSuffix}):**\n`;
       paths.forEach((dep) => {
         const pathStr = dep.path.join(' → ');
@@ -310,9 +312,8 @@ function groupBy<T>(array: T[], key: keyof T): Record<string, T[]> {
   return array.reduce(
     (result, item) => {
       const value = item[key];
-      const group = typeof value === 'object' && value !== null 
-        ? JSON.stringify(value) 
-        : String(value);
+      const group =
+        typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
       if (!result[group]) result[group] = [];
       result[group].push(item);
       return result;
