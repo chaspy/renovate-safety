@@ -74,12 +74,13 @@ const getPRInfoStep = createStep({
     const prInfoResult = await PRInfoAgent.generateVNext([
       {
         role: 'user',
-        content: `Fetch PR information for PR #${prNumber}. Use the getPRInfoTool with prNumber: ${prNumber}.`
+        content: `Fetch PR information for PR #${prNumber}. Use the getPRInfoTool with prNumber: ${prNumber} and includeBaseRepository: true.`
       }
     ]) as any;
     
-    // Extract the result from Agent response
-    const prInfo = prInfoResult?.object || prInfoResult;
+    // Extract the tool result from Agent response
+    const toolResult = prInfoResult?.steps?.[0]?.toolResults?.[0]?.payload?.result;
+    const prInfo = toolResult || { success: false, error: 'Failed to extract PR info from Agent response' };
 
     if (!prInfo.success || !prInfo.data) {
       throw new Error(`Failed to get PR info: ${prInfo.error || 'Unknown error'}`);
@@ -133,8 +134,9 @@ const getDependenciesStep = createStep({
       }
     ]) as any;
     
-    // Extract the result from Agent response
-    const dependencies = dependenciesResult?.object || dependenciesResult;
+    // Extract the tool result from Agent response
+    const depToolResult = dependenciesResult?.steps?.[0]?.toolResults?.[0]?.payload?.result;
+    const dependencies = depToolResult || { success: false, error: 'Failed to extract dependencies from Agent response' };
 
     // Check if lockfile-only
     console.log(`🔧 Checking change type for ${owner}/${repo}...`);
@@ -146,8 +148,9 @@ const getDependenciesStep = createStep({
       }
     ]) as any;
     
-    // Extract the result from Agent response
-    const compareResult = compareResultResponse?.object || compareResultResponse;
+    // Extract the tool result from Agent response
+    const compareToolResult = compareResultResponse?.steps?.[0]?.toolResults?.[0]?.payload?.result;
+    const compareResult = compareToolResult || { success: false, error: 'Failed to extract compare result from Agent response' };
 
     if (!dependencies.success || !dependencies.data) {
       throw new Error(`Failed to get dependencies: ${dependencies.error || 'Unknown error'}`);
@@ -295,7 +298,8 @@ const generateReportStep = createStep({
           }
         ]) as any;
         
-        const existingComment = existingCommentResult?.object || { exists: false };
+        const commentToolResult = existingCommentResult?.steps?.[0]?.toolResults?.[0]?.payload?.result;
+        const existingComment = commentToolResult || { exists: false };
 
         const commentMode = existingComment.exists && postMode === 'update' 
           ? 'update' as const
