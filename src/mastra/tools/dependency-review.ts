@@ -4,6 +4,129 @@ import { Octokit } from '@octokit/rest';
 import type { Endpoints } from '@octokit/types';
 import { getEnvironmentConfig } from '../../lib/env-config.js';
 
+/**
+ * Extract dependency changes from PR diff as fallback
+ */
+async function extractDependenciesFromPRDiff(
+  owner: string,
+  repo: string,
+  branchOrPrNumber: string,
+  auth: string
+): Promise<Array<{
+  name: string;
+  fromVersion: string;
+  toVersion: string;
+  type: string;
+  changeType: string;
+  vulnerabilities: any[];
+  manifest: string;
+  scope: string;
+}>> {
+  const octokit = new Octokit({ auth });
+  
+  // Get PR number - try different strategies
+  let actualPrNumber: number;
+  
+  try {
+    // Strategy 1: Direct PR number
+    if (!isNaN(parseInt(branchOrPrNumber)) && !branchOrPrNumber.includes('/')) {
+      actualPrNumber = parseInt(branchOrPrNumber);
+    }
+    // Strategy 2: Extract from PR-style branch name (e.g., "PR-16")
+    else if (branchOrPrNumber.startsWith('PR-') || branchOrPrNumber.includes('PR-')) {
+      const prMatch = branchOrPrNumber.match(/PR-(\d+)/);
+      if (prMatch) {
+        actualPrNumber = parseInt(prMatch[1]);
+      } else {
+        throw new Error(`Cannot extract PR number from ${branchOrPrNumber}`);
+      }
+    }
+    // Strategy 3: Find PR by branch name
+    else {
+      const { data: pulls } = await octokit.rest.pulls.list({
+        owner,
+        repo,
+        head: `${owner}:${branchOrPrNumber}`,
+        state: 'open',
+      });
+      
+      if (pulls.length === 0) {
+        throw new Error(`No open PR found for branch ${branchOrPrNumber}`);
+      }
+      
+      actualPrNumber = pulls[0].number;
+    }
+    
+    // Get PR files
+    const { data: files } = await octokit.rest.pulls.listFiles({
+      owner,
+      repo,
+      pull_number: actualPrNumber,
+    });
+    
+    const changes: Array<{
+      name: string;
+      fromVersion: string;
+      toVersion: string;
+      type: string;
+      changeType: string;
+      vulnerabilities: any[];
+      manifest: string;
+      scope: string;
+    }> = [];
+    
+    // Look for package.json changes
+    const packageJsonFile = files.find(f => f.filename === 'package.json');
+    
+    if (packageJsonFile && packageJsonFile.patch) {
+      const patch = packageJsonFile.patch;
+      
+      // Extract dependency changes from patch
+      const lines = patch.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Look for removed dependency lines (-)
+        if (line.startsWith('-') && line.includes(':') && line.includes('"^')) {
+          const removedMatch = line.match(/-\s*"([^"]+)":\s*"([^"]+)"/);
+          if (removedMatch) {
+            const [, packageName, fromVersion] = removedMatch;
+            
+            // Look for corresponding added line (+)
+            for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+              const nextLine = lines[j];
+              if (nextLine.startsWith('+') && nextLine.includes(`"${packageName}"`)) {
+                const addedMatch = nextLine.match(/\+\s*"[^"]+\":\s*"([^"]+)"/);
+                if (addedMatch) {
+                  const [, toVersion] = addedMatch;
+                  
+                  changes.push({
+                    name: packageName,
+                    fromVersion: fromVersion.replace('^', ''),
+                    toVersion: toVersion.replace('^', ''),
+                    type: 'dependencies',
+                    changeType: 'updated',
+                    vulnerabilities: [],
+                    manifest: 'package.json',
+                    scope: 'runtime',
+                  });
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    return changes;
+  } catch (error) {
+    console.error('Error in extractDependenciesFromPRDiff:', error);
+    throw error;
+  }
+}
+
 type DependencyReviewResponse = Endpoints['GET /repos/{owner}/{repo}/dependency-graph/compare/{basehead}']['response'];
 
 const inputSchema = z.object({
@@ -95,6 +218,23 @@ export const dependencyReviewTool = createTool({
           error: 'Dependency graph not available for this repository',
           fallback: 'Repository may not have dependency graph enabled or is private',
         };
+      }
+
+      // Try fallback with PR diff
+      try {
+        console.log('🔄 Trying fallback: PR diff analysis...');
+        const fallbackData = await extractDependenciesFromPRDiff(owner, repo, head, auth);
+        
+        if (fallbackData.length > 0) {
+          return {
+            success: true,
+            data: fallbackData,
+            totalChanges: fallbackData.length,
+            fallback: 'Used PR diff analysis as fallback',
+          };
+        }
+      } catch (fallbackError) {
+        console.error('Fallback PR diff analysis failed:', fallbackError);
       }
 
       return {

@@ -17,3 +17,4 @@ export {
   PRCommentAgent,
   PRLabelAgent
 } from './tool-agent.js';
+export { LibraryOverviewAgent, generateLibraryOverview } from './library-overview-agent.js';
