@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Mastra } from '@mastra/core';
 import { pingAgent } from '../agents/ping-agent.js';
 import { ReleaseNotesAgent } from '../agents/release-notes-agent.js';

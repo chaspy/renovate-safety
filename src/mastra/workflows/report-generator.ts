@@ -1,4 +1,7 @@
 
+// GitHub link functionality would be used here in future versions
+import { type ExecutionStats } from '../tools/execution-tracker.js';
+
 interface PRInfo {
   number: number;
   title: string;
@@ -53,36 +56,44 @@ export interface ReportOptions {
   format: 'markdown' | 'json';
   language: 'en' | 'ja';
   prInfo: PRInfo;
+  executionStats?: ExecutionStats;
+  includeExecutionStats?: boolean;
 }
 
-export function generateReport(assessments: Assessment[], options: ReportOptions) {
+export async function generateReport(assessments: Assessment[], options: ReportOptions) {
   if (options.format === 'json') {
-    return generateJsonReport(assessments);
+    return generateJsonReport(assessments, options);
   }
   
-  return generateMarkdownReport(assessments, options.language);
+  return await generateMarkdownReport(assessments, options);
 }
 
-function generateJsonReport(assessments: Assessment[]) {
+function generateJsonReport(assessments: Assessment[], options: ReportOptions) {
+  const reportData = {
+    assessments,
+    summary: {
+      overallRisk: getHighestRisk(assessments),
+      totalDependencies: assessments.length,
+      riskDistribution: getRiskDistribution(assessments),
+    },
+    ...(options.executionStats && { executionStats: options.executionStats })
+  };
+  
   return {
     format: 'json' as const,
-    json: JSON.stringify({
-      assessments,
-      summary: {
-        overallRisk: getHighestRisk(assessments),
-        totalDependencies: assessments.length,
-        riskDistribution: getRiskDistribution(assessments),
-      }
-    }, null, 2),
+    json: JSON.stringify(reportData, null, 2),
   };
 }
 
-function generateMarkdownReport(assessments: Assessment[], language: string) {
+async function generateMarkdownReport(assessments: Assessment[], options: ReportOptions) {
+  const { language } = options;
   const isJapanese = language === 'ja';
   
   // Get overall risk level
   const overallRisk = getHighestRisk(assessments);
   const riskEmoji = getRiskEmoji(overallRisk);
+  
+  // Auto-detect repository for GitHub links would be implemented in future versions
   
   let markdown = `### ${isJapanese ? 'renovate-safety 分析結果' : 'renovate-safety Analysis'}\n\n`;
   

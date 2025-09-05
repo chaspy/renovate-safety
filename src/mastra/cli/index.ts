@@ -36,6 +36,7 @@ program
       }
       
       console.log(`🔍 Analyzing PR #${prNumber}...`);
+      console.log('DEBUG - CLI working directory:', process.cwd());
       
       // Run workflow
       const result = await analyzeRenovatePR({
@@ -119,6 +120,7 @@ program
       }
       
       console.log(`🔍 Analyzing PR #${prNumber}...`);
+      console.log('DEBUG - CLI working directory:', process.cwd());
       
       // Run workflow
       const result = await analyzeRenovatePR({

@@ -32,8 +32,11 @@ const usageSummarySchema = z.object({
 const inputSchema = z.object({
   packageName: z.string().describe('NPM package name to scan for'),
   projectPath: z.string().default('.').describe('Path to the project to scan'),
-  patterns: z.array(z.string()).optional().describe('Additional patterns to search for'),
-});
+  patterns: z.array(z.string()).nullable().optional().describe('Additional patterns to search for'),
+}).transform(data => ({
+  ...data,
+  patterns: data.patterns || []  // Convert null/undefined to empty array
+}));
 
 const outputSchema = z.object({
   usages: z.array(usageItemSchema),
@@ -47,9 +50,19 @@ export const tsUsageScannerTool = createTool({
   outputSchema,
   execute: async ({ context: { packageName, projectPath, patterns = [] } }) => {
     try {
+      // Debug: log input parameters
+      console.log('DEBUG - tsUsageScanner input:', {
+        packageName,
+        projectPath,
+        patterns,
+        cwd: process.cwd()
+      });
+      
       // Check if tsconfig.json exists
       const tsconfigPath = path.join(projectPath, 'tsconfig.json');
       const hasTsConfig = await fs.access(tsconfigPath).then(() => true).catch(() => false);
+      
+      console.log('DEBUG - tsconfig.json check:', { tsconfigPath, hasTsConfig });
 
       // Create ts-morph project
       const project = new Project({
@@ -87,6 +100,9 @@ export const tsUsageScannerTool = createTool({
       const sourceFiles = project.getSourceFiles();
       const usages: z.infer<typeof usageItemSchema>[] = [];
 
+      console.log('DEBUG - source files found:', sourceFiles.map(f => f.getFilePath()));
+      console.log('DEBUG - looking for package:', packageName);
+
       for (const sourceFile of sourceFiles) {
         const filePath = sourceFile.getFilePath();
         
@@ -94,11 +110,16 @@ export const tsUsageScannerTool = createTool({
         if (filePath.includes('node_modules')) continue;
         
         // Find imports from the package
-        const imports = sourceFile.getImportDeclarations()
-          .filter(imp => {
+        const allImports = sourceFile.getImportDeclarations();
+        console.log(`DEBUG - ${filePath} imports:`, allImports.map(imp => imp.getModuleSpecifierValue()));
+        
+        const imports = allImports.filter(imp => {
             const moduleSpec = imp.getModuleSpecifierValue();
-            return moduleSpec === packageName || 
-                   moduleSpec.startsWith(`${packageName}/`);
+            const matches = moduleSpec === packageName || moduleSpec.startsWith(`${packageName}/`);
+            if (matches) {
+              console.log(`DEBUG - Found matching import in ${filePath}: ${moduleSpec}`);
+            }
+            return matches;
           });
 
         for (const imp of imports) {
