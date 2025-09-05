@@ -145,7 +145,9 @@ function buildAnalysisData(
 
   // Breaking changes with enhanced context
   if (breakingChanges.length > 0) {
-    const breakingChangesList = breakingChanges.map((bc, i) => `${i + 1}. [${bc.severity.toUpperCase()}] ${bc.line}`).join('\n');
+    const breakingChangesList = breakingChanges
+      .map((bc, i) => `${i + 1}. [${bc.severity.toUpperCase()}] ${bc.line}`)
+      .join('\n');
     sections.push(`Pattern-Detected Breaking Changes (${breakingChanges.length}):
 ${breakingChangesList}`);
   } else {
@@ -224,7 +226,7 @@ ${dependencyUsage.dependents
   .map((dep) => `- ${dep.name} (${dep.version}) [${dep.type}] via: ${dep.path.join(' → ')}`)
   .join(
     '\n'
-  )}${dependencyUsage.dependents.length > 8 ? ('\n- ... and ' + (dependencyUsage.dependents.length - 8) + ' more') : ''}`);
+  )}${dependencyUsage.dependents.length > 8 ? '\n- ... and ' + (dependencyUsage.dependents.length - 8) + ' more' : ''}`);
   }
 
   if (enhancedDependencyAnalysis) {
@@ -239,16 +241,14 @@ Update Compatibility:
 - Auto-update possible: ${updateCompatibility.canAutoUpdate ? 'Yes' : 'No'}
 - Manual intervention required: ${updateCompatibility.requiresManualIntervention ? 'Yes' : 'No'}
 - Estimated effort: ${updateCompatibility.estimatedEffort}
-${updateCompatibility.blockers.length > 0 ? ('- Blockers: ' + updateCompatibility.blockers.join(', ')) : ''}`);
+${updateCompatibility.blockers.length > 0 ? '- Blockers: ' + updateCompatibility.blockers.join(', ') : ''}`);
 
     if (impactAnalysis.directUsages.length > 0) {
       const usageDetails = impactAnalysis.directUsages
-        .map(
-          (usage) => {
-            const workspaceInfo = usage.workspaces ? (' in ' + usage.workspaces.join(', ')) : '';
-            return `- ${usage.packageName}: ${usage.usageType} (${usage.purpose})${workspaceInfo}`;
-          }
-        )
+        .map((usage) => {
+          const workspaceInfo = usage.workspaces ? ' in ' + usage.workspaces.join(', ') : '';
+          return `- ${usage.packageName}: ${usage.usageType} (${usage.purpose})${workspaceInfo}`;
+        })
         .join('\n');
       sections.push(`Direct Usage Details:
 ${usageDetails}`);
@@ -266,13 +266,11 @@ function buildSecurityMaintenanceContext(libraryIntelligence: LibraryIntelligenc
   // Security information
   if (securityInfo.vulnerabilities.length > 0) {
     const vulnerabilityList = securityInfo.vulnerabilities
-      .map(
-        (vuln) => {
-          const patchInfo = vuln.patchedIn ? (' | Fixed in: ' + vuln.patchedIn) : '';
-          return `- [${vuln.severity.toUpperCase()}] ${vuln.title} (${vuln.id})
+      .map((vuln) => {
+        const patchInfo = vuln.patchedIn ? ' | Fixed in: ' + vuln.patchedIn : '';
+        return `- [${vuln.severity.toUpperCase()}] ${vuln.title} (${vuln.id})
     Affected: ${vuln.affectedVersions}${patchInfo}`;
-        }
-      )
+      })
       .join('\n');
     sections.push(`Security Vulnerabilities (${securityInfo.vulnerabilities.length}):
 ${vulnerabilityList}`);
@@ -281,7 +279,8 @@ ${vulnerabilityList}`);
   }
 
   // Maintenance information
-  const sponsorInfo = maintenanceInfo.sponsors.length > 0 ? ('- Sponsors: ' + maintenanceInfo.sponsors.join(', ')) : '';
+  const sponsorInfo =
+    maintenanceInfo.sponsors.length > 0 ? '- Sponsors: ' + maintenanceInfo.sponsors.join(', ') : '';
   sections.push(`Maintenance Health:
 - Release frequency: ${maintenanceInfo.releaseFrequency}
 - Open issues: ${maintenanceInfo.openIssues}
