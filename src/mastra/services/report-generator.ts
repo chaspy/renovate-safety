@@ -126,6 +126,9 @@ async function generateAssessmentsSection(assessments: any[], isJapanese: boolea
     // Risk level and impact
     markdown += `**${isJapanese ? 'リスクレベル' : 'Risk Level'}**: ${risk.level.toUpperCase()} (${isJapanese ? 'スコア' : 'Score'}: ${risk.score})\n\n`;
     
+    // Risk assessment breakdown
+    markdown += await generateRiskAssessmentBreakdown(assessment, isJapanese);
+    
     // Usage information with GitHub links and details
     if (codeImpact && codeImpact.totalUsages > 0) {
       markdown += `**${isJapanese ? '利用箇所' : 'Usage Locations'}**: ${codeImpact.totalUsages} ${isJapanese ? '箇所' : 'locations'}\n\n`;
@@ -319,6 +322,128 @@ function generateExecutionStatsSection(stats: ExecutionStats, isJapanese: boolea
   }
   
   markdown += '\n</em></small>\n</details>\n\n';
+  
+  return markdown;
+}
+
+// Generate detailed risk assessment breakdown
+async function generateRiskAssessmentBreakdown(assessment: any, isJapanese: boolean): Promise<string> {
+  const { dependency, risk, releaseNotes, codeImpact } = assessment;
+  let markdown = '';
+
+  // Skip breakdown for safe packages
+  if (risk.level === 'safe') {
+    return '';
+  }
+
+  markdown += `<details>\n<summary><strong>${isJapanese ? '📋 リスクアセスメント詳細' : '📋 Risk Assessment Details'}</strong></summary>\n\n`;
+  
+  // Version change analysis
+  const isMajorUpdate = dependency.fromVersion.split('.')[0] !== dependency.toVersion.split('.')[0];
+  const isMinorUpdate = !isMajorUpdate && dependency.fromVersion.split('.')[1] !== dependency.toVersion.split('.')[1];
+  
+  markdown += `**${isJapanese ? 'バージョン変更分析' : 'Version Change Analysis'}**:\n`;
+  
+  if (isMajorUpdate) {
+    const scoreContribution = 20;
+    markdown += isJapanese ? 
+      `- メジャーバージョンアップグレード (${dependency.fromVersion} → ${dependency.toVersion}): **+${scoreContribution}点**\n` :
+      `- Major version upgrade (${dependency.fromVersion} → ${dependency.toVersion}): **+${scoreContribution} points**\n`;
+    markdown += isJapanese ?
+      '  - メジャー更新は破壊的変更を含む可能性が高いため、高いスコアが付与されます\n' :
+      '  - Major updates have high potential for breaking changes, resulting in higher scores\n';
+  } else if (isMinorUpdate) {
+    const scoreContribution = 5;
+    markdown += isJapanese ?
+      `- マイナーバージョン更新 (${dependency.fromVersion} → ${dependency.toVersion}): **+${scoreContribution}点**\n` :
+      `- Minor version update (${dependency.fromVersion} → ${dependency.toVersion}): **+${scoreContribution} points**\n`;
+  } else {
+    const scoreContribution = 1;
+    markdown += isJapanese ?
+      `- パッチバージョン更新 (${dependency.fromVersion} → ${dependency.toVersion}): **+${scoreContribution}点**\n` :
+      `- Patch version update (${dependency.fromVersion} → ${dependency.toVersion}): **+${scoreContribution} point**\n`;
+  }
+
+  // Usage impact
+  if (codeImpact?.totalUsages > 0) {
+    const usageScore = Math.min(codeImpact.totalUsages * 2, 20);
+    markdown += isJapanese ?
+      `- コード使用箇所数 (${codeImpact.totalUsages}箇所): **+${usageScore}点**\n` :
+      `- Code usage locations (${codeImpact.totalUsages} locations): **+${usageScore} points**\n`;
+    markdown += isJapanese ?
+      '  - 使用箇所が多いほど影響範囲が大きくなります\n' :
+      '  - More usage locations increase the impact scope\n';
+  }
+
+  // Breaking changes detection status
+  const hasBreakingChanges = risk.factors.some((factor: string) => factor.includes('breaking changes'));
+  const breakingChangeCount = hasBreakingChanges ? 
+    parseInt(risk.factors.find((f: string) => f.includes('breaking changes'))?.match(/(\d+)/)?.[1] || '0') : 0;
+
+  markdown += `\n**${isJapanese ? '破壊的変更の検出状況' : 'Breaking Changes Detection'}**:\n`;
+  
+  if (breakingChangeCount > 0) {
+    markdown += isJapanese ?
+      `- **${breakingChangeCount}件の破壊的変更を検出**: **+${breakingChangeCount * 5}点**\n` :
+      `- **${breakingChangeCount} breaking changes detected**: **+${breakingChangeCount * 5} points**\n`;
+    
+    if (releaseNotes?.breakingChanges && releaseNotes.breakingChanges.length > 0) {
+      markdown += isJapanese ? '  - 主な変更:\n' : '  - Key changes:\n';
+      releaseNotes.breakingChanges.slice(0, 3).forEach((change: any) => {
+        markdown += `    - ${change.text || change}\n`;
+      });
+    }
+  } else if (isMajorUpdate) {
+    // Major version with no detected breaking changes - highlight uncertainty
+    markdown += isJapanese ? 
+      '- **破壊的変更は検出されませんでしたが、メジャーバージョンアップグレードのため潜在的リスクが存在します**\n' :
+      '- **No breaking changes detected, but potential risks exist due to major version upgrade**\n';
+    markdown += isJapanese ?
+      '  - ⚠️ リリースノートの分析で具体的な変更内容を特定できませんでした\n' :
+      '  - ⚠️ Release notes analysis could not identify specific changes\n';
+    markdown += isJapanese ?
+      '  - 手動での変更内容確認を強く推奨します\n' :
+      '  - Manual review of changes is strongly recommended\n';
+  } else {
+    markdown += isJapanese ?
+      '- 破壊的変更は検出されませんでした: **+0点**\n' :
+      '- No breaking changes detected: **+0 points**\n';
+  }
+
+  // Information availability and confidence
+  const hasLowConfidence = risk.confidence < 0.5;
+  if (hasLowConfidence) {
+    markdown += `\n**${isJapanese ? '情報の不確実性' : 'Information Uncertainty'}**:\n`;
+    markdown += isJapanese ?
+      `- 分析の信頼度: **${Math.round(risk.confidence * 100)}%**\n` :
+      `- Analysis confidence: **${Math.round(risk.confidence * 100)}%**\n`;
+    
+    if (risk.confidence < 0.3) {
+      markdown += isJapanese ?
+        '  - ⚠️ 利用可能な情報が限定的で、リスクの過小評価の可能性があります\n' :
+        '  - ⚠️ Limited information available, potential for risk underestimation\n';
+      markdown += isJapanese ?
+        '  - より保守的なテストアプローチを検討してください\n' :
+        '  - Consider a more conservative testing approach\n';
+    }
+  }
+
+  // Testing recommendation rationale
+  markdown += `\n**${isJapanese ? 'テスト戦略の根拠' : 'Testing Strategy Rationale'}**:\n`;
+  markdown += isJapanese ?
+    `- 推奨テストスコープ: **${risk.testingScope}**\n` :
+    `- Recommended testing scope: **${risk.testingScope}**\n`;
+  markdown += isJapanese ?
+    `- 予想工数: **${risk.estimatedEffort}**\n` :
+    `- Estimated effort: **${risk.estimatedEffort}**\n`;
+
+  if (risk.testingScope === 'unit' && isMajorUpdate && !hasBreakingChanges) {
+    markdown += isJapanese ?
+      '- ⚠️ メジャー更新で破壊的変更が不明なため、統合テストも検討することを推奨します\n' :
+      '- ⚠️ For major updates with unclear breaking changes, consider integration testing as well\n';
+  }
+
+  markdown += '\n</details>\n\n';
   
   return markdown;
 }
