@@ -50,19 +50,13 @@ export const tsUsageScannerTool = createTool({
   outputSchema,
   execute: async ({ context: { packageName, projectPath, patterns = [] } }) => {
     try {
-      // Debug: log input parameters
-      console.log('DEBUG - tsUsageScanner input:', {
-        packageName,
-        projectPath,
-        patterns,
-        cwd: process.cwd()
-      });
+      // Input validation - removed debug logging
       
       // Check if tsconfig.json exists
       const tsconfigPath = path.join(projectPath, 'tsconfig.json');
       const hasTsConfig = await fs.access(tsconfigPath).then(() => true).catch(() => false);
       
-      console.log('DEBUG - tsconfig.json check:', { tsconfigPath, hasTsConfig });
+      // TypeScript config detection
 
       // Create ts-morph project
       const project = new Project({
@@ -100,8 +94,7 @@ export const tsUsageScannerTool = createTool({
       const sourceFiles = project.getSourceFiles();
       const usages: z.infer<typeof usageItemSchema>[] = [];
 
-      console.log('DEBUG - source files found:', sourceFiles.map(f => f.getFilePath()));
-      console.log('DEBUG - looking for package:', packageName);
+      // Source file discovery completed
 
       for (const sourceFile of sourceFiles) {
         const filePath = sourceFile.getFilePath();
@@ -111,14 +104,12 @@ export const tsUsageScannerTool = createTool({
         
         // Find imports from the package
         const allImports = sourceFile.getImportDeclarations();
-        console.log(`DEBUG - ${filePath} imports:`, allImports.map(imp => imp.getModuleSpecifierValue()));
+        // Import analysis for file
         
         const imports = allImports.filter(imp => {
             const moduleSpec = imp.getModuleSpecifierValue();
             const matches = moduleSpec === packageName || moduleSpec.startsWith(`${packageName}/`);
-            if (matches) {
-              console.log(`DEBUG - Found matching import in ${filePath}: ${moduleSpec}`);
-            }
+            // Package import detected
             return matches;
           });
 

@@ -20,6 +20,7 @@ program
   .option('--format <format>', 'Output format: markdown|json', 'markdown')
   .option('--language <lang>', 'Language: en|ja', 'en')
   .option('--threshold <score>', 'Risk threshold for auto-merge', parseInt, 1)
+  .option('--concurrency <number>', 'Number of dependencies to analyze in parallel', parseInt, 3)
   .action(async (options) => {
     try {
       // Validate configuration
@@ -45,6 +46,7 @@ program
         format: options.format,
         language: options.language,
         threshold: options.threshold,
+        concurrency: options.concurrency,
       });
       
       // Output results
@@ -102,6 +104,7 @@ program
   .option('--format <format>', 'Output format: markdown|json', 'markdown')
   .option('--language <lang>', 'Language: en|ja', 'en')
   .option('--threshold <score>', 'Risk threshold for auto-merge', parseInt, 1)
+  .option('--concurrency <number>', 'Number of dependencies to analyze in parallel', parseInt, 3)
   .action(async (options) => {
     console.warn('⚠️ Using legacy command. Use "renovate-safety agent analyze" instead.');
     // Run the same analysis logic
@@ -129,6 +132,7 @@ program
         format: options.format,
         language: options.language,
         threshold: options.threshold,
+        concurrency: options.concurrency,
       });
       
       // Output results

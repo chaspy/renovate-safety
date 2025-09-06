@@ -9,12 +9,6 @@ export {
   BREAKING_CHANGE_PATTERNS,
   type BreakingChangeInfo
 } from './breaking-change-detector.js';
-export { 
-  ToolAgent,
-  PRInfoAgent,
-  DependencyReviewAgent,
-  GitHubCompareAgent,
-  PRCommentAgent,
-  PRLabelAgent
-} from './tool-agent.js';
+// Removed deprecated Tool Agents - replaced by direct tool calls in services/github-integration.ts
+// export { ToolAgent, PRInfoAgent, DependencyReviewAgent, GitHubCompareAgent, PRCommentAgent, PRLabelAgent } from './tool-agent.js';
 export { LibraryOverviewAgent, generateLibraryOverview } from './library-overview-agent.js';

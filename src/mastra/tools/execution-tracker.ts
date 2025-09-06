@@ -227,7 +227,7 @@ class ExecutionTracker {
   private calculateAccurateCost(): number {
     let totalCost = 0;
     
-    console.log('DEBUG - Cost calculation starting, total agents:', this.stats.agents.length);
+    // Removed debug logging - use structured logging in production
     
     // Calculate cost for each agent execution
     for (const agent of this.stats.agents) {
