@@ -209,12 +209,46 @@ function generateExecutionStatsSection(stats: ExecutionStats, isJapanese: boolea
     markdown += `| ${isJapanese ? '実行時間' : 'Duration'} | ${duration}s |\n`;
   }
   
+  // Agent details
+  const agentNames = stats.agents.map(agent => agent.agentName).join(', ');
   markdown += `| ${isJapanese ? 'エージェント数' : 'Agents Used'} | ${stats.agents.length} |\n`;
+  if (agentNames) {
+    markdown += `| ${isJapanese ? '- 使用エージェント' : '- Agent Names'} | ${agentNames} |\n`;
+  }
+  
+  // API call details  
   markdown += `| ${isJapanese ? 'API呼び出し' : 'API Calls'} | ${stats.apiCalls.total} |\n`;
+  
+  // Model breakdown
+  const modelBreakdown = Object.entries(stats.apiCalls.byModel)
+    .map(([model, count]) => `${model}: ${count}`)
+    .join(', ');
+  if (modelBreakdown) {
+    markdown += `| ${isJapanese ? '- モデル別' : '- By Model'} | ${modelBreakdown} |\n`;
+  }
+  
+  // Token usage details
+  const totalTokens = stats.agents.reduce((sum, agent) => sum + (agent.totalTokens || 0), 0);
+  if (totalTokens > 0) {
+    markdown += `| ${isJapanese ? 'トークン使用量' : 'Token Usage'} | ${totalTokens.toLocaleString()} |\n`;
+    
+    // Input/Output token breakdown
+    const inputTokens = stats.agents.reduce((sum, agent) => sum + (agent.inputTokens || 0), 0);
+    const outputTokens = stats.agents.reduce((sum, agent) => sum + (agent.outputTokens || 0), 0);
+    if (inputTokens > 0 && outputTokens > 0) {
+      markdown += `| ${isJapanese ? '- 入力/出力' : '- Input/Output'} | ${inputTokens.toLocaleString()}/${outputTokens.toLocaleString()} |\n`;
+    }
+  }
   
   if (stats.apiCalls.estimatedCost !== undefined) {
     const cost = stats.apiCalls.estimatedCost.toFixed(4);
     markdown += `| ${isJapanese ? '推定コスト' : 'Estimated Cost'} | $${cost} |\n`;
+  }
+  
+  // Data sources used
+  if (stats.dataSourcesUsed && stats.dataSourcesUsed.length > 0) {
+    const dataSources = stats.dataSourcesUsed.join(', ');
+    markdown += `| ${isJapanese ? 'データソース' : 'Data Sources'} | ${dataSources} |\n`;
   }
   
   markdown += '\n';
