@@ -92,14 +92,17 @@ function extractCodeImpactData(codeImpactResult: any): any {
       impactLevel = impactMatch[1].toLowerCase();
     }
     
-    // Extract affected files
+    // Extract affected files with more context
     const affectedFiles: string[] = [];
-    const fileMatches = text.match(/src\/[^:\s]+\.ts/g) || [];
+    const fileMatches = text.match(/src\/[^:\s]+\.(ts|js|tsx|jsx)/g) || [];
     fileMatches.forEach(file => {
       if (!affectedFiles.includes(file)) {
         affectedFiles.push(file);
       }
     });
+    
+    // Extract detailed usage information
+    const usageDetails = extractUsageDetails(text);
     
     // Extract recommendations with improved pattern matching
     const recommendations: string[] = [];
@@ -123,9 +126,9 @@ function extractCodeImpactData(codeImpactResult: any): any {
       }
     }
     
-    // Fallback: Generate recommendations if none found
+    // Enhanced fallback: Generate context-aware recommendations
     if (recommendations.length === 0) {
-      recommendations.push(...generateFallbackRecommendations(text, totalUsages, affectedFiles));
+      recommendations.push(...generateContextAwareRecommendations(text, totalUsages, affectedFiles, usageDetails));
     }
     
     return {
@@ -138,6 +141,7 @@ function extractCodeImpactData(codeImpactResult: any): any {
       usageByType: { 'function-call': totalUsages },
       impactLevel,
       affectedFiles,
+      usageDetails, // Add usage details
       recommendations,
       projectType: 'typescript',
       score: totalUsages > 0 ? Math.min(10, totalUsages * 2) : 0
@@ -150,6 +154,7 @@ function extractCodeImpactData(codeImpactResult: any): any {
       usageByType: {},
       impactLevel: 'minimal',
       affectedFiles: [],
+      usageDetails: [],
       recommendations: [],
       projectType: 'unknown',
       score: 0
@@ -157,46 +162,120 @@ function extractCodeImpactData(codeImpactResult: any): any {
   }
 }
 
-// Fallback recommendations generator
-function generateFallbackRecommendations(text: string, totalUsages: number, affectedFiles: string[]): string[] {
+// Extract detailed usage information from analysis text
+function extractUsageDetails(text: string): Array<{file: string, usage: string, context: string}> {
+  const usageDetails: Array<{file: string, usage: string, context: string}> = [];
+  
+  try {
+    // Extract import statements and their context
+    const importMatches = text.match(/import.*?from\s+['"`][^'"`]*['"`]/g) || [];
+    importMatches.forEach(importStmt => {
+      const match = importStmt.match(/from\s+['"`]([^'"`]*)['"`]/);
+      if (match) {
+        usageDetails.push({
+          file: 'unknown',
+          usage: 'import',
+          context: importStmt.trim()
+        });
+      }
+    });
+    
+    // Extract function calls and their context  
+    const functionCallMatches = text.match(/\w+\([^)]*\)/g) || [];
+    functionCallMatches.slice(0, 3).forEach(call => { // Limit to first 3 for brevity
+      usageDetails.push({
+        file: 'unknown',
+        usage: 'function-call',
+        context: call.trim()
+      });
+    });
+    
+    // Extract variable assignments
+    const assignmentMatches = text.match(/(?:const|let|var)\s+\w+\s*=.*?[;\n]/g) || [];
+    assignmentMatches.slice(0, 2).forEach(assignment => { // Limit to first 2
+      usageDetails.push({
+        file: 'unknown',
+        usage: 'assignment',
+        context: assignment.trim()
+      });
+    });
+    
+  } catch (error) {
+    console.warn('Error extracting usage details:', error);
+  }
+  
+  return usageDetails;
+}
+
+// Generate context-aware recommendations based on usage patterns
+function generateContextAwareRecommendations(
+  text: string, 
+  totalUsages: number, 
+  affectedFiles: string[], 
+  usageDetails: Array<{file: string, usage: string, context: string}>
+): string[] {
   const recommendations: string[] = [];
   
   try {
-    // Check for major version update
-    if (text.includes('major') || text.includes('Major') || /\d+\.\d+\.\d+.*→.*\d+\.\d+\.\d+/.test(text)) {
-      recommendations.push('Verify compatibility with current codebase due to major version update');
+    // Analyze specific usage patterns for targeted recommendations
+    const hasImport = usageDetails.some(u => u.usage === 'import');
+    const hasFunctionCalls = usageDetails.some(u => u.usage === 'function-call');
+    const hasAssignments = usageDetails.some(u => u.usage === 'assignment');
+    
+    // Check for specific patterns in the text that indicate usage scenarios
+    const isParallelProcessing = text.includes('parallel') || text.includes('concurrent') || text.includes('limit');
+    const isAPIRelated = text.includes('api') || text.includes('http') || text.includes('request');
+    const isFileRelated = text.includes('file') || text.includes('fs') || text.includes('read');
+    
+    // Generate specific recommendations based on patterns
+    if (isParallelProcessing) {
+      recommendations.push('並列処理の制御設定を確認し、適切な同時実行数が設定されているか検証してください');
     }
     
-    // Check for Node.js requirements
-    if (text.includes('Node.js') || text.includes('nodejs') || text.includes('node ')) {
-      recommendations.push('Check Node.js version requirements and update engines field in package.json if needed');
+    if (isAPIRelated) {
+      recommendations.push('API呼び出しのレート制限やエラーハンドリングが適切に実装されているか確認してください');
     }
     
-    // Usage-specific recommendations
-    if (totalUsages > 0) {
-      recommendations.push(`Test functionality in ${totalUsages} usage location${totalUsages > 1 ? 's' : ''} after update`);
-      
-      if (affectedFiles.length > 0) {
-        const fileNames = affectedFiles.map(f => f.split('/').pop()).join(', ');
-        recommendations.push(`Run tests for affected files: ${fileNames}`);
+    if (isFileRelated) {
+      recommendations.push('ファイル操作の同時実行制限が適切に機能しているかテストしてください');
+    }
+    
+    // Check for breaking changes specific to common libraries
+    if (text.includes('p-limit') || text.includes('pLimit')) {
+      recommendations.push('p-limit v7では引数の型やエラーハンドリングが変更されている可能性があるため、実装を確認してください');
+    }
+    
+    // Add file-specific recommendations
+    if (affectedFiles.length > 0) {
+      const parallelHelperFile = affectedFiles.find(f => f.includes('parallel'));
+      if (parallelHelperFile) {
+        recommendations.push('parallel-helpers.tsの実装を確認し、同時実行制御のロジックが正しく動作するかテストしてください');
       }
     }
     
-    // Fallback general recommendations
+    // Fallback to usage-specific recommendations
     if (recommendations.length === 0) {
-      recommendations.push('Run full test suite before merging');
       if (totalUsages > 0) {
-        recommendations.push('Manually verify functionality in affected areas');
+        recommendations.push(`${totalUsages}箇所の利用を対象に、更新後の動作を個別にテストしてください`);
       }
-      recommendations.push('Check changelog for any additional migration steps');
+      recommendations.push('パッケージの最新のドキュメントを確認し、API変更や廃止予定機能がないか確認してください');
     }
     
   } catch (error) {
-    console.warn('Error generating fallback recommendations:', error);
-    recommendations.push('Run tests and verify functionality before merging');
+    console.warn('Error generating context-aware recommendations:', error);
+    recommendations.push('更新による影響を慎重にテストしてください');
   }
   
-  return recommendations.slice(0, 5);
+  return recommendations.slice(0, 4); // Limit to 4 recommendations
+}
+
+// Fallback recommendations generator (legacy - now using generateContextAwareRecommendations)
+function generateFallbackRecommendations(text: string, totalUsages: number, affectedFiles: string[]): string[] {
+  // This function is kept for backwards compatibility but is no longer the primary recommendation generator
+  return [
+    'パッケージ更新の影響を慎重にテストしてください',
+    '関連するテストケースを実行してください'
+  ];
 }
 
 /**

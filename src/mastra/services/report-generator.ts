@@ -126,7 +126,7 @@ async function generateAssessmentsSection(assessments: any[], isJapanese: boolea
     // Risk level and impact
     markdown += `**${isJapanese ? 'リスクレベル' : 'Risk Level'}**: ${risk.level.toUpperCase()} (${isJapanese ? 'スコア' : 'Score'}: ${risk.score})\n\n`;
     
-    // Usage information with GitHub links
+    // Usage information with GitHub links and details
     if (codeImpact && codeImpact.totalUsages > 0) {
       markdown += `**${isJapanese ? '利用箇所' : 'Usage Locations'}**: ${codeImpact.totalUsages} ${isJapanese ? '箇所' : 'locations'}\n\n`;
       
@@ -137,10 +137,48 @@ async function generateAssessmentsSection(assessments: any[], isJapanese: boolea
         for (const file of codeImpact.affectedFiles) {
           if (linkOptions) {
             const link = generateMarkdownLink(file, 1, linkOptions);
-            markdown += `- ${link}\n`;
+            markdown += `- ${link}`;
           } else {
-            markdown += `- ${file}\n`;
+            markdown += `- ${file}`;
           }
+          
+          // Add context about the file if it contains specific patterns
+          if (file.includes('parallel')) {
+            markdown += isJapanese ? ' (並列処理制御)' : ' (parallel processing control)';
+          } else if (file.includes('helper')) {
+            markdown += isJapanese ? ' (ヘルパーユーティリティ)' : ' (helper utilities)';
+          } else if (file.includes('api') || file.includes('client')) {
+            markdown += isJapanese ? ' (API通信)' : ' (API communication)';
+          }
+          markdown += '\n';
+        }
+        markdown += '\n';
+      }
+      
+      // Usage details if available
+      if (codeImpact.usageDetails && codeImpact.usageDetails.length > 0) {
+        markdown += `**${isJapanese ? '利用形態' : 'Usage Patterns'}**:\n`;
+        
+        const usageTypes = codeImpact.usageDetails.reduce((acc: any, detail: any) => {
+          if (!acc[detail.usage]) acc[detail.usage] = [];
+          acc[detail.usage].push(detail.context);
+          return acc;
+        }, {});
+        
+        if (usageTypes.import) {
+          markdown += isJapanese ? 
+            `- **インポート**: パッケージをモジュールとして読み込み\n` :
+            `- **Import**: Loading package as module\n`;
+        }
+        if (usageTypes['function-call']) {
+          markdown += isJapanese ? 
+            `- **関数呼び出し**: ${usageTypes['function-call'].length}箇所で関数を実行\n` :
+            `- **Function calls**: Executing functions in ${usageTypes['function-call'].length} locations\n`;
+        }
+        if (usageTypes.assignment) {
+          markdown += isJapanese ? 
+            `- **変数代入**: 関数結果を変数に格納\n` :
+            `- **Variable assignment**: Storing function results in variables\n`;
         }
         markdown += '\n';
       }
@@ -199,59 +237,57 @@ async function generateRecommendationsSection(assessments: any[], overallRisk: s
 
 // Generate execution statistics section
 function generateExecutionStatsSection(stats: ExecutionStats, isJapanese: boolean): string {
-  let markdown = `#### ${isJapanese ? '📊 実行統計' : '📊 Execution Statistics'}\n\n`;
-  
-  markdown += `| ${isJapanese ? '項目' : 'Metric'} | ${isJapanese ? '値' : 'Value'} |\n`;
-  markdown += '|---|---|\n';
+  let markdown = `<details>\n<summary><small><em>${isJapanese ? '📊 実行統計' : '📊 Execution Statistics'}</em></small></summary>\n\n`;
+  markdown += '<small><em>\n\n';
   
   if (stats.totalDuration) {
     const duration = Math.round(stats.totalDuration / 1000);
-    markdown += `| ${isJapanese ? '実行時間' : 'Duration'} | ${duration}s |\n`;
+    markdown += `- ${isJapanese ? '実行時間' : 'Duration'}: ${duration}s\n`;
   }
   
   // Agent details
   const agentNames = stats.agents.map(agent => agent.agentName).join(', ');
-  markdown += `| ${isJapanese ? 'エージェント数' : 'Agents Used'} | ${stats.agents.length} |\n`;
+  markdown += `- ${isJapanese ? 'エージェント数' : 'Agents Used'}: ${stats.agents.length}\n`;
   if (agentNames) {
-    markdown += `| ${isJapanese ? '- 使用エージェント' : '- Agent Names'} | ${agentNames} |\n`;
+    markdown += `  - ${isJapanese ? '使用エージェント' : 'Agent Names'}: ${agentNames}\n`;
   }
   
   // API call details  
-  markdown += `| ${isJapanese ? 'API呼び出し' : 'API Calls'} | ${stats.apiCalls.total} |\n`;
+  markdown += `- ${isJapanese ? 'API呼び出し' : 'API Calls'}: ${stats.apiCalls.total}\n`;
   
   // Model breakdown
   const modelBreakdown = Object.entries(stats.apiCalls.byModel)
     .map(([model, count]) => `${model}: ${count}`)
     .join(', ');
   if (modelBreakdown) {
-    markdown += `| ${isJapanese ? '- モデル別' : '- By Model'} | ${modelBreakdown} |\n`;
+    markdown += `  - ${isJapanese ? 'モデル別' : 'By Model'}: ${modelBreakdown}\n`;
   }
   
   // Token usage details
   const totalTokens = stats.agents.reduce((sum, agent) => sum + (agent.totalTokens || 0), 0);
   if (totalTokens > 0) {
-    markdown += `| ${isJapanese ? 'トークン使用量' : 'Token Usage'} | ${totalTokens.toLocaleString()} |\n`;
+    markdown += `- ${isJapanese ? 'トークン使用量' : 'Token Usage'}: ${totalTokens.toLocaleString()}\n`;
     
     // Input/Output token breakdown
     const inputTokens = stats.agents.reduce((sum, agent) => sum + (agent.inputTokens || 0), 0);
     const outputTokens = stats.agents.reduce((sum, agent) => sum + (agent.outputTokens || 0), 0);
     if (inputTokens > 0 && outputTokens > 0) {
-      markdown += `| ${isJapanese ? '- 入力/出力' : '- Input/Output'} | ${inputTokens.toLocaleString()}/${outputTokens.toLocaleString()} |\n`;
+      markdown += `  - ${isJapanese ? '入力/出力' : 'Input/Output'}: ${inputTokens.toLocaleString()}/${outputTokens.toLocaleString()}\n`;
     }
   }
   
   if (stats.apiCalls.estimatedCost !== undefined) {
     const cost = stats.apiCalls.estimatedCost.toFixed(4);
-    markdown += `| ${isJapanese ? '推定コスト' : 'Estimated Cost'} | $${cost} |\n`;
+    markdown += `- ${isJapanese ? '推定コスト' : 'Estimated Cost'}: $${cost}\n`;
   }
   
   // Data sources used
   if (stats.dataSourcesUsed && stats.dataSourcesUsed.length > 0) {
     const dataSources = stats.dataSourcesUsed.join(', ');
-    markdown += `| ${isJapanese ? 'データソース' : 'Data Sources'} | ${dataSources} |\n`;
+    markdown += `- ${isJapanese ? 'データソース' : 'Data Sources'}: ${dataSources}\n`;
   }
   
-  markdown += '\n';
+  markdown += '\n</em></small>\n</details>\n\n';
   
   return markdown;
 }
