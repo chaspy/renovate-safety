@@ -162,41 +162,92 @@ function extractCodeImpactData(codeImpactResult: any): any {
   }
 }
 
-// Extract detailed usage information from analysis text
-function extractUsageDetails(text: string): Array<{file: string, usage: string, context: string}> {
-  const usageDetails: Array<{file: string, usage: string, context: string}> = [];
+// Extract detailed usage information from analysis text with enhanced parsing
+function extractUsageDetails(text: string): Array<{file: string, usage: string, context: string, description?: string}> {
+  const usageDetails: Array<{file: string, usage: string, context: string, description?: string}> = [];
   
   try {
-    // Extract import statements and their context
-    const importMatches = text.match(/import.*?from\s+['"`][^'"`]*['"`]/g) || [];
+    // Extract import statements with more detailed context
+    const importMatches = text.match(/import\s+(?:(?:[\w{},\s*]+)\s+from\s+)?['"`]([^'"`]*)['"`]/g) || [];
     importMatches.forEach(importStmt => {
-      const match = importStmt.match(/from\s+['"`]([^'"`]*)['"`]/);
-      if (match) {
+      const packageMatch = importStmt.match(/from\s+['"`]([^'"`]*)['"`]/);
+      const importedItemsMatch = importStmt.match(/import\s+(?:\{([^}]+)\}|\*\s+as\s+(\w+)|(\w+))/);
+      
+      if (packageMatch) {
+        let description = 'パッケージをインポート';
+        if (importedItemsMatch) {
+          const namedImports = importedItemsMatch[1];
+          const namespaceImport = importedItemsMatch[2];
+          const defaultImport = importedItemsMatch[3];
+          
+          if (namedImports) {
+            const items = namedImports.split(',').map(s => s.trim()).filter(Boolean);
+            description = `${items.join(', ')}をインポート`;
+          } else if (namespaceImport) {
+            description = `${namespaceImport}として名前空間インポート`;
+          } else if (defaultImport) {
+            description = `${defaultImport}としてデフォルトインポート`;
+          }
+        }
+        
         usageDetails.push({
           file: 'unknown',
           usage: 'import',
-          context: importStmt.trim()
+          context: importStmt.trim(),
+          description
         });
       }
     });
     
-    // Extract function calls and their context  
-    const functionCallMatches = text.match(/\w+\([^)]*\)/g) || [];
-    functionCallMatches.slice(0, 3).forEach(call => { // Limit to first 3 for brevity
+    // Extract function calls with surrounding context
+    const functionCallMatches = text.match(/(?:const|let|var)?\s*\w*\s*=?\s*\w+\([^)]*\)[^;\n]*/g) || [];
+    functionCallMatches.slice(0, 4).forEach(call => {
+      let description = '関数を実行';
+      
+      // Analyze the function call pattern
+      if (call.includes('pLimit') || call.includes('p-limit')) {
+        description = '同時実行数制限の設定・実行';
+      } else if (call.includes('async') || call.includes('await')) {
+        description = '非同期処理の実行';
+      } else if (call.includes('Promise')) {
+        description = 'Promise処理の実行';
+      }
+      
       usageDetails.push({
         file: 'unknown',
         usage: 'function-call',
-        context: call.trim()
+        context: call.trim(),
+        description
       });
     });
     
-    // Extract variable assignments
+    // Extract variable assignments with more context
     const assignmentMatches = text.match(/(?:const|let|var)\s+\w+\s*=.*?[;\n]/g) || [];
-    assignmentMatches.slice(0, 2).forEach(assignment => { // Limit to first 2
+    assignmentMatches.slice(0, 3).forEach(assignment => {
+      let description = '変数への代入';
+      
+      if (assignment.includes('pLimit') || assignment.includes('limit')) {
+        description = '同時実行制限の設定を変数に格納';
+      } else if (assignment.includes('async') || assignment.includes('await')) {
+        description = '非同期処理の結果を変数に格納';
+      }
+      
       usageDetails.push({
         file: 'unknown',
         usage: 'assignment',
-        context: assignment.trim()
+        context: assignment.trim(),
+        description
+      });
+    });
+
+    // Extract function definitions that might use the package
+    const functionDefMatches = text.match(/(?:function\s+\w+|const\s+\w+\s*=\s*(?:async\s*)?\([^)]*\)\s*=>|async\s+function\s+\w+)[^{]*\{/g) || [];
+    functionDefMatches.slice(0, 2).forEach(funcDef => {
+      usageDetails.push({
+        file: 'unknown',
+        usage: 'function-definition',
+        context: funcDef.trim(),
+        description: 'パッケージを使用する関数を定義'
       });
     });
     

@@ -155,31 +155,62 @@ async function generateAssessmentsSection(assessments: any[], isJapanese: boolea
         markdown += '\n';
       }
       
-      // Usage details if available
+      // Usage details if available - enhanced with specific context
       if (codeImpact.usageDetails && codeImpact.usageDetails.length > 0) {
         markdown += `**${isJapanese ? '利用形態' : 'Usage Patterns'}**:\n`;
         
         const usageTypes = codeImpact.usageDetails.reduce((acc: any, detail: any) => {
           if (!acc[detail.usage]) acc[detail.usage] = [];
-          acc[detail.usage].push(detail.context);
+          acc[detail.usage].push({
+            context: detail.context,
+            description: detail.description
+          });
           return acc;
         }, {});
         
         if (usageTypes.import) {
+          const importDetail = usageTypes.import[0];
           markdown += isJapanese ? 
-            `- **インポート**: パッケージをモジュールとして読み込み\n` :
-            `- **Import**: Loading package as module\n`;
+            `- **インポート**: ${importDetail.description || 'パッケージをモジュールとして読み込み'}\n` :
+            `- **Import**: ${importDetail.description || 'Loading package as module'}\n`;
+          if (importDetail.context && importDetail.context.length < 100) {
+            markdown += `  \`\`\`javascript\n  ${importDetail.context}\n  \`\`\`\n`;
+          }
         }
+        
         if (usageTypes['function-call']) {
+          const callDetails = usageTypes['function-call'].slice(0, 2); // Show first 2
           markdown += isJapanese ? 
-            `- **関数呼び出し**: ${usageTypes['function-call'].length}箇所で関数を実行\n` :
-            `- **Function calls**: Executing functions in ${usageTypes['function-call'].length} locations\n`;
+            `- **関数呼び出し**: ${callDetails.length}箇所で実行\n` :
+            `- **Function calls**: Executed in ${callDetails.length} locations\n`;
+          
+          callDetails.forEach((detail: any, index: number) => {
+            if (detail.description) {
+              markdown += `  ${index + 1}. ${detail.description}\n`;
+            }
+            if (detail.context && detail.context.length < 120) {
+              markdown += `     \`${detail.context.replace(/\s+/g, ' ')}\`\n`;
+            }
+          });
         }
+        
         if (usageTypes.assignment) {
+          const assignDetail = usageTypes.assignment[0];
           markdown += isJapanese ? 
-            `- **変数代入**: 関数結果を変数に格納\n` :
-            `- **Variable assignment**: Storing function results in variables\n`;
+            `- **変数代入**: ${assignDetail.description || '関数結果を変数に格納'}\n` :
+            `- **Variable assignment**: ${assignDetail.description || 'Storing function results in variables'}\n`;
+          if (assignDetail.context && assignDetail.context.length < 100) {
+            markdown += `  \`${assignDetail.context.trim()}\`\n`;
+          }
         }
+        
+        if (usageTypes['function-definition']) {
+          const funcDetails = usageTypes['function-definition'].slice(0, 2);
+          markdown += isJapanese ? 
+            `- **関数定義**: ${funcDetails.length}個の関数でパッケージを使用\n` :
+            `- **Function definitions**: Package used in ${funcDetails.length} function(s)\n`;
+        }
+        
         markdown += '\n';
       }
     }
