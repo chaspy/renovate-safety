@@ -13,6 +13,50 @@ import {
 import { getHighestRisk } from '../workflows/report-generator.js';
 import type { ExecutionStats } from '../tools/execution-tracker.js';
 
+// Helper function to get repository URL from package name
+function getRepositoryUrl(packageName: string): string | null {
+  // Common mappings for popular packages
+  const packageRepoMap: Record<string, string> = {
+    'p-limit': 'https://github.com/sindresorhus/p-limit',
+    'react': 'https://github.com/facebook/react',
+    'lodash': 'https://github.com/lodash/lodash',
+    'typescript': 'https://github.com/microsoft/TypeScript',
+  };
+  
+  return packageRepoMap[packageName] || null;
+}
+
+// Helper function to normalize file paths for main branch
+function normalizeFilePath(filePath: string): string {
+  // Remove line number suffix first
+  const cleanPath = filePath.replace(/:?\d+$/, '');
+  
+  // Handle various path formats and extract the final src/... part
+  if (cleanPath.includes('worktree-agent-version/src/')) {
+    // Extract everything after the last worktree-agent-version/src/
+    const match = cleanPath.match(/.*?worktree-agent-version\/(src\/.+)$/);
+    if (match) {
+      return match[1];
+    }
+  }
+  
+  if (cleanPath.includes('/src/')) {
+    // Extract everything after the last /src/
+    const match = cleanPath.match(/.*\/(src\/.+)$/);
+    if (match) {
+      return match[1];
+    }
+  }
+  
+  // If it already starts with src/, just clean it up
+  if (cleanPath.startsWith('src/')) {
+    return cleanPath.replace(/^\/+/, '');
+  }
+  
+  // Fallback: return as-is but remove leading slashes
+  return cleanPath.replace(/^\/+/, '');
+}
+
 // Helper function to get risk emoji
 function getRiskEmoji(risk: string): string {
   switch (risk.toLowerCase()) {
@@ -138,11 +182,13 @@ async function generateAssessmentsSection(assessments: any[], isJapanese: boolea
         markdown += `**${isJapanese ? '影響ファイル' : 'Affected Files'}**:\n`;
         
         for (const file of codeImpact.affectedFiles) {
+          const normalizedFile = normalizeFilePath(file);
+          
           if (linkOptions) {
-            const link = generateMarkdownLink(file, 1, linkOptions);
+            const link = generateMarkdownLink(normalizedFile, 1, linkOptions);
             markdown += `- ${link}`;
           } else {
-            markdown += `- ${file}`;
+            markdown += `- ${normalizedFile}`;
           }
           
           // Add context about the file if it contains specific patterns
@@ -364,15 +410,74 @@ async function generateRiskAssessmentBreakdown(assessment: any, isJapanese: bool
       `- Patch version update (${dependency.fromVersion} → ${dependency.toVersion}): **+${scoreContribution} point**\n`;
   }
 
-  // Usage impact
+  // Usage impact (detailed breakdown)
   if (codeImpact?.totalUsages > 0) {
     const usageScore = Math.min(codeImpact.totalUsages * 2, 20);
+    const criticalPathScore = codeImpact?.criticalUsages > 0 ? 10 : 0;
+    const totalUsageScore = usageScore + criticalPathScore;
+    
     markdown += isJapanese ?
-      `- コード使用箇所数 (${codeImpact.totalUsages}箇所): **+${usageScore}点**\n` :
-      `- Code usage locations (${codeImpact.totalUsages} locations): **+${usageScore} points**\n`;
+      `- **コード使用箇所の影響**: **+${totalUsageScore}点**\n` :
+      `- **Code usage impact**: **+${totalUsageScore} points**\n`;
     markdown += isJapanese ?
-      '  - 使用箇所が多いほど影響範囲が大きくなります\n' :
-      '  - More usage locations increase the impact scope\n';
+      `  - 使用箇所数 (${codeImpact.totalUsages}箇所): +${usageScore}点 (${codeImpact.totalUsages} × 2点, 最大20点)\n` :
+      `  - Usage locations (${codeImpact.totalUsages} locations): +${usageScore} points (${codeImpact.totalUsages} × 2 points, max 20)\n`;
+    
+    if (criticalPathScore > 0) {
+      markdown += isJapanese ?
+        `  - クリティカルパス使用: +${criticalPathScore}点\n` :
+        `  - Critical path usage: +${criticalPathScore} points\n`;
+    }
+  } else {
+    markdown += isJapanese ?
+      '- **コード使用箇所の影響**: **+0点** (使用箇所なし)\n' :
+      '- **Code usage impact**: **+0 points** (no usage locations)\n';
+  }
+  
+  // Information availability impact
+  const hasLowInfo = risk.factors.some((factor: string) => factor.includes('Limited information'));
+  if (hasLowInfo) {
+    markdown += isJapanese ?
+      '- **情報不足によるペナルティ**: **+5〜10点**\n' :
+      '- **Information unavailability penalty**: **+5-10 points**\n';
+    markdown += isJapanese ?
+      '  - 限定的な情報のため、リスクを保守的に評価しています\n' :
+      '  - Conservative risk assessment due to limited information\n';
+  }
+  
+  // Test coverage mitigation
+  if (codeImpact?.testCoverage && codeImpact.testCoverage > 0) {
+    const testReduction = Math.round((codeImpact.testCoverage / 100) * 20);
+    markdown += isJapanese ?
+      `- **テストカバレッジによる軽減**: **-${testReduction}点** (カバレッジ ${codeImpact.testCoverage}%)\n` :
+      `- **Test coverage mitigation**: **-${testReduction} points** (${codeImpact.testCoverage}% coverage)\n`;
+  }
+  
+  // Package type adjustments
+  const isTypesDef = dependency.name.startsWith('@types/');
+  const isDevDep = risk.factors.some((factor: string) => factor.includes('Development dependency'));
+  const isLockfileOnly = risk.factors.some((factor: string) => factor.includes('Lockfile-only'));
+  
+  if (isTypesDef || isDevDep || isLockfileOnly) {
+    markdown += `\n**${isJapanese ? '特別調整' : 'Special Adjustments'}**:\n`;
+    
+    if (isTypesDef) {
+      markdown += isJapanese ?
+        '- @types/* パッケージのため大幅なリスク軽減が適用されています\n' :
+        '- Significant risk reduction applied for @types/* package\n';
+    }
+    
+    if (isDevDep) {
+      markdown += isJapanese ?
+        '- 開発依存関係のため軽微なリスク軽減が適用されています (-1点)\n' :
+        '- Minor risk reduction applied for development dependency (-1 point)\n';
+    }
+    
+    if (isLockfileOnly) {
+      markdown += isJapanese ?
+        '- lockfile-onlyの変更のため大幅なリスク軽減が適用されています (最大10点に制限)\n' :
+        '- Significant risk reduction applied for lockfile-only change (capped at 10 points)\n';
+    }
   }
 
   // Breaking changes detection status
@@ -383,15 +488,79 @@ async function generateRiskAssessmentBreakdown(assessment: any, isJapanese: bool
   markdown += `\n**${isJapanese ? '破壊的変更の検出状況' : 'Breaking Changes Detection'}**:\n`;
   
   if (breakingChangeCount > 0) {
+    // Calculate actual score impact (matching RiskArbiter logic)
+    const actualBreakingChangeScore = Math.min(breakingChangeCount * 5, 20);
+    
     markdown += isJapanese ?
-      `- **${breakingChangeCount}件の破壊的変更を検出**: **+${breakingChangeCount * 5}点**\n` :
-      `- **${breakingChangeCount} breaking changes detected**: **+${breakingChangeCount * 5} points**\n`;
+      `- **${breakingChangeCount}件の破壊的変更を検出**: **+${actualBreakingChangeScore}点** (${breakingChangeCount}件 × 5点, 最大20点)\n` :
+      `- **${breakingChangeCount} breaking changes detected**: **+${actualBreakingChangeScore} points** (${breakingChangeCount} changes × 5 points, max 20)\n`;
     
     if (releaseNotes?.breakingChanges && releaseNotes.breakingChanges.length > 0) {
-      markdown += isJapanese ? '  - 主な変更:\n' : '  - Key changes:\n';
-      releaseNotes.breakingChanges.slice(0, 3).forEach((change: any) => {
-        markdown += `    - ${change.text || change}\n`;
+      markdown += isJapanese ? '\n  **詳細:**\n\n' : '\n  **Details:**\n\n';
+      
+      releaseNotes.breakingChanges.forEach((change: any, index: number) => {
+        const changeText = change.text || change;
+        const severity = change.severity || 'breaking';
+        const source = change.source || 'npm-diff-tool';
+        
+        // All breaking changes contribute 5 points each (per RiskArbiter logic)
+        const pointsContribution = 5;
+        
+        markdown += `  ${index + 1}. **${changeText}** (+${pointsContribution}${isJapanese ? '点' : ' points'})\n`;
+        markdown += `     - ${isJapanese ? '重要度' : 'Severity'}: ${severity.toUpperCase()}\n`;
+        markdown += `     - ${isJapanese ? 'ソース' : 'Source'}: ${source}\n`;
+        
+        // Add source links where available
+        let referenceLink = '';
+        
+        if (source === 'npm-diff') {
+          // For npm-diff, provide GitHub compare link or npm diff command
+          const repoUrl = getRepositoryUrl(dependency.name);
+          if (repoUrl) {
+            referenceLink = `[GitHub Compare](${repoUrl}/compare/v${dependency.fromVersion}...v${dependency.toVersion})`;
+            markdown += `     - ${isJapanese ? '確認リンク' : 'Reference'}: ${referenceLink}\n`;
+          }
+          markdown += `     - ${isJapanese ? 'npm diff コマンド' : 'npm diff command'}: \`npm diff ${dependency.name}@${dependency.fromVersion} ${dependency.name}@${dependency.toVersion}\`\n`;
+        } else if (source === 'GitHub release notes' || source === 'GitHub Releases') {
+          // For GitHub releases, use the actual release URL
+          const repoUrl = getRepositoryUrl(dependency.name);
+          if (repoUrl) {
+            referenceLink = `[GitHub Release v${dependency.toVersion}](${repoUrl}/releases/tag/v${dependency.toVersion})`;
+            markdown += `     - ${isJapanese ? '確認リンク' : 'Reference'}: ${referenceLink}\n`;
+          }
+        } else if (releaseNotes?.sources) {
+          // Fallback: try to find matching source
+          const sourceInfo = releaseNotes.sources.find((s: any) => 
+            s.type === source || s.type.includes(source) || source.includes(s.type)
+          );
+          if (sourceInfo?.url) {
+            markdown += `     - ${isJapanese ? '確認リンク' : 'Reference'}: [${sourceInfo.type}](${sourceInfo.url})\n`;
+          }
+        }
+        
+        // Add impact explanation for critical changes
+        if (changeText.includes('Node.js requirement')) {
+          markdown += isJapanese ?
+            `     - 💡 Node.js要件変更は実行環境に直接影響する重要な変更です\n` :
+            `     - 💡 Node.js requirement changes directly impact the runtime environment\n`;
+        }
+        
+        markdown += '\n';
       });
+      
+      // Add sources summary if available
+      if (releaseNotes?.sources && releaseNotes.sources.length > 0) {
+        markdown += `  **${isJapanese ? 'データソース' : 'Data Sources'}**:\n`;
+        releaseNotes.sources.forEach((source: any) => {
+          const status = source.status === 'success' ? '✅' : '❌';
+          if (source.url) {
+            markdown += `  - ${status} [${source.type}](${source.url})\n`;
+          } else {
+            markdown += `  - ${status} ${source.type}\n`;
+          }
+        });
+        markdown += '\n';
+      }
     }
   } else if (isMajorUpdate) {
     // Major version with no detected breaking changes - highlight uncertainty

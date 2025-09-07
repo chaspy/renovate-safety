@@ -344,6 +344,9 @@ export function detectBreakingChanges(
     /removed/i,
     /deprecated/i,
     /no longer supported/i,
+    /drops?\s+support/i,
+    /requires?\s+node/i,
+    /minimum\s+node/i,
   ];
 
   const breakingChanges: string[] = [];
@@ -364,31 +367,163 @@ export function detectBreakingChanges(
       breakingChanges.push(`${change.file}: File removed`);
     }
 
-    // package.jsonでの破壊的変更
-    if (change.file === 'package.json' && change.content) {
-      // メジャーバージョンの変更を検出
-      const majorVersionPattern = /"version":\s*"(\d+)\./g;
-      const matches: RegExpExecArray[] = [];
-      let match;
-      while ((match = majorVersionPattern.exec(change.content)) !== null) {
-        matches.push(match);
+    // TypeScript定義ファイルの重要な変更
+    if (change.file.match(/\.d\.ts$/) && change.content) {
+      // 新しいメソッドの追加（API拡張）
+      if (/^\+.*?:\s*\(/m.test(change.content)) {
+        breakingChanges.push(`${change.file}: New API methods added`);
       }
-      if (matches.length >= 2) {
-        const oldMajor = matches[0]?.[1];
-        const newMajor = matches[1]?.[1];
-        if (oldMajor && newMajor && parseInt(newMajor) > parseInt(oldMajor)) {
-          breakingChanges.push('package.json: Major version bump detected');
-        }
+      // 既存メソッドの削除
+      if (/^-.*?:\s*\(/m.test(change.content)) {
+        breakingChanges.push(`${change.file}: API methods removed`);
       }
+      // 型定義の変更
+      if (/^[+-].*?:\s*(string|number|boolean)/m.test(change.content)) {
+        breakingChanges.push(`${change.file}: Type definitions changed`);
+      }
+    }
 
-      // engines の変更
-      if (/engines/i.test(change.content)) {
-        breakingChanges.push('package.json: Engine requirements changed');
+    // package.jsonでの破壊的変更（詳細分析）
+    if (change.file === 'package.json' && change.content) {
+      const packageJsonChanges = analyzePackageJsonChanges(change.content);
+      breakingChanges.push(...packageJsonChanges);
+    }
+
+    // コアファイルの重要な変更
+    if (change.file.match(/^(index|main|lib\/index)\.(js|ts)$/) && change.content) {
+      // エクスポート形式の変更
+      if (/^[+-].*?export/m.test(change.content)) {
+        breakingChanges.push(`${change.file}: Export structure changed`);
+      }
+      // 主要関数の削除
+      if (/^-.*?function\s+\w+/m.test(change.content) || /^-.*?const\s+\w+\s*=/m.test(change.content)) {
+        breakingChanges.push(`${change.file}: Functions removed or renamed`);
       }
     }
   }
 
   return breakingChanges;
+}
+
+// package.json の詳細な変更分析
+function analyzePackageJsonChanges(content: string): string[] {
+  const changes: string[] = [];
+  
+  // Node.js バージョン要件の具体的な変更を検出
+  const nodeVersionChange = extractNodeVersionChange(content);
+  if (nodeVersionChange) {
+    changes.push(nodeVersionChange);
+  }
+  
+  // その他の engines 要件変更
+  const engineChanges = extractEngineChanges(content);
+  changes.push(...engineChanges);
+  
+  // メジャーバージョンの変更を検出
+  const majorVersionPattern = /"version":\s*"(\d+)\./g;
+  const matches: RegExpExecArray[] = [];
+  let match;
+  while ((match = majorVersionPattern.exec(content)) !== null) {
+    matches.push(match);
+  }
+  if (matches.length >= 2) {
+    const oldMajor = matches[0]?.[1];
+    const newMajor = matches[1]?.[1];
+    if (oldMajor && newMajor && parseInt(newMajor) > parseInt(oldMajor)) {
+      changes.push('package.json: Major version bump detected');
+    }
+  }
+  
+  // 主要な依存関係の変更
+  const dependencyChanges = extractDependencyChanges(content);
+  changes.push(...dependencyChanges);
+  
+  // モジュール形式の変更
+  if (/[+-].*?"type":\s*"(module|commonjs)"/m.test(content)) {
+    changes.push('package.json: Module type changed (ESM/CommonJS)');
+  }
+  
+  // エントリポイントの変更
+  if (/[+-].*?"(main|module|exports)":/m.test(content)) {
+    changes.push('package.json: Entry points changed');
+  }
+  
+  return changes;
+}
+
+// Node.js バージョン要件の詳細な変更を抽出
+function extractNodeVersionChange(content: string): string | null {
+  // 変更前後の Node.js バージョンを抽出
+  const nodeVersionRegex = /[+-].*?"node":\s*"([^"]+)"/g;
+  const matches: { type: string; version: string }[] = [];
+  
+  let match;
+  while ((match = nodeVersionRegex.exec(content)) !== null) {
+    const line = match[0];
+    const version = match[1];
+    const type = line.startsWith('-') ? 'old' : 'new';
+    matches.push({ type, version });
+  }
+  
+  if (matches.length >= 2) {
+    const oldVersion = matches.find(m => m.type === 'old')?.version;
+    const newVersion = matches.find(m => m.type === 'new')?.version;
+    
+    if (oldVersion && newVersion && oldVersion !== newVersion) {
+      // バージョンの数値を比較
+      const oldNum = extractVersionNumber(oldVersion);
+      const newNum = extractVersionNumber(newVersion);
+      
+      if (oldNum && newNum && newNum > oldNum) {
+        return `package.json: Node.js requirement raised from ${oldVersion} to ${newVersion}`;
+      }
+    }
+  }
+  
+  return null;
+}
+
+// バージョン文字列から数値を抽出（>=18 → 18）
+function extractVersionNumber(versionSpec: string): number | null {
+  const match = versionSpec.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+// その他の engines 要件変更を抽出
+function extractEngineChanges(content: string): string[] {
+  const changes: string[] = [];
+  const engineRegex = /[+-].*?"(npm|pnpm|yarn)":\s*"([^"]+)"/g;
+  
+  let match;
+  while ((match = engineRegex.exec(content)) !== null) {
+    const line = match[0];
+    const engine = match[1];
+    const version = match[2];
+    const type = line.startsWith('-') ? 'removed' : 'added';
+    
+    changes.push(`package.json: ${engine} requirement ${type} (${version})`);
+  }
+  
+  return changes;
+}
+
+// 主要な依存関係の変更を検出
+function extractDependencyChanges(content: string): string[] {
+  const changes: string[] = [];
+  
+  // 重要なフレームワークやライブラリの変更を検出
+  const importantDeps = ['react', 'vue', 'angular', 'typescript', 'webpack', 'vite', 'next', 'nuxt'];
+  
+  for (const dep of importantDeps) {
+    const depRegex = new RegExp(`[+-].*?"${dep}":\\s*"([^"]+)"`, 'g');
+    const matches = content.match(depRegex);
+    
+    if (matches && matches.length >= 2) {
+      changes.push(`package.json: Major dependency '${dep}' version changed`);
+    }
+  }
+  
+  return changes;
 }
 
 // Type exports

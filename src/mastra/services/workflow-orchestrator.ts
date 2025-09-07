@@ -388,6 +388,9 @@ Use the tsUsageScanner and configScanner tools with these exact parameters:
     }
   }
 
+  // Extract breaking changes from ReleaseNotesAgent result (fallback to text parsing)
+  const extractedReleaseNotes = extractReleaseNotesData(releaseNotesResult);
+
   // Phase 3: Risk assessment
   const riskResult = await RiskArbiter.assess({
     packageName: dep.name,
@@ -396,9 +399,9 @@ Use the tsUsageScanner and configScanner tools with these exact parameters:
     isDevDependency: dep.type === 'devDependencies',
     isTypeDefinition: dep.name.startsWith('@types/'),
     isLockfileOnly: compareResult.isLockfileOnly,
-    breakingChanges: releaseNotesResult.object?.breakingChanges?.map((bc: any) => bc.text) || [],
+    breakingChanges: extractedReleaseNotes.breakingChanges?.map((bc: any) => bc.text) || [],
     usageCount: extractTotalUsages(codeImpactResult) || 0,
-    hasChangelog: releaseNotesResult.object?.sources?.some((s: any) => s.status === 'success') || false,
+    hasChangelog: extractedReleaseNotes.sources?.some((s: any) => s.status === 'success') || false,
     hasDiff: true,
     testCoverage: 0,
     criticalPathUsage: extractCriticalUsages(codeImpactResult) > 0,
@@ -415,7 +418,7 @@ Use the tsUsageScanner and configScanner tools with these exact parameters:
   return {
     dependency: dep,
     overview: overviewResult,
-    releaseNotes: releaseNotesResult.object,
+    releaseNotes: extractedReleaseNotes,
     codeImpact: extractCodeImpactData(codeImpactResult),
     risk: riskResult,
   };
@@ -446,4 +449,135 @@ export async function analyzeDependencies(
   }
   
   return assessments;
+}
+
+// Extract release notes data from ReleaseNotesAgent result (with fallback to text parsing)
+function extractReleaseNotesData(releaseNotesResult: any): any {
+  try {
+    // First, try to use structured output if available
+    if (releaseNotesResult.object && releaseNotesResult.object.breakingChanges) {
+      return releaseNotesResult.object;
+    }
+    
+    // Fallback: Parse from text field
+    if (releaseNotesResult.text) {
+      const parsedData = parseReleaseNotesFromText(releaseNotesResult.text);
+      if (parsedData) {
+        return parsedData;
+      }
+    }
+    
+    // Last resort: return empty structure
+    return {
+      breakingChanges: [],
+      migrationSteps: [],
+      riskLevel: 'medium',
+      summary: 'Unable to extract release notes data',
+      sources: []
+    };
+  } catch (error) {
+    console.warn('Error extracting release notes data:', error);
+    return {
+      breakingChanges: [],
+      migrationSteps: [],
+      riskLevel: 'medium', 
+      summary: 'Error parsing release notes',
+      sources: []
+    };
+  }
+}
+
+// Parse release notes data from text field
+function parseReleaseNotesFromText(text: string): any | null {
+  try {
+    // Look for JSON in various formats
+    const jsonPatterns = [
+      /```json\n([\s\S]*?)\n```/,
+      /\{[\s\S]*?"breakingChanges"[\s\S]*?\}/,
+      /### Structured Output\s*\n```json\n([\s\S]*?)\n```/
+    ];
+    
+    for (const pattern of jsonPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        try {
+          const jsonStr = match[1] || match[0];
+          const parsed = JSON.parse(jsonStr);
+          
+          // Validate that it has the expected structure
+          if (parsed.breakingChanges !== undefined) {
+            return parsed;
+          }
+        } catch (jsonError) {
+          // Continue to next pattern if JSON parsing fails
+          continue;
+        }
+      }
+    }
+    
+    // If JSON parsing fails, try to extract key information from text
+    return extractFromPlainText(text);
+  } catch (error) {
+    console.warn('Error parsing release notes from text:', error);
+    return null;
+  }
+}
+
+// Extract breaking changes information from plain text
+function extractFromPlainText(text: string): any {
+  const breakingChanges: any[] = [];
+  let riskLevel = 'low';
+  const sources: any[] = [];
+  
+  // Look for breaking change indicators in text
+  const breakingPatterns = [
+    /Node\.js requirement raised from ([^"]+) to ([^"]+)/gi,
+    /Export structure changed/gi,
+    /Functions removed or renamed/gi,
+    /API methods? (removed|added|changed)/gi,
+    /Breaking[:\s]+(.*?)(?:\n|$)/gi
+  ];
+  
+  for (const pattern of breakingPatterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      let severity = 'breaking';
+      let changeText = match[0];
+      
+      // Special handling for Node.js requirement changes
+      if (match[1] && match[2]) {
+        severity = 'critical';
+        changeText = `Node.js requirement raised from ${match[1]} to ${match[2]}`;
+        riskLevel = 'high';
+      } else if (changeText.includes('Node.js requirement')) {
+        severity = 'critical';
+        riskLevel = 'high';
+      }
+      
+      breakingChanges.push({
+        text: changeText,
+        severity,
+        source: 'text-extraction'
+      });
+    }
+  }
+  
+  // Look for sources mentioned in text
+  if (text.includes('npm Diff Tool') || text.includes('npmDiffTool')) {
+    sources.push({ type: 'npm-diff', status: 'success' });
+  }
+  if (text.includes('GitHub Releases') || text.includes('githubReleasesFetcher')) {
+    sources.push({ type: 'github-releases', status: 'success' });
+  }
+  if (text.includes('Changelog') || text.includes('changelogFetcher')) {
+    sources.push({ type: 'changelog', status: 'success' });
+  }
+  
+  return {
+    breakingChanges,
+    migrationSteps: [],
+    riskLevel: breakingChanges.length > 0 ? riskLevel : 'low',
+    summary: `Extracted ${breakingChanges.length} breaking changes from release notes analysis`,
+    sources
+  };
 }

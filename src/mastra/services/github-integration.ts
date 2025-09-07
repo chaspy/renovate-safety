@@ -182,16 +182,23 @@ export async function handlePRPosting(
   riskLevel: string
 ): Promise<boolean> {
   if (postMode === 'never') {
+    console.log('🔕 Skip PR posting (postMode: never)');
     return false;
   }
 
+  console.log(`📝 Posting to PR #${prInfo.number} (mode: ${postMode})`);
+  
   try {
     // Check for existing comment
+    console.log('🔍 Checking for existing comment...');
     const existingComment = await checkExistingComment(prInfo);
+    console.log(`Found existing comment: ${existingComment.exists} (ID: ${existingComment.commentId})`);
     
     const commentMode = existingComment.exists && postMode === 'update' 
       ? 'update' as const
       : 'create' as const;
+
+    console.log(`💬 ${commentMode === 'create' ? 'Creating' : 'Updating'} PR comment...`);
 
     // Post or update comment
     await postPRComment(
@@ -201,12 +208,16 @@ export async function handlePRPosting(
       existingComment.commentId
     );
 
+    console.log(`✅ Successfully ${commentMode === 'create' ? 'created' : 'updated'} PR comment`);
+
     // Add label based on risk level
+    console.log(`🏷️  Adding label: renovate-safety:${riskLevel}`);
     await addPRLabel(prInfo, `renovate-safety:${riskLevel}`);
 
+    console.log('✅ Successfully added PR label');
     return true;
   } catch (error) {
-    console.warn('Failed to post to PR:', error);
+    console.error('❌ Failed to post to PR:', error);
     return false;
   }
 }
