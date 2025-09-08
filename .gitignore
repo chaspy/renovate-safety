@@ -45,4 +45,4 @@ logs/
 # Prisma (not needed for this project)
 prisma/
 *.db
-*.db-journal
+*.db-journal.envrc.backup
