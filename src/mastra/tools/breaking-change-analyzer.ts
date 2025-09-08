@@ -99,7 +99,7 @@ export class BreakingChangeAnalyzer {
   /**
    * Analyze version jump significance
    */
-  private analyzeVersionJump(packageName: string, fromVersion: string, toVersion: string) {
+  private analyzeVersionJump(_packageName: string, fromVersion: string, toVersion: string) {
     const fromParts = fromVersion.replace(/[^\d.]/g, '').split('.').map(Number);
     const toParts = toVersion.replace(/[^\d.]/g, '').split('.').map(Number);
     
@@ -223,18 +223,16 @@ export class BreakingChangeAnalyzer {
   /**
    * Detect actual API changes (not just file structure)
    */
-  private detectApiChanges(change: any) {
-    // Deprecated: handled by aggregated logic in analyzeCodeChanges
-    const _unused = change;
+  private detectApiChanges(_change: any) {
+    // Handled by aggregated logic in analyzeCodeChanges
     return;
   }
 
   /**
    * Detect function signature changes
    */
-  private detectSignatureChanges(content: string): string[] {
-    // Deprecated: compare signatures via aggregated logic
-    const _unused = content;
+  private detectSignatureChanges(_content: string): string[] {
+    // Compare signatures via aggregated logic
     return [];
   }
 
@@ -489,21 +487,21 @@ export class BreakingChangeAnalyzer {
     return p.trim();
   }
 
-  // Additional helper methods...
-  private detectExportChanges(change: any) {
-    // Implementation for export structure changes
+  // Additional helper methods for specific change detection
+  private detectExportChanges(_change: any) {
+    // Implementation handled in analyzeCodeChanges
   }
 
-  private detectFunctionChanges(change: any) {
-    // Implementation for function changes
+  private detectFunctionChanges(_change: any) {
+    // Implementation handled in analyzeCodeChanges
   }
 
-  private detectEngineChanges(content: string) {
-    // Implementation for engine requirement changes
+  private detectEngineChanges(_content: string) {
+    // Implementation handled in detectNodeRequirementChange
   }
 
-  private detectPeerDependencyChanges(content: string) {
-    // Implementation for peer dependency changes
+  private detectPeerDependencyChanges(_content: string) {
+    // Peer dependency changes are less critical but tracked
   }
 }
 

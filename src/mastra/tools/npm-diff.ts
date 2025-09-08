@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { spawn } from 'child_process';
-import { breakingChangeAnalyzer, type BreakingChange } from './breaking-change-analyzer.js';
+import { breakingChangeAnalyzer } from './breaking-change-analyzer.js';
 import { httpGet } from '../../lib/http-client.js';
 
 // Zod schemas
@@ -408,30 +408,7 @@ function compareEngines(
 // Legacy package.json analysis functions (deprecated)
 // These functions are kept for minimal compatibility but are no longer actively used
 
-function analyzePackageJsonChanges(content: string): string[] {
-  console.warn('analyzePackageJsonChanges is deprecated - use BreakingChangeAnalyzer instead');
-  return [];
-}
-
-function extractNodeVersionChange(content: string): string | null {
-  console.warn('extractNodeVersionChange is deprecated - use BreakingChangeAnalyzer instead');
-  return null;
-}
-
-function extractVersionNumber(versionSpec: string): number | null {
-  const match = versionSpec.match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : null;
-}
-
-function extractEngineChanges(content: string): string[] {
-  console.warn('extractEngineChanges is deprecated - use BreakingChangeAnalyzer instead');
-  return [];
-}
-
-function extractDependencyChanges(content: string): string[] {
-  console.warn('extractDependencyChanges is deprecated - use BreakingChangeAnalyzer instead');
-  return [];
-}
+// Deprecated functions removed - use BreakingChangeAnalyzer instead
 
 // Type exports
 export type DiffChange = z.infer<typeof diffChangeSchema>;
