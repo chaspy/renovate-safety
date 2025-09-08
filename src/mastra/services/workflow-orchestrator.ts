@@ -111,9 +111,9 @@ function extractCodeImpactData(codeImpactResult: any): any {
     
     // Try multiple patterns to match recommendations
     const patterns = [
-      /\*\*Recommendations?\*\*:\s*\n((?:[\s]*- .+(?:\n|$))+)/im,
-      /(?:Recommendations?|Actions?):\s*\n((?:[\s]*- .+(?:\n|$))+)/im,
-      /### Recommendations?\s*\n((?:[\s]*- .+(?:\n|$))+)/im,
+      /\*\*Recommendations?\*\*:\s{0,10}\n((?:[\s]{0,10}- .+(?:\n|$))+)/im,
+      /(?:Recommendations?|Actions?):\s{0,10}\n((?:[\s]{0,10}- .+(?:\n|$))+)/im,
+      /### Recommendations?\s{0,10}\n((?:[\s]{0,10}- .+(?:\n|$))+)/im,
     ];
     
     for (const pattern of patterns) {
@@ -202,7 +202,7 @@ function extractUsageDetails(text: string): Array<{file: string, usage: string, 
     });
     
     // Extract function calls with surrounding context
-    const functionCallMatches = text.match(/(?:const|let|var)?\s*\w*\s*=?\s*\w+\([^)]*\)[^;\n]*/g) || [];
+    const functionCallMatches = text.match(/(?:const|let|var)?\s{0,10}\w{0,50}\s{0,10}=?\s{0,10}\w+\([^)]{0,200}\)[^;\n]{0,100}/g) || [];
     functionCallMatches.slice(0, 4).forEach(call => {
       let description = '関数を実行';
       
@@ -530,7 +530,7 @@ function parseReleaseNotesFromText(text: string): any | null {
     const jsonPatterns = [
       /```json\n([\s\S]*?)\n```/,
       /\{[\s\S]*?"breakingChanges"[\s\S]*?\}/,
-      /### Structured Output\s*\n```json\n([\s\S]*?)\n```/
+      /### Structured Output\s{0,10}\n```json\n([\s\S]{0,50000}?)\n```/
     ];
     
     for (const pattern of jsonPatterns) {

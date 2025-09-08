@@ -432,7 +432,7 @@ export class BreakingChangeAnalyzer {
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean)
-        .map((s) => s.replace(/\s+as\s+.+$/, ''));
+        .map((s) => s.replace(/\s{1,10}as\s{1,10}[^,}]{1,100}$/, ''));
       names.push(...parts);
     }
 
@@ -446,7 +446,7 @@ export class BreakingChangeAnalyzer {
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean)
-        .map((s) => s.replace(/:\s*.*/, ''));
+        .map((s) => s.replace(/:\s{0,10}[^,}]{0,100}/, ''));
       names.push(...parts);
     }
 
@@ -480,9 +480,9 @@ export class BreakingChangeAnalyzer {
   private normalizeSignature(params: string): string {
     let p = params;
     p = p.replace(/[?]/g, '');
-    p = p.replace(/\b(public|private|protected|readonly)\s+/g, '');
-    p = p.replace(/:\s*([^,)]+)/g, ''); // remove type annotations
-    p = p.replace(/=\s*([^,)]+)/g, ''); // remove defaults
+    p = p.replace(/\b(public|private|protected|readonly)\s{1,10}/g, '');
+    p = p.replace(/:\s{0,10}([^,)]{1,100})/g, ''); // remove type annotations
+    p = p.replace(/=\s{0,10}([^,)]{1,100})/g, ''); // remove defaults
     p = p.replace(/\s+/g, '');
     return p.trim();
   }

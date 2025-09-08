@@ -103,7 +103,7 @@ export class UsageImpactAnalyzer {
       });
       
       patterns.push({
-        pattern: /pLimit\s*\(\s*\d+\s*\)/g,
+        pattern: /pLimit\s{0,10}\(\s{0,10}\d+\s{0,10}\)/g,
         description: 'Creates limit instance',
         riskLevel: 'low'
       });
@@ -132,7 +132,7 @@ export class UsageImpactAnalyzer {
         if (functionMatch) {
           const functionName = functionMatch[1] || functionMatch[2];
           patterns.push({
-            pattern: new RegExp(`\\b${functionName}\\s*\\(`, 'g'),
+            pattern: new RegExp(`\\b${functionName}\\s{0,10}\\(`, 'g'),
             description: `Uses potentially affected function: ${functionName}`,
             riskLevel: 'high'
           });
@@ -187,7 +187,7 @@ export class UsageImpactAnalyzer {
   private importsPackage(content: string, packageName: string): boolean {
     const importPatterns = [
       new RegExp(`from\\s+['"\`]${packageName}['"\`]`, 'g'),
-      new RegExp(`require\\s*\\(\\s*['"\`]${packageName}['"\`]`, 'g'),
+      new RegExp(`require\\s{0,10}\\(\\s{0,10}['"\`]${packageName}['"\`]`, 'g'),
       new RegExp(`import\\s+.+\\s+from\\s+['"\`]${packageName}['"\`]`, 'g')
     ];
     
