@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { spawn } from 'child_process';
-import { npmDiffTool, parseDiff, detectBreakingChanges } from '../npm-diff.js';
+import { npmDiffTool, parseDiff } from '../npm-diff.js';
 import type { DiffChange } from '../npm-diff.js';
 
 // Mockの設定
@@ -261,129 +261,6 @@ index abc123..0000000
     });
   });
 
-  describe('detectBreakingChanges', () => {
-    it('should detect breaking changes in CHANGELOG', () => {
-      const diff: DiffChange[] = [
-        {
-          file: 'CHANGELOG.md',
-          type: 'modified',
-          additions: 10,
-          deletions: 5,
-          content: 'BREAKING CHANGE: API has been completely redesigned',
-        },
-      ];
-
-      const breaking = detectBreakingChanges(diff);
-      expect(breaking).toHaveLength(1);
-      expect(breaking[0]).toContain('CHANGELOG.md');
-      expect(breaking[0]).toContain('breaking change');
-    });
-
-    it('should detect removed API files', () => {
-      const diff: DiffChange[] = [
-        {
-          file: 'lib/api.js',
-          type: 'removed',
-          additions: 0,
-          deletions: 100,
-        },
-      ];
-
-      const breaking = detectBreakingChanges(diff);
-      expect(breaking).toHaveLength(1);
-      expect(breaking[0]).toContain('lib/api.js');
-      expect(breaking[0]).toContain('File removed');
-    });
-
-    it('should detect deprecated features', () => {
-      const diff: DiffChange[] = [
-        {
-          file: 'README.md',
-          type: 'modified',
-          additions: 5,
-          deletions: 3,
-          content: 'This feature is now deprecated and will be removed in v3',
-        },
-      ];
-
-      const breaking = detectBreakingChanges(diff);
-      expect(breaking).toHaveLength(1);
-      expect(breaking[0]).toContain('README.md');
-    });
-
-    it('should detect major version bumps in package.json', () => {
-      const diff: DiffChange[] = [
-        {
-          file: 'package.json',
-          type: 'modified',
-          additions: 1,
-          deletions: 1,
-          content: '-  "version": "1.5.0",\n+  "version": "2.0.0",',
-        },
-      ];
-
-      const breaking = detectBreakingChanges(diff);
-      expect(breaking).toHaveLength(1);
-      expect(breaking[0]).toContain('Major version bump');
-    });
-
-    it('should detect engine requirement changes', () => {
-      const diff: DiffChange[] = [
-        {
-          file: 'package.json',
-          type: 'modified',
-          additions: 1,
-          deletions: 1,
-          content: '  "engines": {\n-    "node": ">=14"\n+    "node": ">=16"\n  }',
-        },
-      ];
-
-      const breaking = detectBreakingChanges(diff);
-      expect(breaking).toHaveLength(1);
-      expect(breaking[0]).toContain('Engine requirements changed');
-    });
-
-    it('should not detect breaking changes when there are none', () => {
-      const diff: DiffChange[] = [
-        {
-          file: 'utils.js',
-          type: 'modified',
-          additions: 5,
-          deletions: 3,
-          content: '+ // Added a helpful comment\n- // Old comment',
-        },
-      ];
-
-      const breaking = detectBreakingChanges(diff);
-      expect(breaking).toHaveLength(0);
-    });
-
-    it('should handle multiple breaking changes', () => {
-      const diff: DiffChange[] = [
-        {
-          file: 'CHANGELOG.md',
-          type: 'modified',
-          additions: 10,
-          deletions: 5,
-          content: '[BREAKING] Changed API',
-        },
-        {
-          file: 'api/v1.js',
-          type: 'removed',
-          additions: 0,
-          deletions: 50,
-        },
-        {
-          file: 'README.md',
-          type: 'modified',
-          additions: 5,
-          deletions: 2,
-          content: 'Feature removed from library',
-        },
-      ];
-
-      const breaking = detectBreakingChanges(diff);
-      expect(breaking).toHaveLength(3);
-    });
-  });
+  // Legacy detectBreakingChanges has been removed. Breaking change detection is covered
+  // by breakingChangeAnalyzer tests in breaking-change-analyzer.test.ts
 });

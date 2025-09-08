@@ -418,9 +418,8 @@ describe('analyzeRenovatePR Workflow', () => {
     });
 
     expect(result.success).toBe(true);
-    // Workflow currently uses hardcoded mock data that returns 1 dependency
-    // TODO: Update when Tool Agent implementation is complete
-    expect(result.assessments).toHaveLength(1);
+    // Multiple dependencies should be analyzed in this scenario
+    expect(result.assessments.length).toBeGreaterThanOrEqual(2);
     expect(result.overallRisk).toBe('safe');
   });
 });
@@ -447,7 +446,7 @@ describe('Report Generator', () => {
     // Temporarily unmock the functions to test them directly
     vi.doUnmock('../report-generator.js');
     const { generateReport } = await import('../report-generator.js');
-    const report = generateReport(assessments, {
+    const report = await generateReport(assessments, {
       format: 'markdown' as 'markdown',
       language: 'en' as 'en',
       prInfo: { number: 123, title: 'Test', base: 'main', head: 'test', repository: { owner: 'test', name: 'repo' } },

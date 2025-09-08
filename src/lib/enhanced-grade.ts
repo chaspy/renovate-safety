@@ -76,10 +76,10 @@ function calculateRiskFactors(
   // Version jump analysis
   const versionJump = analyzeVersionJump(packageUpdate.fromVersion, packageUpdate.toVersion);
 
-  // Usage analysis
+  // Usage analysis with improved critical path detection
   const usage = {
     directUsageCount: usageAnalysis?.productionUsageCount || 0,
-    criticalPathUsage: (usageAnalysis?.criticalPaths?.length || 0) > 0,
+    criticalPathUsage: determineCriticalPathUsage(usageAnalysis),
     testCoverage: estimateTestCoverage(usageAnalysis),
   };
 
@@ -125,15 +125,46 @@ function analyzeVersionJump(fromVersion: string, toVersion: string): RiskFactors
   }
 }
 
+function determineCriticalPathUsage(usageAnalysis: UsageAnalysis | null): boolean {
+  if (!usageAnalysis || !usageAnalysis.criticalPaths) return false;
+  
+  // Consider it critical if used in key entry point files
+  const criticalFilePatterns = [
+    /index\.[jt]sx?$/,
+    /main\.[jt]sx?$/,
+    /app\.[jt]sx?$/,
+    /server\.[jt]sx?$/,
+    /handler\.[jt]sx?$/,
+    /api\/.*\.[jt]sx?$/,
+    /routes\/.*\.[jt]sx?$/,
+    /src\/(?:index|main|app)\.[jt]sx?$/
+  ];
+  
+  // Check if any critical path matches key patterns
+  const hasCriticalFiles = usageAnalysis.criticalPaths.some(path => 
+    criticalFilePatterns.some(pattern => pattern.test(path))
+  );
+  
+  // Also consider it critical if used in multiple production files
+  const multipleProductionFiles = usageAnalysis.productionUsageCount >= 3;
+  
+  return hasCriticalFiles || multipleProductionFiles;
+}
+
 function estimateTestCoverage(usageAnalysis: UsageAnalysis | null): number {
   if (!usageAnalysis) return 0;
 
   const { productionUsageCount, testUsageCount } = usageAnalysis;
   if (productionUsageCount === 0) return 100;
 
-  // Simple heuristic: ratio of test usage to production usage
-  const ratio = testUsageCount / productionUsageCount;
-  return Math.min(ratio * 100, 100);
+  // Improved heuristic: consider test coverage as percentage of production code tested
+  // Not just ratio, but whether tests exist at all
+  if (testUsageCount === 0) return 0;
+  if (testUsageCount > 0 && productionUsageCount > 0) {
+    // Assume ~30% coverage per test file that uses the package
+    return Math.min(30 + (testUsageCount * 10), 80);
+  }
+  return 50; // Default moderate coverage
 }
 
 function determineDiffDepth(hasChangelog: boolean, hasDiff: boolean): 'full' | 'partial' | 'none' {

@@ -8,6 +8,7 @@ import { CodeImpactAgent } from '../agents/code-impact-agent.js';
 import { generateLibraryOverview } from '../agents/library-overview-agent.js';
 import { RiskArbiter } from '../tools/index.js';
 import { trackAgent, getCurrentTracker } from '../tools/execution-tracker.js';
+import { usageImpactAnalyzer, type UsageImpact } from '../tools/usage-impact-analyzer.js';
 
 export interface DependencyAssessment {
   dependency: {
@@ -23,6 +24,7 @@ export interface DependencyAssessment {
   };
   releaseNotes: any;
   codeImpact: any;
+  usageImpact?: UsageImpact; // Add usage impact analysis
   risk: {
     level: 'safe' | 'low' | 'medium' | 'high' | 'critical';
     score: number;
@@ -391,6 +393,35 @@ Use the tsUsageScanner and configScanner tools with these exact parameters:
   // Extract breaking changes from ReleaseNotesAgent result (fallback to text parsing)
   const extractedReleaseNotes = extractReleaseNotesData(releaseNotesResult);
 
+  // Phase 2.5: Analyze actual usage impact of breaking changes
+  let usageImpact: UsageImpact | null = null;
+  if (extractedReleaseNotes.breakingChanges && extractedReleaseNotes.breakingChanges.length > 0) {
+    try {
+      console.log(`🔍 Analyzing actual usage impact for ${dep.name}...`);
+      
+      // Convert breaking changes to the format expected by UsageImpactAnalyzer
+      const breakingChangesForAnalysis = extractedReleaseNotes.breakingChanges.map((bc: any) => ({
+        text: typeof bc === 'string' ? bc : bc.text || bc.description || String(bc),
+        category: bc.category || 'api-change'
+      }));
+      
+      usageImpact = await usageImpactAnalyzer.analyzeImpact(
+        dep.name,
+        breakingChangesForAnalysis,
+        process.cwd()
+      );
+      
+      console.log(`✅ Usage impact analysis complete:`, {
+        affected: usageImpact.isAffected,
+        riskLevel: usageImpact.riskLevel,
+        confidence: usageImpact.confidence,
+        affectedFiles: usageImpact.affectedFiles.length
+      });
+    } catch (error) {
+      console.warn('Error analyzing usage impact:', error);
+    }
+  }
+
   // Phase 3: Risk assessment
   const riskResult = await RiskArbiter.assess({
     packageName: dep.name,
@@ -405,6 +436,10 @@ Use the tsUsageScanner and configScanner tools with these exact parameters:
     hasDiff: true,
     testCoverage: 0,
     criticalPathUsage: extractCriticalUsages(codeImpactResult) > 0,
+    // Enhanced risk factors based on usage impact analysis
+    actualUsageImpact: usageImpact?.isAffected || false,
+    usageImpactRisk: usageImpact?.riskLevel || 'none',
+    usageImpactConfidence: usageImpact?.confidence || 0,
   }) as {
     level: 'safe' | 'low' | 'medium' | 'high' | 'critical';
     score: number;
@@ -420,6 +455,7 @@ Use the tsUsageScanner and configScanner tools with these exact parameters:
     overview: overviewResult,
     releaseNotes: extractedReleaseNotes,
     codeImpact: extractCodeImpactData(codeImpactResult),
+    usageImpact: usageImpact || undefined, // Include usage impact analysis
     risk: riskResult,
   };
 }

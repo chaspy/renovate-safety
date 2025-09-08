@@ -72,7 +72,7 @@ describe('Source Tracker', () => {
       expect(result).toHaveLength(1);
       expect(result[0].category).toBe('npm Registry');
       expect(result[0].links).toHaveLength(2);
-      expect(result[0].confidence).toBe(0.85); // Average of 0.9 and 0.8
+      expect(result[0].confidence).toBeCloseTo(0.85, 6); // Average of 0.9 and 0.8
     });
   });
 

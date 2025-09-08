@@ -87,9 +87,7 @@ export const ReleaseNotesAgent = new Agent({
     npmDiffTool, 
     githubReleasesFetcher, 
     changelogFetcher 
-  },
-  
-  schema: releaseNotesOutputSchema
+  }
 });
 
 

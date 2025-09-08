@@ -2,6 +2,7 @@ import { Octokit } from '@octokit/rest';
 import type { PackageUpdate } from '../types/index.js';
 import { getEnvironmentConfig } from './env-config.js';
 import { loggers } from './logger.js';
+import { getPackageRepository, extractGitHubRepo } from './npm-registry.js';
 
 export interface CodeDiff {
   content: string;
@@ -81,31 +82,34 @@ export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeD
 }
 
 async function getGitHubInfo(packageName: string): Promise<{ owner: string; repo: string } | null> {
+  // Strategy:
+  // 1) pacote.manifest (fast path)
+  // 2) npm view repository (getPackageRepository)
+  // 3) homepage field via pacote
   try {
-    // For npm packages, try to get repository info from pacote
     const pacote = await import('pacote');
-    const manifest = await pacote.manifest(packageName);
-
-    if (manifest.repository && typeof manifest.repository === 'object' && manifest.repository.url) {
-      const match = manifest.repository.url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
-      if (match) {
-        return {
-          owner: match[1],
-          repo: match[2],
-        };
+    try {
+      const manifest = await pacote.manifest(packageName);
+      if (manifest.repository && typeof manifest.repository === 'object' && manifest.repository.url) {
+        const match = manifest.repository.url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+        if (match) {
+          return { owner: match[1], repo: match[2] };
+        }
       }
+      if (manifest.homepage) {
+        const match = manifest.homepage.match(/github\.com\/([^/]+)\/([^/]+)/);
+        if (match) {
+          return { owner: match[1], repo: match[2] };
+        }
+      }
+    } catch {
+      // ignore and fallback
     }
 
-    // Try homepage
-    if (manifest.homepage) {
-      const match = manifest.homepage.match(/github\.com\/([^/]+)\/([^/]+)/);
-      if (match) {
-        return {
-          owner: match[1],
-          repo: match[2],
-        };
-      }
-    }
+    // Fallback: npm registry metadata
+    const repoUrl = await getPackageRepository(packageName);
+    const repo = extractGitHubRepo(repoUrl || undefined);
+    if (repo) return repo;
 
     return null;
   } catch {
@@ -189,10 +193,15 @@ function isRelevantFile(filename: string): boolean {
     /docs?/i,
     /examples?/i,
     /demo/i,
+    /bench/i,
+    /benchmark/i,
+    /perf/i,
+    /performance/i,
     /\.md$/i,
     /\.txt$/i,
     /license/i,
     /readme/i,
+    /changelog/i,
     /node_modules/i,
     /dist/i,
     /build/i,

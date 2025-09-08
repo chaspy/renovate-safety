@@ -1,6 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { spawn } from 'child_process';
+import { breakingChangeAnalyzer, type BreakingChange } from './breaking-change-analyzer.js';
 import { httpGet } from '../../lib/http-client.js';
 
 // Zod schemas
@@ -41,6 +42,14 @@ const inputSchema = z.object({
   toVersion: z.string().describe('Target version'),
 });
 
+const enhancedBreakingChangeSchema = z.object({
+  text: z.string(),
+  severity: z.enum(['critical', 'breaking', 'warning']),
+  source: z.string(),
+  category: z.enum(['runtime-requirement', 'api-change', 'removal', 'deprecation', 'documented-change']),
+  confidence: z.number(),
+});
+
 const outputSchema = z.object({
   success: z.boolean(),
   diff: z.array(diffChangeSchema).optional(),
@@ -48,7 +57,8 @@ const outputSchema = z.object({
   raw: z.string().optional(),
   error: z.string().optional(),
   fallback: fallbackResultSchema.optional(),
-  breakingChanges: z.array(z.string()).optional(),
+  breakingChanges: z.array(enhancedBreakingChangeSchema).optional(),
+  legacyBreakingChanges: z.array(z.string()).optional(), // For backward compatibility
 });
 
 export const npmDiffTool = createTool({
@@ -76,14 +86,74 @@ export const npmDiffTool = createTool({
 
       // 差分を解析
       const parsed = parseDiff(result.output);
-      const breakingChanges = detectBreakingChanges(parsed);
+
+      // 追加: 公開エントリヒントを両バージョンのpackage.jsonから抽出
+      let publicEntryHints: string[] = [];
+      try {
+        const [fromPkg, toPkg] = await Promise.all([
+          fetchPackageJson(packageName, fromVersion),
+          fetchPackageJson(packageName, toVersion),
+        ]);
+
+        const collectHints = (pkg: any): string[] => {
+          const hints = new Set<string>();
+          if (!pkg || typeof pkg !== 'object') return [];
+          const add = (v?: unknown) => {
+            if (typeof v === 'string' && v.trim()) hints.add(v.trim());
+          };
+
+          add(pkg.main);
+          add(pkg.module);
+          add(pkg.types);
+
+          // exportsフィールドを再帰的に走査
+          const walkExports = (node: unknown) => {
+            if (!node) return;
+            if (typeof node === 'string') {
+              add(node);
+              return;
+            }
+            if (typeof node === 'object') {
+              for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+                if (typeof v === 'string') add(v);
+                else walkExports(v);
+                // キーがパス拡張子のこともある（"./map"）のでキーも候補に
+                if (k.startsWith('./')) hints.add(k);
+              }
+            }
+          };
+          walkExports(pkg.exports);
+
+          return Array.from(hints);
+        };
+
+        const fromHints = collectHints(fromPkg);
+        const toHints = collectHints(toPkg);
+
+        publicEntryHints = Array.from(new Set([...fromHints, ...toHints]));
+      } catch {
+        // ignore hint extraction failures
+      }
+      
+      // Use enhanced breaking change analyzer
+      const enhancedBreakingChanges = breakingChangeAnalyzer.analyze(
+        parsed,
+        packageName,
+        fromVersion,
+        toVersion,
+        { publicEntryHints }
+      );
+      
+      // Convert to legacy format for backward compatibility
+      const legacyBreakingChanges = enhancedBreakingChanges.map(change => change.text);
 
       return {
         success: true,
         diff: parsed,
         source: 'npm-diff',
         raw: result.output,
-        breakingChanges: breakingChanges.length > 0 ? breakingChanges : undefined,
+        breakingChanges: enhancedBreakingChanges.length > 0 ? enhancedBreakingChanges : undefined,
+        legacyBreakingChanges: legacyBreakingChanges.length > 0 ? legacyBreakingChanges : undefined,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -335,195 +405,32 @@ function compareEngines(
   return updated;
 }
 
-export function detectBreakingChanges(
-  diff: z.infer<typeof diffChangeSchema>[]
-): string[] {
-  const breakingPatterns = [
-    /BREAKING CHANGE/i,
-    /\[BREAKING\]/i,
-    /removed/i,
-    /deprecated/i,
-    /no longer supported/i,
-    /drops?\s+support/i,
-    /requires?\s+node/i,
-    /minimum\s+node/i,
-  ];
+// Legacy package.json analysis functions (deprecated)
+// These functions are kept for minimal compatibility but are no longer actively used
 
-  const breakingChanges: string[] = [];
-
-  for (const change of diff) {
-    // READMEやCHANGELOGの変更をチェック
-    if (change.file.match(/readme|changelog/i) && change.content) {
-      for (const pattern of breakingPatterns) {
-        if (pattern.test(change.content)) {
-          breakingChanges.push(`${change.file}: Potential breaking change detected`);
-          break; // 同じファイルで複数回検出されるのを防ぐ
-        }
-      }
-    }
-
-    // APIファイルの削除
-    if (change.type === 'removed' && change.file.match(/\.(ts|js|d\.ts)$/)) {
-      breakingChanges.push(`${change.file}: File removed`);
-    }
-
-    // TypeScript定義ファイルの重要な変更
-    if (change.file.match(/\.d\.ts$/) && change.content) {
-      // 新しいメソッドの追加（API拡張）
-      if (/^\+.*?:\s*\(/m.test(change.content)) {
-        breakingChanges.push(`${change.file}: New API methods added`);
-      }
-      // 既存メソッドの削除
-      if (/^-.*?:\s*\(/m.test(change.content)) {
-        breakingChanges.push(`${change.file}: API methods removed`);
-      }
-      // 型定義の変更
-      if (/^[+-].*?:\s*(string|number|boolean)/m.test(change.content)) {
-        breakingChanges.push(`${change.file}: Type definitions changed`);
-      }
-    }
-
-    // package.jsonでの破壊的変更（詳細分析）
-    if (change.file === 'package.json' && change.content) {
-      const packageJsonChanges = analyzePackageJsonChanges(change.content);
-      breakingChanges.push(...packageJsonChanges);
-    }
-
-    // コアファイルの重要な変更
-    if (change.file.match(/^(index|main|lib\/index)\.(js|ts)$/) && change.content) {
-      // エクスポート形式の変更
-      if (/^[+-].*?export/m.test(change.content)) {
-        breakingChanges.push(`${change.file}: Export structure changed`);
-      }
-      // 主要関数の削除
-      if (/^-.*?function\s+\w+/m.test(change.content) || /^-.*?const\s+\w+\s*=/m.test(change.content)) {
-        breakingChanges.push(`${change.file}: Functions removed or renamed`);
-      }
-    }
-  }
-
-  return breakingChanges;
-}
-
-// package.json の詳細な変更分析
 function analyzePackageJsonChanges(content: string): string[] {
-  const changes: string[] = [];
-  
-  // Node.js バージョン要件の具体的な変更を検出
-  const nodeVersionChange = extractNodeVersionChange(content);
-  if (nodeVersionChange) {
-    changes.push(nodeVersionChange);
-  }
-  
-  // その他の engines 要件変更
-  const engineChanges = extractEngineChanges(content);
-  changes.push(...engineChanges);
-  
-  // メジャーバージョンの変更を検出
-  const majorVersionPattern = /"version":\s*"(\d+)\./g;
-  const matches: RegExpExecArray[] = [];
-  let match;
-  while ((match = majorVersionPattern.exec(content)) !== null) {
-    matches.push(match);
-  }
-  if (matches.length >= 2) {
-    const oldMajor = matches[0]?.[1];
-    const newMajor = matches[1]?.[1];
-    if (oldMajor && newMajor && parseInt(newMajor) > parseInt(oldMajor)) {
-      changes.push('package.json: Major version bump detected');
-    }
-  }
-  
-  // 主要な依存関係の変更
-  const dependencyChanges = extractDependencyChanges(content);
-  changes.push(...dependencyChanges);
-  
-  // モジュール形式の変更
-  if (/[+-].*?"type":\s*"(module|commonjs)"/m.test(content)) {
-    changes.push('package.json: Module type changed (ESM/CommonJS)');
-  }
-  
-  // エントリポイントの変更
-  if (/[+-].*?"(main|module|exports)":/m.test(content)) {
-    changes.push('package.json: Entry points changed');
-  }
-  
-  return changes;
+  console.warn('analyzePackageJsonChanges is deprecated - use BreakingChangeAnalyzer instead');
+  return [];
 }
 
-// Node.js バージョン要件の詳細な変更を抽出
 function extractNodeVersionChange(content: string): string | null {
-  // 変更前後の Node.js バージョンを抽出
-  const nodeVersionRegex = /[+-].*?"node":\s*"([^"]+)"/g;
-  const matches: { type: string; version: string }[] = [];
-  
-  let match;
-  while ((match = nodeVersionRegex.exec(content)) !== null) {
-    const line = match[0];
-    const version = match[1];
-    const type = line.startsWith('-') ? 'old' : 'new';
-    matches.push({ type, version });
-  }
-  
-  if (matches.length >= 2) {
-    const oldVersion = matches.find(m => m.type === 'old')?.version;
-    const newVersion = matches.find(m => m.type === 'new')?.version;
-    
-    if (oldVersion && newVersion && oldVersion !== newVersion) {
-      // バージョンの数値を比較
-      const oldNum = extractVersionNumber(oldVersion);
-      const newNum = extractVersionNumber(newVersion);
-      
-      if (oldNum && newNum && newNum > oldNum) {
-        return `package.json: Node.js requirement raised from ${oldVersion} to ${newVersion}`;
-      }
-    }
-  }
-  
+  console.warn('extractNodeVersionChange is deprecated - use BreakingChangeAnalyzer instead');
   return null;
 }
 
-// バージョン文字列から数値を抽出（>=18 → 18）
 function extractVersionNumber(versionSpec: string): number | null {
   const match = versionSpec.match(/(\d+)/);
   return match ? parseInt(match[1], 10) : null;
 }
 
-// その他の engines 要件変更を抽出
 function extractEngineChanges(content: string): string[] {
-  const changes: string[] = [];
-  const engineRegex = /[+-].*?"(npm|pnpm|yarn)":\s*"([^"]+)"/g;
-  
-  let match;
-  while ((match = engineRegex.exec(content)) !== null) {
-    const line = match[0];
-    const engine = match[1];
-    const version = match[2];
-    const type = line.startsWith('-') ? 'removed' : 'added';
-    
-    changes.push(`package.json: ${engine} requirement ${type} (${version})`);
-  }
-  
-  return changes;
+  console.warn('extractEngineChanges is deprecated - use BreakingChangeAnalyzer instead');
+  return [];
 }
 
-// 主要な依存関係の変更を検出
 function extractDependencyChanges(content: string): string[] {
-  const changes: string[] = [];
-  
-  // 重要なフレームワークやライブラリの変更を検出
-  const importantDeps = ['react', 'vue', 'angular', 'typescript', 'webpack', 'vite', 'next', 'nuxt'];
-  
-  for (const dep of importantDeps) {
-    const depRegex = new RegExp(`[+-].*?"${dep}":\\s*"([^"]+)"`, 'g');
-    const matches = content.match(depRegex);
-    
-    if (matches && matches.length >= 2) {
-      changes.push(`package.json: Major dependency '${dep}' version changed`);
-    }
-  }
-  
-  return changes;
+  console.warn('extractDependencyChanges is deprecated - use BreakingChangeAnalyzer instead');
+  return [];
 }
 
 // Type exports
