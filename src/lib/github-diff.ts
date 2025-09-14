@@ -90,7 +90,11 @@ async function getGitHubInfo(packageName: string): Promise<{ owner: string; repo
     const pacote = await import('pacote');
     try {
       const manifest = await pacote.manifest(packageName);
-      if (manifest.repository && typeof manifest.repository === 'object' && manifest.repository.url) {
+      if (
+        manifest.repository &&
+        typeof manifest.repository === 'object' &&
+        manifest.repository.url
+      ) {
         const match = manifest.repository.url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
         if (match) {
           return { owner: match[1], repo: match[2] };

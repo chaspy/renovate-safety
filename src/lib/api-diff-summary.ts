@@ -83,25 +83,19 @@ export async function summarizeApiDiff(
   }
 
   // API removals (true removals)
-  const trueRemoved = Array.from(removedExports).filter((n) => !addedExports.has(n) && n !== 'default');
+  const trueRemoved = Array.from(removedExports).filter(
+    (n) => !addedExports.has(n) && n !== 'default'
+  );
   if (trueRemoved.length > 0) {
     const list = summarizeList(trueRemoved, language);
-    bullets.push(
-      language === 'ja'
-        ? `公開APIの削除: ${list}`
-        : `Public API removals: ${list}`
-    );
+    bullets.push(language === 'ja' ? `公開APIの削除: ${list}` : `Public API removals: ${list}`);
   }
 
   // API additions (true additions)
   const trueAdded = Array.from(addedExports).filter((n) => !removedExports.has(n));
   if (trueAdded.length > 0) {
     const list = summarizeList(trueAdded, language);
-    bullets.push(
-      language === 'ja'
-        ? `公開APIの追加: ${list}`
-        : `Public API additions: ${list}`
-    );
+    bullets.push(language === 'ja' ? `公開APIの追加: ${list}` : `Public API additions: ${list}`);
   }
 
   // Signature changes
@@ -115,9 +109,7 @@ export async function summarizeApiDiff(
   if (sigChanges.length > 0) {
     const list = summarizeList(sigChanges, language);
     bullets.push(
-      language === 'ja'
-        ? `関数シグネチャの変更: ${list}`
-        : `Function signature changes: ${list}`
+      language === 'ja' ? `関数シグネチャの変更: ${list}` : `Function signature changes: ${list}`
     );
   }
 
@@ -127,7 +119,9 @@ export async function summarizeApiDiff(
 function extractExportedNamesFromLine(line: string): string[] {
   const names: string[] = [];
   const content = line.substring(1);
-  const esmDecl = content.match(/export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/);
+  const esmDecl = content.match(
+    /export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/
+  );
   if (esmDecl) names.push(esmDecl[1]);
   if (/export\s+default\s+/.test(content)) names.push('default');
   const listMatch = content.match(/export\s*\{([^}]+)\}/);
@@ -183,4 +177,3 @@ function summarizeList(items: string[], language: 'en' | 'ja'): string {
   const more = items.length - max;
   return language === 'ja' ? `${head}、他 ${more} 件` : `${head}, and ${more} more`;
 }
-

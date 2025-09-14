@@ -4,10 +4,7 @@ import {
   getCurrentTracker,
   finalizeTracking,
   trackAgent,
-  trackTool,
-  type ExecutionStats,
-  type AgentExecution,
-  type ToolExecution
+  trackTool
 } from '../execution-tracker.js';
 
 describe('Execution Tracker', () => {

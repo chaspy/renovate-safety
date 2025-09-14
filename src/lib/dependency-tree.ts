@@ -115,7 +115,7 @@ async function analyzePackageJson(packageName: string): Promise<DependencyUsage 
     ] as const;
 
     for (const depType of depTypes) {
-      if (packageJson[depType] && packageJson[depType][packageName]) {
+      if (packageJson[depType]?.[packageName]) {
         isDirect = true;
         usageType = depType;
         dependents.push({

@@ -385,7 +385,7 @@ export class BreakingChangeAnalyzer {
       }
 
       // crude exports field extraction: "exports": { "/feature": { "import": "./src/feature.js" } }
-      const match = line.match(/\"(?:import|require|default)\"\s*:\s*\"([^\"]+)\"/);
+      const match = line.match(/"(?:import|require|default)"\s*:\s*"([^"]+)"/);
       if (match) hints.add(match[1]);
     }
     if (hints.size > 0) this.publicEntryHints = this.normalizeHints(Array.from(hints));

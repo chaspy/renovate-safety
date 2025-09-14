@@ -126,8 +126,8 @@ function analyzeVersionJump(fromVersion: string, toVersion: string): RiskFactors
 }
 
 function determineCriticalPathUsage(usageAnalysis: UsageAnalysis | null): boolean {
-  if (!usageAnalysis || !usageAnalysis.criticalPaths) return false;
-  
+  if (!usageAnalysis?.criticalPaths) return false;
+
   // Consider it critical if used in key entry point files
   const criticalFilePatterns = [
     /index\.[jt]sx?$/,
@@ -137,17 +137,17 @@ function determineCriticalPathUsage(usageAnalysis: UsageAnalysis | null): boolea
     /handler\.[jt]sx?$/,
     /api\/.*\.[jt]sx?$/,
     /routes\/.*\.[jt]sx?$/,
-    /src\/(?:index|main|app)\.[jt]sx?$/
+    /src\/(?:index|main|app)\.[jt]sx?$/,
   ];
-  
+
   // Check if any critical path matches key patterns
-  const hasCriticalFiles = usageAnalysis.criticalPaths.some(path => 
-    criticalFilePatterns.some(pattern => pattern.test(path))
+  const hasCriticalFiles = usageAnalysis.criticalPaths.some((path) =>
+    criticalFilePatterns.some((pattern) => pattern.test(path))
   );
-  
+
   // Also consider it critical if used in multiple production files
   const multipleProductionFiles = usageAnalysis.productionUsageCount >= 3;
-  
+
   return hasCriticalFiles || multipleProductionFiles;
 }
 
@@ -162,7 +162,7 @@ function estimateTestCoverage(usageAnalysis: UsageAnalysis | null): number {
   if (testUsageCount === 0) return 0;
   if (testUsageCount > 0 && productionUsageCount > 0) {
     // Assume ~30% coverage per test file that uses the package
-    return Math.min(30 + (testUsageCount * 10), 80);
+    return Math.min(30 + testUsageCount * 10, 80);
   }
   return 50; // Default moderate coverage
 }

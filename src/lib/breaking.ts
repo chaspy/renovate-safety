@@ -9,10 +9,16 @@ const BREAKING_PATTERNS = [
 
   // Node.js version requirements
   { pattern: /Require\s+Node\.?js\s+\d+/i, severity: 'breaking' as const },
-  { pattern: /Drop(?:ped)?\s+(?:support\s+for\s+)?Node\.?js\s+\d+/i, severity: 'breaking' as const },
+  {
+    pattern: /Drop(?:ped)?\s+(?:support\s+for\s+)?Node\.?js\s+\d+/i,
+    severity: 'breaking' as const,
+  },
   { pattern: /Minimum\s+Node\.?js\s+version/i, severity: 'breaking' as const },
   { pattern: /engines?\.node\s*[:=]\s*["']?(?:>=?|\^|~)[\d.]+/i, severity: 'breaking' as const },
-  { pattern: /Node\.?js\s+>=?\s*\d+\s+(?:is\s+)?(?:now\s+)?required/i, severity: 'breaking' as const },
+  {
+    pattern: /Node\.?js\s+>=?\s*\d+\s+(?:is\s+)?(?:now\s+)?required/i,
+    severity: 'breaking' as const,
+  },
 
   // Warning indicators
   { pattern: /⚠️/, severity: 'warning' as const },
@@ -42,7 +48,10 @@ const BREAKING_PATTERNS = [
   { pattern: /\[MOVED\]/i, severity: 'warning' as const },
 ];
 
-export function extractBreakingChanges(changelogContent: string, enginesDiff?: { from: string; to: string }): BreakingChange[] {
+export function extractBreakingChanges(
+  changelogContent: string,
+  enginesDiff?: { from: string; to: string }
+): BreakingChange[] {
   const lines = changelogContent.split('\n');
   const breakingChanges: BreakingChange[] = [];
   const seenLines = new Set<string>();
@@ -51,7 +60,7 @@ export function extractBreakingChanges(changelogContent: string, enginesDiff?: {
   if (enginesDiff && enginesDiff.from !== enginesDiff.to) {
     const fromMajor = parseInt(enginesDiff.from.match(/\d+/)?.[0] || '0');
     const toMajor = parseInt(enginesDiff.to.match(/\d+/)?.[0] || '0');
-    
+
     if (toMajor > fromMajor) {
       const engineChange = `Minimum Node.js version changed from ${enginesDiff.from} to ${enginesDiff.to}`;
       breakingChanges.push({

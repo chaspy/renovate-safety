@@ -30,15 +30,17 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
     // API Keys - validated and sanitized
     anthropicApiKey: getEnvVar('ANTHROPIC_API_KEY', (value) => value.length > 10),
     openaiApiKey: getEnvVar('OPENAI_API_KEY', (value) => value.length > 10),
-    githubToken: getEnvVar('GITHUB_TOKEN', (value) => 
-      value.startsWith('ghp_') || 
-      value.startsWith('github_pat_') || 
-      value.startsWith('gho_')
-    ) || getEnvVar('GH_TOKEN', (value) => 
-      value.startsWith('ghp_') || 
-      value.startsWith('github_pat_') || 
-      value.startsWith('gho_')
-    ),
+    githubToken:
+      getEnvVar(
+        'GITHUB_TOKEN',
+        (value) =>
+          value.startsWith('ghp_') || value.startsWith('github_pat_') || value.startsWith('gho_')
+      ) ||
+      getEnvVar(
+        'GH_TOKEN',
+        (value) =>
+          value.startsWith('ghp_') || value.startsWith('github_pat_') || value.startsWith('gho_')
+      ),
 
     // Configuration - with validation
     language: getEnvVarEnum('RENOVATE_SAFETY_LANGUAGE', ['en', 'ja'] as const) || 'en',

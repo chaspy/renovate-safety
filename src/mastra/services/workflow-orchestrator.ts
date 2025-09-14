@@ -491,7 +491,7 @@ export async function analyzeDependencies(
 function extractReleaseNotesData(releaseNotesResult: any): any {
   try {
     // First, try to use structured output if available
-    if (releaseNotesResult.object && releaseNotesResult.object.breakingChanges) {
+    if (releaseNotesResult.object?.breakingChanges) {
       return releaseNotesResult.object;
     }
     

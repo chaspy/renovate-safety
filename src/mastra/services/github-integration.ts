@@ -10,7 +10,6 @@ import {
   prCommentTool,
   prLabelTool
 } from '../tools/index.js';
-import { trackAgent } from '../tools/execution-tracker.js';
 
 export interface PRInfo {
   number: number;

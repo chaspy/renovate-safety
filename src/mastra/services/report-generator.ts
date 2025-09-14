@@ -4,9 +4,7 @@
  */
 
 import { translateRecommendations } from './translation-service.js';
-import { summarizeApiDiff } from '../../lib/api-diff-summary.js';
 import {
-  generateGitHubFileLink,
   generateMarkdownLink,
   autoDetectRepository,
   type GitHubLinkOptions
@@ -284,7 +282,7 @@ async function generateAssessmentsSection(assessments: any[], isJapanese: boolea
     }
     
     // Translated recommendations
-    if (codeImpact && codeImpact.recommendations && codeImpact.recommendations.length > 0) {
+    if (codeImpact?.recommendations?.length > 0) {
       markdown += `**${isJapanese ? '推奨アクション' : 'Recommendations'}**:\n`;
       
       const translatedRecommendations = await translateRecommendations(
@@ -323,10 +321,10 @@ async function buildFunctionalSummary(assessment: any, isJapanese: boolean): Pro
     if (assessment?.compareResult?.data || assessment?.codeImpact) {
       // We don't have raw CodeDiff here, but unified workflow also posts one in the top-level report.
     }
-    if (assessment?.compareResult?.data && assessment?.compareResult?.data.files) {
+    if (assessment?.compareResult?.data?.files) {
       // No direct patches here; high-level only
     }
-    if (assessment?.dependency && assessment?.compareResult === undefined && assessment?.codeImpact === undefined) {
+    if (assessment?.dependency && !assessment?.compareResult && !assessment?.codeImpact) {
       // noop
     }
 

@@ -144,7 +144,7 @@ export function extractMigrationSteps(text: string): string[] {
 
     if (inMigrationSection && line.trim()) {
       // Capture numbered lists, bullet points, or code blocks
-      if (/^[\d\-\*•]/.test(line.trim()) || /^\s{2,}/.test(line)) {
+      if (/^[\d\-*•]/.test(line.trim()) || /^\s{2,}/.test(line)) {
         steps.push(line.trim());
       }
       

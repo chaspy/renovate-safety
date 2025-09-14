@@ -25,7 +25,7 @@ program
     try {
       // Validate configuration
       console.log('🔧 Validating configuration...');
-      await validateConfig();
+      validateConfig();
       
       // Get PR number
       const prNumber = options.pr || await detectCurrentPR();
@@ -83,7 +83,7 @@ program
   .description('Check environment setup')
   .action(async () => {
     try {
-      await validateConfig();
+      validateConfig();
       console.log('✅ Environment setup is valid');
       console.log('  - OpenAI API key: configured');
       console.log('  - GitHub access: available');
@@ -111,7 +111,7 @@ program
     try {
       // Validate configuration
       console.log('🔧 Validating configuration...');
-      await validateConfig();
+      validateConfig();
       
       // Get PR number
       const prNumber = options.pr || await detectCurrentPR();

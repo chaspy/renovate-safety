@@ -183,7 +183,10 @@ export function extractPackageNameFromImport(importStatement: string): string | 
   ];
 
   // CommonJS patterns
-  const cjsPatterns = [/require\s{0,10}\(['"]([^'"]+)['"]\)/, /require\.resolve\s{0,10}\(['"]([^'"]+)['"]\)/];
+  const cjsPatterns = [
+    /require\s{0,10}\(['"]([^'"]+)['"]\)/,
+    /require\.resolve\s{0,10}\(['"]([^'"]+)['"]\)/,
+  ];
 
   // Python patterns
   const pythonPatterns = [
