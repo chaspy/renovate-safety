@@ -22,6 +22,9 @@ export interface RiskFactors {
     breakingChangePatterns: string[];
     knownIssues: unknown[];
     migrationComplexity: 'simple' | 'moderate' | 'complex';
+    isTypeDefinition?: boolean;
+    isDevDependency?: boolean;
+    isLockfileOnly?: boolean;
   };
 }
 
@@ -73,10 +76,10 @@ function calculateRiskFactors(
   // Version jump analysis
   const versionJump = analyzeVersionJump(packageUpdate.fromVersion, packageUpdate.toVersion);
 
-  // Usage analysis
+  // Usage analysis with improved critical path detection
   const usage = {
     directUsageCount: usageAnalysis?.productionUsageCount || 0,
-    criticalPathUsage: (usageAnalysis?.criticalPaths?.length || 0) > 0,
+    criticalPathUsage: determineCriticalPathUsage(usageAnalysis),
     testCoverage: estimateTestCoverage(usageAnalysis),
   };
 
@@ -92,6 +95,11 @@ function calculateRiskFactors(
     breakingChangePatterns: breakingChanges.map((bc) => bc.line),
     knownIssues: [],
     migrationComplexity: determineMigrationComplexity(breakingChanges, usage.directUsageCount),
+    isTypeDefinition: isTypeDefinitionPackage(packageUpdate.name),
+    isDevDependency: false, // Will be enhanced when we have access to package.json context
+    // TODO: Issue #20 - GitHub API統合で実装予定
+    // PRのfile changesを解析してlockfile-onlyを判定
+    isLockfileOnly: false, // Will be enhanced when we have access to file changes
   };
 
   return { versionJump, usage, confidence, packageSpecific };
@@ -117,15 +125,46 @@ function analyzeVersionJump(fromVersion: string, toVersion: string): RiskFactors
   }
 }
 
+function determineCriticalPathUsage(usageAnalysis: UsageAnalysis | null): boolean {
+  if (!usageAnalysis || !usageAnalysis.criticalPaths) return false;
+  
+  // Consider it critical if used in key entry point files
+  const criticalFilePatterns = [
+    /index\.[jt]sx?$/,
+    /main\.[jt]sx?$/,
+    /app\.[jt]sx?$/,
+    /server\.[jt]sx?$/,
+    /handler\.[jt]sx?$/,
+    /api\/.*\.[jt]sx?$/,
+    /routes\/.*\.[jt]sx?$/,
+    /src\/(?:index|main|app)\.[jt]sx?$/
+  ];
+  
+  // Check if any critical path matches key patterns
+  const hasCriticalFiles = usageAnalysis.criticalPaths.some(path => 
+    criticalFilePatterns.some(pattern => pattern.test(path))
+  );
+  
+  // Also consider it critical if used in multiple production files
+  const multipleProductionFiles = usageAnalysis.productionUsageCount >= 3;
+  
+  return hasCriticalFiles || multipleProductionFiles;
+}
+
 function estimateTestCoverage(usageAnalysis: UsageAnalysis | null): number {
   if (!usageAnalysis) return 0;
 
   const { productionUsageCount, testUsageCount } = usageAnalysis;
   if (productionUsageCount === 0) return 100;
 
-  // Simple heuristic: ratio of test usage to production usage
-  const ratio = testUsageCount / productionUsageCount;
-  return Math.min(ratio * 100, 100);
+  // Improved heuristic: consider test coverage as percentage of production code tested
+  // Not just ratio, but whether tests exist at all
+  if (testUsageCount === 0) return 0;
+  if (testUsageCount > 0 && productionUsageCount > 0) {
+    // Assume ~30% coverage per test file that uses the package
+    return Math.min(30 + (testUsageCount * 10), 80);
+  }
+  return 50; // Default moderate coverage
 }
 
 function determineDiffDepth(hasChangelog: boolean, hasDiff: boolean): 'full' | 'partial' | 'none' {
@@ -166,23 +205,75 @@ function calculateRiskScore(factors: RiskFactors): number {
   // Test coverage mitigation (-20 to 0 points)
   score -= (factors.usage.testCoverage / 100) * 20;
 
+  // Special handling for @types/* packages - apply reduction after all calculations
+  if (factors.packageSpecific.isTypeDefinition) {
+    // @types/* packages have much lower risk
+    if (
+      factors.versionJump.patch > 0 &&
+      factors.versionJump.major === 0 &&
+      factors.versionJump.minor === 0
+    ) {
+      score = Math.max(0, score - 10); // Patch updates for @types/* are very safe
+    } else if (factors.versionJump.minor > 0 && factors.versionJump.major === 0) {
+      score = Math.max(0, score - 5); // Minor updates for @types/* are relatively safe
+    } else if (factors.versionJump.major > 0) {
+      // Major updates should maintain at least LOW risk (score 10)
+      score = Math.max(score * 0.3, 10);
+    } else {
+      // Other cases: reduce overall risk for type definitions
+      score *= 0.3; // More aggressive reduction for @types/* packages
+    }
+  }
+
+  // DevDependencies have lower risk
+  if (factors.packageSpecific.isDevDependency) {
+    score -= 1;
+  }
+
+  // Lockfile-only changes have significantly lower risk
+  if (factors.packageSpecific.isLockfileOnly) {
+    // Lockfile-only changes are capped at score 10 (LOW risk threshold)
+    // This ensures lockfile-only changes are never higher than LOW risk
+    score = Math.min(score * 0.3, 10);
+  }
+
   return Math.max(0, Math.min(100, score));
 }
 
 function determineRiskLevel(score: number, factors: RiskFactors): RiskAssessment['level'] {
-  // If we have no information, return unknown
+  // Special handling for @types/* packages
+  if (factors.packageSpecific.isTypeDefinition) {
+    // @types/* patch updates are always safe
+    if (
+      factors.versionJump.patch > 0 &&
+      factors.versionJump.major === 0 &&
+      factors.versionJump.minor === 0
+    ) {
+      return 'safe';
+    }
+    // @types/* minor updates are low risk at most
+    if (factors.versionJump.minor > 0 && factors.versionJump.major === 0) {
+      return score <= 10 ? 'safe' : 'low';
+    }
+  }
+
+  // If we have no information and it's not a special package, return unknown
   if (
     factors.confidence.diffAnalysisDepth === 'none' &&
-    factors.packageSpecific.breakingChangePatterns.length === 0
+    factors.packageSpecific.breakingChangePatterns.length === 0 &&
+    !factors.packageSpecific.isTypeDefinition
   ) {
     return 'unknown'; // 'unknown' is valid RiskAssessment level
   }
 
-  if (score >= 70) return 'critical';
-  if (score >= 50) return 'high';
-  if (score >= 30) return 'medium';
-  if (score >= 10) return 'low';
-  return 'safe';
+  // Adjusted thresholds for better calibration
+  if (score <= 1) return 'safe'; // Very low score is safe
+  if (score <= 3) return 'low'; // Low score is low risk
+  if (score <= 10) return 'low'; // Keep existing threshold
+  if (score < 30) return 'medium';
+  if (score < 50) return 'high';
+  if (score >= 50) return 'critical';
+  return 'medium'; // Default to medium if somehow we get here
 }
 
 function calculateConfidence(factors: RiskFactors): number {
@@ -196,6 +287,20 @@ function calculateConfidence(factors: RiskFactors): number {
 
   return Math.min(confidence, 1);
 }
+
+function isTypeDefinitionPackage(packageName: string): boolean {
+  return packageName.startsWith('@types/');
+}
+
+// TODO: Issue #20 - GitHub API統合で実装予定
+// PRのfile changesを取得して、lockfile-onlyの変更かを判定する
+// function isLockfileOnlyChange(files: string[]): boolean {
+//   return files.every(f =>
+//     f.endsWith('package-lock.json') ||
+//     f.endsWith('yarn.lock') ||
+//     f.endsWith('pnpm-lock.yaml')
+//   );
+// }
 
 function generateRiskFactorDescriptions(factors: RiskFactors, _level: string): string[] {
   const descriptions: string[] = [];

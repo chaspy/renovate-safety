@@ -175,15 +175,15 @@ export function isPackageImport(moduleSpecifier: string, packageName: string): b
 export function extractPackageNameFromImport(importStatement: string): string | null {
   // ES6 import patterns - very safe patterns that avoid complex quantifiers
   const es6Patterns = [
-    /import\s+\w+\s+from\s+['"]([^'"]+)['"]/,                    // import name from 'module'
-    /import\s*\{\s*\w+\s*\}\s*from\s+['"]([^'"]+)['"]/,         // import { single } from 'module'
-    /import\s*\{\s*\w+\s*,\s*\w+\s*\}\s*from\s+['"]([^'"]+)['"]/,  // import { a, b } from 'module'
-    /import\s*\*\s*as\s*\w+\s*from\s+['"]([^'"]+)['"]/,         // import * as name from 'module'
-    /import\s*\(['"]([^'"]+)['"]\)/,                             // import('module')
+    /import\s+\w+\s+from\s+['"]([^'"]+)['"]/, // import name from 'module'
+    /import\s{0,10}\{\s{0,10}\w+\s{0,10}\}\s{0,10}from\s{1,10}['"]([^'"]+)['"]/, // import { single } from 'module'
+    /import\s{0,10}\{\s{0,10}\w+\s{0,10},\s{0,10}\w+\s{0,10}\}\s{0,10}from\s{1,10}['"]([^'"]+)['"]/, // import { a, b } from 'module'
+    /import\s{0,10}\*\s{0,10}as\s{1,10}\w+\s{0,10}from\s{1,10}['"]([^'"]+)['"]/, // import * as name from 'module'
+    /import\s{0,10}\(['"]([^'"]+)['"]\)/, // import('module')
   ];
 
   // CommonJS patterns
-  const cjsPatterns = [/require\s*\(['"]([^'"]+)['"]\)/, /require\.resolve\s*\(['"]([^'"]+)['"]\)/];
+  const cjsPatterns = [/require\s{0,10}\(['"]([^'"]+)['"]\)/, /require\.resolve\s{0,10}\(['"]([^'"]+)['"]\)/];
 
   // Python patterns
   const pythonPatterns = [

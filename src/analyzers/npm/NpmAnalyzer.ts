@@ -47,7 +47,30 @@ export class NpmAnalyzer extends PackageAnalyzer {
   }
 
   async fetchChangelog(pkg: PackageUpdate, cacheDir?: string): Promise<ChangelogDiff | null> {
-    // First try npm registry
+    // Fetch from both sources
+    const npmChangelog = await this.fetchNpmReadme(pkg);
+    const { fetchChangelogDiff } = await import('../../lib/changelog.js');
+    const githubChangelog = await fetchChangelogDiff(pkg, cacheDir || '.');
+
+    // Combine sources if both available
+    if (npmChangelog && githubChangelog && githubChangelog.source === 'github') {
+      return {
+        content: this.combineChangelogSources(githubChangelog.content, npmChangelog.content, pkg),
+        source: 'github+npm',
+        fromVersion: pkg.fromVersion,
+        toVersion: pkg.toVersion
+      };
+    }
+
+    // Prefer GitHub over npm for better breaking change detection
+    if (githubChangelog && githubChangelog.source === 'github') {
+      return githubChangelog;
+    }
+
+    return npmChangelog || githubChangelog;
+  }
+
+  private async fetchNpmReadme(pkg: PackageUpdate): Promise<ChangelogDiff | null> {
     try {
       const safeName = validatePackageName(pkg.name);
       const fromContent = await this.fetchVersionReadme(safeName, pkg.fromVersion);
@@ -64,10 +87,28 @@ export class NpmAnalyzer extends PackageAnalyzer {
     } catch (error) {
       loggers.genericFailed('fetch from npm registry', error);
     }
+    return null;
+  }
 
-    // Fallback to existing implementation
-    const { fetchChangelogDiff } = await import('../../lib/changelog.js');
-    return fetchChangelogDiff(pkg, cacheDir || '.');
+  private combineChangelogSources(githubContent: string, npmContent: string, pkg: PackageUpdate): string {
+    // GitHub Releases takes priority, especially Breaking sections
+    const sections: string[] = [];
+    
+    sections.push(`## Changes from v${pkg.fromVersion} to v${pkg.toVersion}\n`);
+    
+    // Add GitHub content first (usually contains Breaking changes)
+    if (githubContent) {
+      sections.push('### From GitHub Releases\n');
+      sections.push(githubContent);
+    }
+    
+    // Add npm content as supplementary information
+    if (npmContent) {
+      sections.push('\n### From npm Registry\n');
+      sections.push(npmContent);
+    }
+    
+    return sections.join('\n');
   }
 
   async analyzeUsage(packageName: string, projectPath: string): Promise<UsageAnalysis> {
@@ -189,12 +230,12 @@ export class NpmAnalyzer extends PackageAnalyzer {
     // Very safe patterns that avoid any complex quantifiers
     return [
       /import\s+\w+\s+from\s+['"]([^'"]+)['"]/g,                    // import name from 'module'
-      /import\s*\{\s*\w+\s*\}\s*from\s+['"]([^'"]+)['"]/g,         // import { single } from 'module'
-      /import\s*\{\s*\w+\s*,\s*\w+\s*\}\s*from\s+['"]([^'"]+)['"]/g, // import { a, b } from 'module'
-      /import\s*\*\s*as\s*\w+\s*from\s+['"]([^'"]+)['"]/g,        // import * as name from 'module'
-      /import\s*\(['"]([^'"]+)['"]\)/g,                            // import('module')
-      /require\s*\(['"]([^'"]+)['"]\)/g,                           // require('module')
-      /require\.resolve\s*\(['"]([^'"]+)['"]\)/g                   // require.resolve('module')
+      /import\s{0,10}\{\s{0,10}\w+\s{0,10}\}\s{0,10}from\s{1,10}['"]([^'"]+)['"]/g,         // import { single } from 'module'
+      /import\s{0,10}\{\s{0,10}\w+\s{0,10},\s{0,10}\w+\s{0,10}\}\s{0,10}from\s{1,10}['"]([^'"]+)['"]/g, // import { a, b } from 'module'
+      /import\s{0,10}\*\s{0,10}as\s{1,10}\w+\s{0,10}from\s{1,10}['"]([^'"]+)['"]/g,        // import * as name from 'module'
+      /import\s{0,10}\(['"]([^'"]+)['"]\)/g,                            // import('module')
+      /require\s{0,10}\(['"]([^'"]+)['"]\)/g,                           // require('module')
+      /require\.resolve\s{0,10}\(['"]([^'"]+)['"]\)/g                   // require.resolve('module')
     ];
   }
 

@@ -34,7 +34,6 @@ export async function httpGet<T = unknown>(
 
     const response = await fetch(url, {
       headers: options.headers,
-      timeout: options.timeout || 30000,
     });
 
     if (!response.ok) {
@@ -46,7 +45,7 @@ export async function httpGet<T = unknown>(
       };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as T;
     return {
       data,
       ok: true,

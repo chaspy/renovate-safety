@@ -1,14 +1,15 @@
 {
   "name": "renovate-safety",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "CLI tool to analyze dependency update PRs for breaking changes",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "renovate-safety": "./dist/index.js"
+    "renovate-safety": "./dist/index.js",
+    "renovate-safety-agent": "./dist/mastra/cli/index.js"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && chmod +x dist/index.js dist/mastra/cli/index.js",
     "dev": "tsup --watch",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -30,6 +31,7 @@
   "homepage": "https://github.com/chaspy/renovate-safety#readme",
   "devDependencies": {
     "@eslint/js": "^9.30.0",
+    "@octokit/types": "^14.1.0",
     "@tsconfig/node18": "^18.2.4",
     "@types/node": "^24.0.6",
     "@types/pacote": "^11.1.8",
@@ -46,11 +48,15 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^2.0.0",
     "@anthropic-ai/sdk": "^0.55.0",
+    "@mastra/core": "^0.15.2",
     "@octokit/rest": "^22.0.0",
     "@types/glob": "^8.1.0",
+    "ai": "^5.0.30",
     "chalk": "^5.4.1",
     "commander": "^14.0.0",
+    "dotenv": "^17.2.2",
     "execa": "^9.6.0",
     "glob": "^11.0.3",
     "node-fetch": "^3.3.2",
@@ -59,6 +65,7 @@
     "p-limit": "^6.2.0",
     "pacote": "^21.0.0",
     "semver": "^7.7.2",
-    "ts-morph": "^26.0.0"
+    "ts-morph": "^26.0.0",
+    "zod": "^3.22.0"
   }
 }
