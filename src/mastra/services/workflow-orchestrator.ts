@@ -519,7 +519,7 @@ function extractReleaseNotesData(releaseNotesResult: any): any {
 }
 
 // Parse release notes data from text field
-function parseReleaseNotesFromText(text: string): any | null {
+function parseReleaseNotesFromText(text: string): any {
   try {
     // Look for JSON in various formats
     const jsonPatterns = [
