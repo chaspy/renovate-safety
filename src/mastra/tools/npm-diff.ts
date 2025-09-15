@@ -209,58 +209,110 @@ async function executeNpmDiff(
   });
 }
 
+// Parse file name from diff header
+function parseFileFromDiffHeader(line: string): string {
+  const match = /b\/(.+)$/.exec(line);
+  return match ? match[1] : '';
+}
+
+// Check if line is an addition (excluding header)
+function isAdditionLine(line: string): boolean {
+  return line.startsWith('+') && !line.startsWith('+++');
+}
+
+// Check if line is a deletion (excluding header)
+function isDeletionLine(line: string): boolean {
+  return line.startsWith('-') && !line.startsWith('---');
+}
+
+// Create a diff change object
+function createDiffChange(
+  file: string,
+  additions: number,
+  deletions: number,
+  content: string
+): z.infer<typeof diffChangeSchema> {
+  return {
+    file,
+    type: determineChangeType(additions, deletions),
+    additions,
+    deletions,
+    content: content.trim() || undefined,
+  };
+}
+
+// Process a single line in the diff
+function processDiffLine(
+  line: string,
+  state: {
+    currentFile: string;
+    additions: number;
+    deletions: number;
+    content: string;
+  }
+): {
+  isNewFile: boolean;
+  newFileName?: string;
+} {
+  if (line.startsWith('diff --git')) {
+    return {
+      isNewFile: true,
+      newFileName: parseFileFromDiffHeader(line),
+    };
+  }
+
+  if (isAdditionLine(line)) {
+    state.additions++;
+    state.content += line + '\n';
+  } else if (isDeletionLine(line)) {
+    state.deletions++;
+    state.content += line + '\n';
+  }
+
+  return { isNewFile: false };
+}
+
 export function parseDiff(rawDiff: string): z.infer<typeof diffChangeSchema>[] {
   const changes: z.infer<typeof diffChangeSchema>[] = [];
   const lines = rawDiff.split('\n');
 
-  let currentFile = '';
-  let additions = 0;
-  let deletions = 0;
-  let content = '';
+  const state = {
+    currentFile: '',
+    additions: 0,
+    deletions: 0,
+    content: '',
+  };
 
   for (const line of lines) {
-    // ファイルヘッダー検出
-    if (line.startsWith('diff --git')) {
-      if (currentFile) {
-        changes.push({
-          file: currentFile,
-          type: determineChangeType(additions, deletions),
-          additions,
-          deletions,
-          content: content.trim() || undefined,
-        });
+    const result = processDiffLine(line, state);
+
+    if (result.isNewFile) {
+      // Save current file if exists
+      if (state.currentFile) {
+        changes.push(createDiffChange(
+          state.currentFile,
+          state.additions,
+          state.deletions,
+          state.content
+        ));
       }
 
-      // 新しいファイルの処理開始
-      const match = /b\/(.+)$/.exec(line);
-      currentFile = match ? match[1] : '';
-      additions = 0;
-      deletions = 0;
-      content = '';
-    }
-
-    // 追加行
-    if (line.startsWith('+') && !line.startsWith('+++')) {
-      additions++;
-      content += line + '\n';
-    }
-
-    // 削除行
-    if (line.startsWith('-') && !line.startsWith('---')) {
-      deletions++;
-      content += line + '\n';
+      // Reset for new file
+      state.currentFile = result.newFileName || '';
+      state.additions = 0;
+      state.deletions = 0;
+      state.content = '';
     }
   }
 
-  // 最後のファイルを追加
-  if (currentFile) {
-    changes.push({
-      file: currentFile,
-      type: determineChangeType(additions, deletions),
-      additions,
-      deletions,
-      content: content.trim() || undefined,
-    });
+  // Add last file if exists
+  if (state.currentFile) {
+    changes.push(createDiffChange(
+      state.currentFile,
+      state.additions,
+      state.deletions,
+      state.content
+    ));
   }
 
   return changes;
