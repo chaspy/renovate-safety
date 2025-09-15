@@ -172,13 +172,13 @@ async function fetchPyPiChangelog(
     let content = `# ${packageName} Changelog\n\n`;
     content += `## Version ${toVersion}\n\n`;
     
-    if (toRelease && toRelease[0]?.comment_text) {
+    if (toRelease?.[0]?.comment_text) {
       content += toRelease[0].comment_text + '\n\n';
     } else if (summary) {
       content += `${summary}\n\n`;
     }
     
-    if (description && description.toLowerCase().includes('change')) {
+    if (description?.toLowerCase().includes('change')) {
       // Extract changelog-like sections from description
       const changelogSection = extractChangelogFromText(description, fromVersion, toVersion);
       if (changelogSection) {
