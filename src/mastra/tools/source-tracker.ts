@@ -118,7 +118,7 @@ export function buildGitHubUrls(packageName: string, repositoryUrl?: string): Br
   }
   
   try {
-    const match = repositoryUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
+    const match = /github\.com[/:]([^/]+)\/([^/.]+)/.exec(repositoryUrl);
     if (!match) return sources;
     
     const [, owner, repo] = match;
@@ -165,7 +165,7 @@ export function buildCompareUrl(
   toVersion: string
 ): BreakingChangeSource | null {
   try {
-    const match = repositoryUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
+    const match = /github\.com[/:]([^/]+)\/([^/.]+)/.exec(repositoryUrl);
     if (!match) return null;
     
     const [, owner, repo] = match;

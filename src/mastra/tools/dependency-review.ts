@@ -34,7 +34,7 @@ async function extractDependenciesFromPRDiff(
     }
     // Strategy 2: Extract from PR-style branch name (e.g., "PR-16")
     else if (branchOrPrNumber.startsWith('PR-') || branchOrPrNumber.includes('PR-')) {
-      const prMatch = branchOrPrNumber.match(/PR-(\d+)/);
+      const prMatch = /PR-(\d+)/.exec(branchOrPrNumber);
       if (prMatch) {
         actualPrNumber = parseInt(prMatch[1]);
       } else {

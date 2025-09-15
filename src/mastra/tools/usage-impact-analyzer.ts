@@ -127,7 +127,7 @@ export class UsageImpactAnalyzer {
     for (const change of breakingChanges) {
       if (change.category === 'api-change') {
         // Try to extract function names from breaking change text
-        const functionMatch = change.text.match(/function\s+(\w+)|(\w+)\s+(?:removed|renamed|changed)/i);
+        const functionMatch = /function\s+(\w+)|(\w+)\s+(?:removed|renamed|changed)/i.exec(change.text);
         if (functionMatch) {
           const functionName = functionMatch[1] || functionMatch[2];
           patterns.push({

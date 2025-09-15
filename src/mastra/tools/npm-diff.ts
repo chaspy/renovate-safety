@@ -232,7 +232,7 @@ export function parseDiff(rawDiff: string): z.infer<typeof diffChangeSchema>[] {
       }
 
       // 新しいファイルの処理開始
-      const match = line.match(/b\/(.+)$/);
+      const match = /b\/(.+)$/.exec(line);
       currentFile = match ? match[1] : '';
       additions = 0;
       deletions = 0;
