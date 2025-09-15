@@ -97,7 +97,7 @@ async function extractDependenciesFromPRDiff(
             for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
               const nextLine = lines[j];
               if (nextLine.startsWith('+') && nextLine.includes(`"${packageName}"`)) {
-                const addedMatch = nextLine.match(/\+\s*"[^"]+\":\s*"([^"]+)"/);
+                const addedMatch = nextLine.match(/\+\s*"[^"]+":\s*"([^"]+)"/);
                 if (addedMatch) {
                   const [, toVersion] = addedMatch;
                   

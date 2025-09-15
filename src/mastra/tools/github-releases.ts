@@ -37,7 +37,7 @@ export const githubReleasesFetcher = createTool({
   execute: async ({ context: { repoUrl, fromVersion, toVersion } }) => {
     try {
       // Extract owner and repo from URL
-      const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+      const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
       if (!match) {
         return {
           success: false,

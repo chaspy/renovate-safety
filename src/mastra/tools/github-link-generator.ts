@@ -161,7 +161,7 @@ export function extractRepositoryFromPRInfo(prInfo: any): Repository | null {
     
     // Fallback: try to extract from HTML URL
     if (prInfo?.html_url) {
-      const match = prInfo.html_url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+      const match = prInfo.html_url.match(/github\.com\/([^/]+)\/([^/]+)/);
       if (match) {
         return {
           owner: match[1],
@@ -189,7 +189,7 @@ export async function getRepositoryFromGit(): Promise<Repository | null> {
     }).trim();
     
     // Parse different Git URL formats
-    let match = remoteUrl.match(/github\.com[\/:]([^\/]+)\/([^\/\.]+)/);
+    let match = remoteUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
     
     if (match) {
       return {
