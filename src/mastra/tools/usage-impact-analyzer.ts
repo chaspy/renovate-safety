@@ -5,7 +5,6 @@
 
 import { glob } from 'glob';
 import * as fs from 'fs/promises';
-import * as path from 'path';
 
 export interface UsagePattern {
   pattern: RegExp;
