@@ -230,7 +230,8 @@ function extractChangelogFromReadme(readme: string, _fromVersion: string, toVers
   const changelogSection = readme.substring(startIndex);
   
   // Try to extract relevant version sections
-  const versionPattern = new RegExp(`[#*-].*${escapeRegExp(toVersion)}`, 'i');
+  // Limit characters to prevent ReDoS with external input
+  const versionPattern = new RegExp(`[#*-][^\n]{0,100}${escapeRegExp(toVersion)}`, 'i');
   const versionMatch = versionPattern.exec(changelogSection);
   
   if (versionMatch) {
@@ -245,14 +246,15 @@ function extractChangelogFromReadme(readme: string, _fromVersion: string, toVers
 
 function extractChangelogFromText(text: string, _fromVersion: string, toVersion: string): string | null {
   // Look for version-specific sections
-  const versionPattern = new RegExp(`[#*-v].*${escapeRegExp(toVersion)}`, 'i');
+  // Limit characters to prevent ReDoS with external input
+  const versionPattern = new RegExp(`[#*-v][^\n]{0,100}${escapeRegExp(toVersion)}`, 'i');
   const versionMatch = versionPattern.exec(text);
   
   if (versionMatch) {
     const startIndex = versionMatch.index || 0;
     // Find next version section or take next 1000 chars
     // Limit whitespace matching to prevent ReDoS (Regular Expression Denial of Service)
-    const nextVersionPattern = /[#*\-v]\s*\d+\.\d+/;
+    const nextVersionPattern = /[#*\-v]\s{0,5}\d{1,3}\.\d{1,3}/;
     const restText = text.substring(startIndex + versionMatch[0].length);
     const nextMatch = nextVersionPattern.exec(restText);
     

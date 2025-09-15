@@ -51,7 +51,8 @@ function extractTotalUsages(codeImpactResult: any): number {
     
     // Fallback: try to parse from text response
     const text = codeImpactResult?.text || '';
-    const totalMatch = /Total Usages.*?(\d+)/i.exec(text);
+    // Limit characters to prevent ReDoS with external input
+    const totalMatch = /Total Usages[^\n]{0,50}?(\d+)/i.exec(text);
     if (totalMatch) {
       return parseInt(totalMatch[1], 10);
     }
@@ -67,7 +68,8 @@ function extractCriticalUsages(codeImpactResult: any): number {
   try {
     // Try to extract from text response
     const text = codeImpactResult?.text || '';
-    const criticalMatch = /Critical Usages.*?(\d+)/i.exec(text);
+    // Limit characters to prevent ReDoS with external input
+    const criticalMatch = /Critical Usages[^\n]{0,50}?(\d+)/i.exec(text);
     if (criticalMatch) {
       return parseInt(criticalMatch[1], 10);
     }
@@ -89,7 +91,8 @@ function extractCodeImpactData(codeImpactResult: any): any {
     
     // Extract impact level
     let impactLevel = 'minimal';
-    const impactMatch = /Impact Level.*?(\w+)/i.exec(text);
+    // Limit characters to prevent ReDoS with external input
+    const impactMatch = /Impact Level[^\n]{0,50}?(\w+)/i.exec(text);
     if (impactMatch) {
       impactLevel = impactMatch[1].toLowerCase();
     }
@@ -120,7 +123,8 @@ function extractCodeImpactData(codeImpactResult: any): any {
       const match = pattern.exec(text);
       if (match) {
         const recText = match[1];
-        const recs = recText.match(/- (.+?)(?:\n|$)/g);
+        // Limit line length to prevent ReDoS
+        const recs = recText.match(/- ([^\n]{1,500})(?:\n|$)/g);
         if (recs) {
           recommendations.push(...recs.map(r => r.replace(/^- /, '').trim()));
         }
@@ -225,7 +229,8 @@ function extractUsageDetails(text: string): Array<{file: string, usage: string, 
     });
     
     // Extract variable assignments with more context
-    const assignmentMatches = text.match(/(?:const|let|var)\s+\w+\s*=.*?[;\n]/g) || [];
+    // Limit content to prevent ReDoS with external input
+    const assignmentMatches = text.match(/(?:const|let|var)\s{1,5}\w+\s{0,5}=[^;\n]{0,200}[;\n]/g) || [];
     assignmentMatches.slice(0, 3).forEach(assignment => {
       let description = '変数への代入';
       

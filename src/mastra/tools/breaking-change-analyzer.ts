@@ -219,26 +219,30 @@ export class BreakingChangeAnalyzer {
     const content = change.content;
     
     const patterns = [
-      { 
-        pattern: /BREAKING CHANGE[:\s](.+?)(?:\n|$)/gi, 
+      {
+        // Limit line length to prevent ReDoS with external input
+        pattern: /BREAKING CHANGE[:\s]([^\n]{1,500})(?:\n|$)/gi, 
         severity: 'breaking' as const,
         category: 'documented-change' as const,
         confidence: 0.9
       },
-      { 
-        pattern: /\[BREAKING\][:\s](.+?)(?:\n|$)/gi, 
+      {
+        // Limit line length to prevent ReDoS with external input
+        pattern: /\[BREAKING\][:\s]([^\n]{1,500})(?:\n|$)/gi, 
         severity: 'breaking' as const,
         category: 'documented-change' as const,
         confidence: 0.9
       },
-      { 
-        pattern: /💥[:\s](.+?)(?:\n|$)/gi, 
+      {
+        // Limit line length to prevent ReDoS with external input
+        pattern: /💥[:\s]([^\n]{1,500})(?:\n|$)/gi, 
         severity: 'breaking' as const,
         category: 'documented-change' as const,
         confidence: 0.85
       },
       {
-        pattern: /activeCount.*(?:increment|behavior|change)/gi,
+        // Limit characters to prevent ReDoS with external input
+        pattern: /activeCount[^\n]{0,100}(?:increment|behavior|change)/gi,
         severity: 'breaking' as const,
         category: 'api-change' as const,
         confidence: 0.8
@@ -272,7 +276,8 @@ export class BreakingChangeAnalyzer {
     return this.breakingChanges
       .filter(change => {
         // Filter out non-breaking additions
-        if (/(?:added|new).+(?:method|function|feature)/i.test(change.text) &&
+        // Limit character matching to prevent ReDoS
+        if (/(?:added|new)[^\n]{1,100}(?:method|function|feature)/i.test(change.text) &&
             !/removed|changed|renamed|replace/i.test(change.text)) {
           return false;
         }

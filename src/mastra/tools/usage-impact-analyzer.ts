@@ -186,10 +186,13 @@ export class UsageImpactAnalyzer {
    * Check if file imports/uses the package
    */
   private importsPackage(content: string, packageName: string): boolean {
+    // Escape package name to prevent regex injection
+    const escapedPackageName = packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const importPatterns = [
-      new RegExp(`from\\s+['"\`]${packageName}['"\`]`, 'g'),
-      new RegExp(`require\\s*\\(\\s*['"\`]${packageName}['"\`]`, 'g'),
-      new RegExp(`import\\s+.+\\s+from\\s+['"\`]${packageName}['"\`]`, 'g')
+      new RegExp(`from\\s+['"\`]${escapedPackageName}['"\`]`, 'g'),
+      new RegExp(`require\\s*\\(\\s*['"\`]${escapedPackageName}['"\`]`, 'g'),
+      // Limit import statement length to prevent ReDoS
+      new RegExp(`import\\s+[^\\n]{1,200}\\s+from\\s+['"\`]${escapedPackageName}['"\`]`, 'g')
     ];
     
     return importPatterns.some(pattern => pattern.test(content));
