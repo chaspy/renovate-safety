@@ -68,6 +68,32 @@ describe('npm diff Tool', () => {
       expect(result.diff?.length).toBeGreaterThan(0);
     });
 
+    // Helper function to create npm view mock
+    const createNpmViewMock = () => {
+      const handleStdoutData = (event: string, cb: Function) => {
+        if (event === 'data') {
+          const packageData = {
+            name: 'invalid-package',
+            version: '1.0.0',
+            dependencies: {},
+          };
+          cb(Buffer.from(JSON.stringify(packageData)));
+        }
+      };
+
+      const handleClose = (event: string, cb: Function) => {
+        if (event === 'close') {
+          cb(0);
+        }
+      };
+
+      return {
+        stdout: { on: vi.fn(handleStdoutData) },
+        stderr: { on: vi.fn() },
+        on: vi.fn(handleClose),
+      };
+    };
+
     it('should fallback when npm diff fails', async () => {
       const mockChild = {
         stdout: { on: vi.fn() },
@@ -95,29 +121,7 @@ describe('npm diff Tool', () => {
       });
 
       // npm viewコマンドのモック（フォールバック時）
-      (spawn as any).mockImplementationOnce(() => mockChild).mockImplementation(() => ({
-        stdout: {
-          on: vi.fn((event, cb) => {
-            if (event === 'data') {
-              cb(
-                Buffer.from(
-                  JSON.stringify({
-                    name: 'invalid-package',
-                    version: '1.0.0',
-                    dependencies: {},
-                  })
-                )
-              );
-            }
-          }),
-        },
-        stderr: { on: vi.fn() },
-        on: vi.fn((event, cb) => {
-          if (event === 'close') {
-            cb(0);
-          }
-        }),
-      }));
+      (spawn as any).mockImplementationOnce(() => mockChild).mockImplementation(createNpmViewMock);
 
       const result = await npmDiffTool.execute({
         context: {
