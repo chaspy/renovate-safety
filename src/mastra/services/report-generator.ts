@@ -149,155 +149,226 @@ async function generateSummarySection(assessments: any[], isJapanese: boolean, l
 }
 
 // Generate assessments section with GitHub links  
+// Generate library overview section
+function generateLibraryOverviewSection(overview: any, isJapanese: boolean): string {
+  if (!overview) return '';
+
+  let section = `**${isJapanese ? 'ライブラリ概要' : 'Library Overview'}**: ${overview.overview}\n\n`;
+  if (overview.category && overview.category !== 'unknown') {
+    section += `**${isJapanese ? 'カテゴリ' : 'Category'}**: ${overview.category}\n\n`;
+  }
+  return section;
+}
+
+// Generate functional summary section
+async function generateFunctionalSummarySection(assessment: any, dependency: any, isJapanese: boolean): Promise<string> {
+  const functionalSummary = await buildFunctionalSummary(assessment, isJapanese);
+  if (functionalSummary.length === 0) return '';
+
+  let section = isJapanese ? '**機能レベルの変更（要点）**:\n' : '**Functional Changes (Summary):**\n';
+  for (const b of functionalSummary) {
+    section += `- ${b}\n`;
+  }
+
+  // Upstream compare link when available
+  const repoUrl = getRepositoryUrl(dependency.name);
+  if (repoUrl) {
+    const compareUrl = `${repoUrl}/compare/v${dependency.fromVersion}...v${dependency.toVersion}`;
+    section += isJapanese
+      ? `  - 🔗 [上流の差分 (GitHub Compare)](${compareUrl})\n`
+      : `  - 🔗 [Upstream Diff (GitHub Compare)](${compareUrl})\n`;
+  }
+  section += '\n';
+  return section;
+}
+
+// Generate usage information section
+function generateUsageInformationSection(codeImpact: any, isJapanese: boolean, linkOptions?: GitHubLinkOptions): string {
+  if (!codeImpact || codeImpact.totalUsages === 0) return '';
+
+  let section = `**${isJapanese ? '利用箇所' : 'Usage Locations'}**: ${codeImpact.totalUsages} ${isJapanese ? '箇所' : 'locations'}\n\n`;
+
+  // Affected files with links
+  section += generateAffectedFilesSection(codeImpact.affectedFiles, isJapanese, linkOptions);
+
+  // Usage details
+  section += generateUsageDetailsSection(codeImpact.usageDetails, isJapanese);
+
+  return section;
+}
+
+// Generate affected files section
+function generateAffectedFilesSection(affectedFiles: string[] | undefined, isJapanese: boolean, linkOptions?: GitHubLinkOptions): string {
+  if (!affectedFiles || affectedFiles.length === 0) return '';
+
+  let section = `**${isJapanese ? '影響ファイル' : 'Affected Files'}**:\n`;
+
+  for (const file of affectedFiles) {
+    const normalizedFile = normalizeFilePath(file);
+
+    if (linkOptions) {
+      const link = generateMarkdownLink(normalizedFile, 1, linkOptions);
+      section += `- ${link}`;
+    } else {
+      section += `- ${normalizedFile}`;
+    }
+
+    // Add context about the file
+    section += getFileContext(file, isJapanese);
+    section += '\n';
+  }
+  section += '\n';
+  return section;
+}
+
+// Get file context description
+function getFileContext(file: string, isJapanese: boolean): string {
+  if (file.includes('parallel')) {
+    return isJapanese ? ' (並列処理制御)' : ' (parallel processing control)';
+  } else if (file.includes('helper')) {
+    return isJapanese ? ' (ヘルパーユーティリティ)' : ' (helper utilities)';
+  } else if (file.includes('api') || file.includes('client')) {
+    return isJapanese ? ' (API通信)' : ' (API communication)';
+  }
+  return '';
+}
+
+// Generate usage details section
+function generateUsageDetailsSection(usageDetails: any[] | undefined, isJapanese: boolean): string {
+  if (!usageDetails || usageDetails.length === 0) return '';
+
+  let section = `**${isJapanese ? '利用形態' : 'Usage Patterns'}**:\n`;
+
+  const usageTypes = groupUsageByType(usageDetails);
+
+  section += formatImportUsage(usageTypes.import, isJapanese);
+  section += formatFunctionCallUsage(usageTypes['function-call'], isJapanese);
+  section += formatAssignmentUsage(usageTypes.assignment, isJapanese);
+  section += formatFunctionDefinitionUsage(usageTypes['function-definition'], isJapanese);
+
+  section += '\n';
+  return section;
+}
+
+// Group usage details by type
+function groupUsageByType(usageDetails: any[]): any {
+  return usageDetails.reduce((acc: any, detail: any) => {
+    if (!acc[detail.usage]) acc[detail.usage] = [];
+    acc[detail.usage].push({
+      context: detail.context,
+      description: detail.description
+    });
+    return acc;
+  }, {});
+}
+
+// Format import usage
+function formatImportUsage(importUsages: any[] | undefined, isJapanese: boolean): string {
+  if (!importUsages) return '';
+
+  const importDetail = importUsages[0];
+  let text = isJapanese ?
+    `- **インポート**: ${importDetail.description || 'パッケージをモジュールとして読み込み'}\n` :
+    `- **Import**: ${importDetail.description || 'Loading package as module'}\n`;
+
+  if (importDetail.context && importDetail.context.length < 100) {
+    text += `  \`\`\`javascript\n  ${importDetail.context}\n  \`\`\`\n`;
+  }
+  return text;
+}
+
+// Format function call usage
+function formatFunctionCallUsage(callUsages: any[] | undefined, isJapanese: boolean): string {
+  if (!callUsages) return '';
+
+  const callDetails = callUsages.slice(0, 2);
+  let text = isJapanese ?
+    `- **関数呼び出し**: ${callDetails.length}箇所で実行\n` :
+    `- **Function calls**: Executed in ${callDetails.length} locations\n`;
+
+  callDetails.forEach((detail: any, index: number) => {
+    if (detail.description) {
+      text += `  ${index + 1}. ${detail.description}\n`;
+    }
+    if (detail.context && detail.context.length < 120) {
+      text += `     \`${detail.context.replace(/\s+/g, ' ')}\`\n`;
+    }
+  });
+  return text;
+}
+
+// Format assignment usage
+function formatAssignmentUsage(assignmentUsages: any[] | undefined, isJapanese: boolean): string {
+  if (!assignmentUsages) return '';
+
+  const assignDetail = assignmentUsages[0];
+  let text = isJapanese ?
+    `- **変数代入**: ${assignDetail.description || '関数結果を変数に格納'}\n` :
+    `- **Variable assignment**: ${assignDetail.description || 'Storing function results in variables'}\n`;
+
+  if (assignDetail.context && assignDetail.context.length < 100) {
+    text += `  \`${assignDetail.context.trim()}\`\n`;
+  }
+  return text;
+}
+
+// Format function definition usage
+function formatFunctionDefinitionUsage(funcUsages: any[] | undefined, isJapanese: boolean): string {
+  if (!funcUsages) return '';
+
+  const funcDetails = funcUsages.slice(0, 2);
+  return isJapanese ?
+    `- **関数定義**: ${funcDetails.length}個の関数でパッケージを使用\n` :
+    `- **Function definitions**: Package used in ${funcDetails.length} function(s)\n`;
+}
+
+// Main assessment section generator (refactored)
 async function generateAssessmentsSection(assessments: any[], isJapanese: boolean, linkOptions?: GitHubLinkOptions): Promise<string> {
   let markdown = `#### ${isJapanese ? '📦 パッケージ分析' : '📦 Package Analysis'}\n\n`;
-  
+
   for (const assessment of assessments) {
     const { dependency, overview, codeImpact, risk } = assessment;
     const riskEmoji = getRiskEmoji(risk.level);
-    
+
     markdown += `##### ${dependency.name} ${dependency.fromVersion} → ${dependency.toVersion} ${riskEmoji}\n\n`;
-    
-    // Library overview - new feature at the top
-    if (overview) {
-      markdown += `**${isJapanese ? 'ライブラリ概要' : 'Library Overview'}**: ${overview.overview}\n\n`;
-      if (overview.category && overview.category !== 'unknown') {
-        markdown += `**${isJapanese ? 'カテゴリ' : 'Category'}**: ${overview.category}\n\n`;
-      }
-    }
-    
+
+    // Library overview
+    markdown += generateLibraryOverviewSection(overview, isJapanese);
     // Risk level and impact
     markdown += `**${isJapanese ? 'リスクレベル' : 'Risk Level'}**: ${risk.level.toUpperCase()} (${isJapanese ? 'スコア' : 'Score'}: ${risk.score})\n\n`;
-    
+
     // Risk assessment breakdown
     markdown += await generateRiskAssessmentBreakdown(assessment, isJapanese);
 
-    // Functional-level change summary (high-level, before any raw diffs)
-    const functionalSummary = await buildFunctionalSummary(assessment, isJapanese);
-    if (functionalSummary.length > 0) {
-      markdown += isJapanese ? '**機能レベルの変更（要点）**:\n' : '**Functional Changes (Summary):**\n';
-      for (const b of functionalSummary) {
-        markdown += `- ${b}\n`;
-      }
-      // Upstream compare link when available
-      const repoUrl = getRepositoryUrl(dependency.name);
-      if (repoUrl) {
-        const compareUrl = `${repoUrl}/compare/v${dependency.fromVersion}...v${dependency.toVersion}`;
-        markdown += isJapanese 
-          ? `  - 🔗 [上流の差分 (GitHub Compare)](${compareUrl})\n`
-          : `  - 🔗 [Upstream Diff (GitHub Compare)](${compareUrl})\n`;
-      }
-      markdown += '\n';
-    }
-    
-    // Usage information with GitHub links and details
-    if (codeImpact && codeImpact.totalUsages > 0) {
-      markdown += `**${isJapanese ? '利用箇所' : 'Usage Locations'}**: ${codeImpact.totalUsages} ${isJapanese ? '箇所' : 'locations'}\n\n`;
-      
-      // Affected files with links
-      if (codeImpact.affectedFiles && codeImpact.affectedFiles.length > 0) {
-        markdown += `**${isJapanese ? '影響ファイル' : 'Affected Files'}**:\n`;
-        
-        for (const file of codeImpact.affectedFiles) {
-          const normalizedFile = normalizeFilePath(file);
-          
-          if (linkOptions) {
-            const link = generateMarkdownLink(normalizedFile, 1, linkOptions);
-            markdown += `- ${link}`;
-          } else {
-            markdown += `- ${normalizedFile}`;
-          }
-          
-          // Add context about the file if it contains specific patterns
-          if (file.includes('parallel')) {
-            markdown += isJapanese ? ' (並列処理制御)' : ' (parallel processing control)';
-          } else if (file.includes('helper')) {
-            markdown += isJapanese ? ' (ヘルパーユーティリティ)' : ' (helper utilities)';
-          } else if (file.includes('api') || file.includes('client')) {
-            markdown += isJapanese ? ' (API通信)' : ' (API communication)';
-          }
-          markdown += '\n';
-        }
-        markdown += '\n';
-      }
-      
-      // Usage details if available - enhanced with specific context
-      if (codeImpact.usageDetails && codeImpact.usageDetails.length > 0) {
-        markdown += `**${isJapanese ? '利用形態' : 'Usage Patterns'}**:\n`;
-        
-        const usageTypes = codeImpact.usageDetails.reduce((acc: any, detail: any) => {
-          if (!acc[detail.usage]) acc[detail.usage] = [];
-          acc[detail.usage].push({
-            context: detail.context,
-            description: detail.description
-          });
-          return acc;
-        }, {});
-        
-        if (usageTypes.import) {
-          const importDetail = usageTypes.import[0];
-          markdown += isJapanese ? 
-            `- **インポート**: ${importDetail.description || 'パッケージをモジュールとして読み込み'}\n` :
-            `- **Import**: ${importDetail.description || 'Loading package as module'}\n`;
-          if (importDetail.context && importDetail.context.length < 100) {
-            markdown += `  \`\`\`javascript\n  ${importDetail.context}\n  \`\`\`\n`;
-          }
-        }
-        
-        if (usageTypes['function-call']) {
-          const callDetails = usageTypes['function-call'].slice(0, 2); // Show first 2
-          markdown += isJapanese ? 
-            `- **関数呼び出し**: ${callDetails.length}箇所で実行\n` :
-            `- **Function calls**: Executed in ${callDetails.length} locations\n`;
-          
-          callDetails.forEach((detail: any, index: number) => {
-            if (detail.description) {
-              markdown += `  ${index + 1}. ${detail.description}\n`;
-            }
-            if (detail.context && detail.context.length < 120) {
-              markdown += `     \`${detail.context.replace(/\s+/g, ' ')}\`\n`;
-            }
-          });
-        }
-        
-        if (usageTypes.assignment) {
-          const assignDetail = usageTypes.assignment[0];
-          markdown += isJapanese ? 
-            `- **変数代入**: ${assignDetail.description || '関数結果を変数に格納'}\n` :
-            `- **Variable assignment**: ${assignDetail.description || 'Storing function results in variables'}\n`;
-          if (assignDetail.context && assignDetail.context.length < 100) {
-            markdown += `  \`${assignDetail.context.trim()}\`\n`;
-          }
-        }
-        
-        if (usageTypes['function-definition']) {
-          const funcDetails = usageTypes['function-definition'].slice(0, 2);
-          markdown += isJapanese ? 
-            `- **関数定義**: ${funcDetails.length}個の関数でパッケージを使用\n` :
-            `- **Function definitions**: Package used in ${funcDetails.length} function(s)\n`;
-        }
-        
-        markdown += '\n';
-      }
-    }
-    
-    // Translated recommendations
-    if (codeImpact?.recommendations?.length > 0) {
-      markdown += `**${isJapanese ? '推奨アクション' : 'Recommendations'}**:\n`;
-      
-      const translatedRecommendations = await translateRecommendations(
-        codeImpact.recommendations, 
-        isJapanese ? 'ja' : 'en'
-      );
-      
-      for (const rec of translatedRecommendations) {
-        markdown += `- ${rec}\n`;
-      }
-      markdown += '\n';
-    }
+    // Functional summary
+    markdown += await generateFunctionalSummarySection(assessment, dependency, isJapanese);
+
+    // Usage information
+    markdown += generateUsageInformationSection(codeImpact, isJapanese, linkOptions);
+
+    // Recommendations
+    markdown += await generateCodeImpactRecommendations(codeImpact, isJapanese);
   }
-  
+
   return markdown;
+}
+
+// Generate code impact recommendations
+async function generateCodeImpactRecommendations(codeImpact: any, isJapanese: boolean): Promise<string> {
+  if (!codeImpact?.recommendations?.length) return '';
+
+  let section = `**${isJapanese ? '推奨アクション' : 'Recommendations'}**:\n`;
+
+  const translatedRecommendations = await translateRecommendations(
+    codeImpact.recommendations,
+    isJapanese ? 'ja' : 'en'
+  );
+
+  for (const rec of translatedRecommendations) {
+    section += `- ${rec}\n`;
+  }
+  section += '\n';
+  return section;
 }
 
 // Build high-level functional change bullets from available context
