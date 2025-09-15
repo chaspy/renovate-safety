@@ -46,22 +46,22 @@ export async function generateEnhancedReport(
   const changelogLabel = isJa ? '- **チェンジログソース**' : '- **Changelog Source**';
   const changelogValue = result.changelogDiff?.source || (isJa ? '未取得' : 'Not found');
   report += `${changelogLabel}: ${changelogValue}\n`;
-  const codeDiffStatus = result.codeDiff
-    ? `${result.codeDiff.filesChanged} files changed`
-    : isJa
-      ? '利用不可'
-      : 'Not available';
+  let codeDiffStatus;
+  if (result.codeDiff) {
+    codeDiffStatus = `${result.codeDiff.filesChanged} files changed`;
+  } else {
+    codeDiffStatus = isJa ? '利用不可' : 'Not available';
+  }
   report += `${isJa ? '- **コード差分**' : '- **Code Diff**'}: ${codeDiffStatus}\n`;
   const depTypeLabel = isJa ? '- **依存関係の種類**' : '- **Dependency Type**';
   const depTypeValue = (() => {
     if (!result.dependencyUsage) return 'dependencies';
-    const directText = result.dependencyUsage.isDirect
-      ? isJa
-        ? '直接'
-        : 'Direct'
-      : isJa
-        ? '間接'
-        : 'Transitive';
+    let directText;
+    if (result.dependencyUsage.isDirect) {
+      directText = isJa ? '直接' : 'Direct';
+    } else {
+      directText = isJa ? '間接' : 'Transitive';
+    }
     return `${directText} ${result.dependencyUsage.usageType || 'dependencies'}`;
   })();
   report += `${depTypeLabel}: ${depTypeValue}\n`;
@@ -146,13 +146,12 @@ export async function generateEnhancedReport(
   if (result.dependencyUsage) {
     report += isJa ? '### 🌳 依存関係の利用状況\n' : '### 🌳 Dependency Usage\n';
     const typeLabel = isJa ? '- **種類**' : '- **Type**';
-    const typeValue = result.dependencyUsage.isDirect
-      ? isJa
-        ? '直接依存'
-        : 'Direct'
-      : isJa
-        ? '間接依存'
-        : 'Transitive';
+    let typeValue;
+    if (result.dependencyUsage.isDirect) {
+      typeValue = isJa ? '直接依存' : 'Direct';
+    } else {
+      typeValue = isJa ? '間接依存' : 'Transitive';
+    }
     report += `${typeLabel}: ${typeValue}\n`;
     report += `${isJa ? '- **カテゴリ**' : '- **Category**'}: ${result.dependencyUsage.usageType}\n`;
     const impactLabel = isJa ? '- **影響範囲**' : '- **Impact**';
@@ -317,14 +316,13 @@ export async function generateEnhancedReport(
   const timeRequired = getTimeEstimate(result.riskAssessment.estimatedEffort);
   let automatable = isAutomatable(result);
   if (isJa) {
-    automatable =
-      automatable === 'Yes'
-        ? '可能'
-        : automatable === 'No'
-          ? '不可'
-          : automatable === 'Partially'
-            ? '一部可能'
-            : automatable;
+    if (automatable === 'Yes') {
+      automatable = '可能';
+    } else if (automatable === 'No') {
+      automatable = '不可';
+    } else if (automatable === 'Partially') {
+      automatable = '一部可能';
+    }
   }
 
   report += isJa ? `#### ${priority} の確認\n` : `#### ${priority} Verification\n`;
@@ -364,22 +362,20 @@ export async function generateEnhancedReport(
   report += `${isJa ? '- **検出された破壊的変更**' : '- **Breaking Changes Found**'}: ${result.breakingChanges.length}\n`;
   report += `${isJa ? '- **API利用検出数**' : '- **API Usages Found**'}: ${result.apiUsages.length}\n`;
   const aiLabel = isJa ? '- **AI解析**' : '- **AI Analysis**';
-  const aiValue = result.llmSummary
-    ? isJa
-      ? '実施済み'
-      : 'Completed'
-    : isJa
-      ? 'スキップ'
-      : 'Skipped';
+  let aiValue;
+  if (result.llmSummary) {
+    aiValue = isJa ? '実施済み' : 'Completed';
+  } else {
+    aiValue = isJa ? 'スキップ' : 'Skipped';
+  }
   report += `${aiLabel}: ${aiValue}\n`;
   const deepLabel = isJa ? '- **詳細解析**' : '- **Deep Analysis**';
-  const deepValue = result.deepAnalysis
-    ? isJa
-      ? '実施済み'
-      : 'Completed'
-    : isJa
-      ? '無効'
-      : 'Disabled';
+  let deepValue;
+  if (result.deepAnalysis) {
+    deepValue = isJa ? '実施済み' : 'Completed';
+  } else {
+    deepValue = isJa ? '無効' : 'Disabled';
+  }
   report += `${deepLabel}: ${deepValue}\n\n`;
 
   report += isJa ? '**根拠 (Risk Factors):**\n' : '**Risk Factors:**\n';
@@ -641,7 +637,10 @@ function getLibraryDescription(packageName: string, isJa: boolean): string | nul
   };
 
   const desc = descriptions[packageName];
-  return desc ? (isJa ? desc.ja : desc.en) : null;
+  if (!desc) {
+    return null;
+  }
+  return isJa ? desc.ja : desc.en;
 }
 
 function getUsageDescription(filePath: string, packageName: string, isJa: boolean): string | null {
