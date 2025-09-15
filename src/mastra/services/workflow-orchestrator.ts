@@ -111,9 +111,9 @@ function extractCodeImpactData(codeImpactResult: any): any {
     
     // Try multiple patterns to match recommendations
     const patterns = [
-      /\*\*Recommendations?\*\*:\s*\n((?:\s*- .+(?:\n|$))+)/im,
-      /(?:Recommendations?|Actions?):\s*\n((?:\s*- .+(?:\n|$))+)/im,
-      /### Recommendations?\s*\n((?:\s*- .+(?:\n|$))+)/im,
+      /\*\*Recommendations?\*\*:\s*\n([\s\S]*?)(?=\n\n|\n#|\n\*|$)/im,
+      /(?:Recommendations?|Actions?):\s*\n([\s\S]*?)(?=\n\n|\n#|\n\*|$)/im,
+      /### Recommendations?\s*\n([\s\S]*?)(?=\n\n|\n#|\n\*|$)/im,
     ];
     
     for (const pattern of patterns) {

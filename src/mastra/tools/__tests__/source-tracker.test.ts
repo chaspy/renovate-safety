@@ -322,7 +322,7 @@ describe('Source Tracker', () => {
     it('should verify valid HTTP URL', async () => {
       const source: BreakingChangeSource = {
         type: 'npm',
-        url: 'http://npmjs.com/package/test',
+        url: 'https://npmjs.com/package/test',
         status: 'success',
         confidence: 0.9,
         extractedAt: new Date()
