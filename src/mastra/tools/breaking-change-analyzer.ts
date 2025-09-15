@@ -3,6 +3,8 @@
  * Provides more accurate detection with categorization and deduplication
  */
 
+import { extractExportedNamesFromLine as extractExportedNamesBase, extractFunctionSignature, normalizeSignature } from '../../lib/code-analysis-utils.js';
+
 export interface BreakingChange {
   text: string;
   severity: 'critical' | 'breaking' | 'warning';
@@ -153,9 +155,9 @@ export class BreakingChangeAnalyzer {
           const names = this.extractExportedNamesFromLine(line, file);
           for (const n of names) addedExportNames.add(n);
 
-          const sig = this.extractFunctionSignature(line);
+          const sig = extractFunctionSignature(line);
           if (sig) {
-            const norm = this.normalizeSignature(sig.params);
+            const norm = normalizeSignature(sig.params);
             if (!addedSignatures.has(sig.name)) addedSignatures.set(sig.name, new Set());
             addedSignatures.get(sig.name)!.add(norm);
           }
@@ -166,9 +168,9 @@ export class BreakingChangeAnalyzer {
           const names = this.extractExportedNamesFromLine(line, file);
           for (const n of names) removedExportNames.add(n);
 
-          const sig = this.extractFunctionSignature(line);
+          const sig = extractFunctionSignature(line);
           if (sig) {
-            const norm = this.normalizeSignature(sig.params);
+            const norm = normalizeSignature(sig.params);
             if (!removedSignatures.has(sig.name)) removedSignatures.set(sig.name, new Set());
             removedSignatures.get(sig.name)!.add(norm);
           }
@@ -411,81 +413,18 @@ export class BreakingChangeAnalyzer {
    * Extract exported names from a diff line (best-effort)
    */
   private extractExportedNamesFromLine(line: string, file: string): string[] {
-    const names: string[] = [];
     const content = line.substring(1);
 
     // Only consider likely public modules (heuristic): index files, src/, lib/, explicit export/module.exports
     const pathOk = /(\/(src|lib)\/|^index\.|\/(index|main)\.)/i.test(file) || /export\s+/.test(content) || /module\.exports/.test(content);
-    if (!pathOk) return names;
+    if (!pathOk) return [];
 
-    // ESM named exports: export function|class|const|let|var NAME
-    const esmDecl = /export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(content);
-    if (esmDecl) names.push(esmDecl[1]);
-
-    // ESM default export
-    if (/export\s+default\s+/.test(content)) names.push('default');
-
-    // ESM list: export { a, b as c }
-    const listMatch = /export\s*\{([^}]+)\}/.exec(content);
-    if (listMatch) {
-      const parts = listMatch[1]
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map((s) => s.replace(/\s{1,10}as\s{1,10}[^,}]{1,100}$/, ''));
-      names.push(...parts);
-    }
-
-    // CommonJS: exports.name = ..., module.exports = { a, b }
-    const cjsProp = /exports\.([A-Za-z_$][\w$]*)\s*=/.exec(content);
-    if (cjsProp) names.push(cjsProp[1]);
-
-    const cjsObj = /module\.exports\s*=\s*\{([^}]+)\}/.exec(content);
-    if (cjsObj) {
-      const parts = cjsObj[1]
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map((s) => s.replace(/:\s*[^,}]{0,100}/, ''));
-      names.push(...parts);
-    }
-
-    return Array.from(new Set(names.filter(Boolean)));
+    // Use the shared utility function
+    return extractExportedNamesBase(line);
   }
 
-  /**
-   * Extract function signature name and param list from a diff line
-   */
-  private extractFunctionSignature(line: string): { name: string; params: string } | null {
-    const content = line.substring(1);
-
-    // export function name(params)
-    let m = /export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/.exec(content);
-    if (m) return { name: m[1], params: m[2] };
-
-    // export const name = (params) =>
-    m = /export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>/.exec(content);
-    if (m) return { name: m[1], params: m[2] };
-
-    // TypeScript .d.ts style
-    m = /declare\s+function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/.exec(content);
-    if (m) return { name: m[1], params: m[2] };
-
-    return null;
-  }
-
-  /**
-   * Normalize parameter list for signature comparison
-   */
-  private normalizeSignature(params: string): string {
-    let p = params;
-    p = p.replace(/[?]/g, '');
-    p = p.replace(/\b(public|private|protected|readonly)\s+/g, '');
-    p = p.replace(/:\s*([^,)]{1,100})/g, ''); // remove type annotations
-    p = p.replace(/=\s*([^,)]{1,100})/g, ''); // remove defaults
-    p = p.replace(/\s+/g, '');
-    return p.trim();
-  }
+  // These methods are now imported from code-analysis-utils.ts
+  // extractFunctionSignature and normalizeSignature are used directly from the import
 
   // Additional helper methods for specific change detection
   private detectExportChanges(_change: any) {

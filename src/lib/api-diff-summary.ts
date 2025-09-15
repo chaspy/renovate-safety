@@ -1,4 +1,9 @@
 import type { CodeDiff } from './github-diff.js';
+import {
+  extractExportedNamesFromLine,
+  extractFunctionSignature,
+  normalizeSignature,
+} from './code-analysis-utils.js';
 
 export interface ApiDiffSummary {
   bullets: string[];
@@ -116,58 +121,7 @@ export async function summarizeApiDiff(
   return { bullets, enginesDiff };
 }
 
-function extractExportedNamesFromLine(line: string): string[] {
-  const names: string[] = [];
-  const content = line.substring(1);
-  const esmDecl =
-    /export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(content);
-  if (esmDecl) names.push(esmDecl[1]);
-  if (/export\s+default\s+/.test(content)) names.push('default');
-  const listMatch = /export\s*\{([^}]+)\}/.exec(content);
-  if (listMatch) {
-    const parts = listMatch[1]
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((s) => s.replace(/\s{1,10}as\s{1,10}[^,}]{1,100}$/, ''));
-    names.push(...parts);
-  }
-  const cjsProp = /exports\.([A-Za-z_$][\w$]*)\s*=/.exec(content);
-  if (cjsProp) names.push(cjsProp[1]);
-  const cjsObj = /module\.exports\s*=\s*\{([^}]+)\}/.exec(content);
-  if (cjsObj) {
-    const parts = cjsObj[1]
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((s) => s.replace(/:\s*[^,}]{0,100}/, ''));
-    names.push(...parts);
-  }
-  return Array.from(new Set(names.filter(Boolean)));
-}
-
-function extractFunctionSignature(line: string): { name: string; params: string } | null {
-  const content = line.substring(1);
-  let m = /export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/.exec(content);
-  if (m) return { name: m[1], params: m[2] };
-  m = /export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>/.exec(content);
-  if (m) return { name: m[1], params: m[2] };
-  m = /export\s+declare\s+function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/.exec(content);
-  if (m) return { name: m[1], params: m[2] };
-  m = /declare\s+function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/.exec(content);
-  if (m) return { name: m[1], params: m[2] };
-  return null;
-}
-
-function normalizeSignature(params: string): string {
-  let p = params;
-  p = p.replace(/[?]/g, '');
-  p = p.replace(/\b(public|private|protected|readonly)\s+/g, '');
-  p = p.replace(/:\s*([^,)]{1,100})/g, '');
-  p = p.replace(/=\s*([^,)]{1,100})/g, '');
-  p = p.replace(/\s+/g, '');
-  return p.trim();
-}
+// These functions are now imported from code-analysis-utils.ts
 
 function summarizeList(items: string[], language: 'en' | 'ja'): string {
   const max = 4;
