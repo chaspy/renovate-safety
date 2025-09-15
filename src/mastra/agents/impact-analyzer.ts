@@ -285,7 +285,7 @@ function extractUniqueFiles(usages: Array<TsUsage | ConfigUsage>): string[] {
     files.add(usage.file);
   }
   
-  return Array.from(files).sort();
+  return Array.from(files).sort((a, b) => a.localeCompare(b));
 }
 
 // Utility function for determining criticality reason
