@@ -473,13 +473,13 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       apiUsages,
       deepAnalysis,
       riskAssessment,
-      recommendation: generateRecommendation(riskAssessment, breakingChanges.length, apiUsages.length, (options.language || 'en') as 'en' | 'ja')
+      recommendation: generateRecommendation(riskAssessment, breakingChanges.length, apiUsages.length, options.language || 'en')
     };
     
     const report = await generateEnhancedReport(
       analysisResult,
       options.json ? 'json' : 'markdown',
-      (options.language || 'en') as 'en' | 'ja'
+      options.language || 'en'
     );
     
     console.log('\n' + report);
