@@ -153,15 +153,27 @@ export const prLabelTool = createTool({
         success: true,
         operation,
         labelsAdded: operation !== 'remove' ? labels : [],
-        labelsRemoved: operation === 'remove' ? labels : (removePrefix ? currentLabelNames.filter(name => name.startsWith(removePrefix)) : []),
+        labelsRemoved: (() => {
+          if (operation === 'remove') {
+            return labels;
+          }
+          if (removePrefix) {
+            return currentLabelNames.filter(name => name.startsWith(removePrefix));
+          }
+          return [];
+        })(),
         currentLabels: resultLabels,
       };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('PR Label operation failed:', errorMessage);
 
-      const status = error && typeof error === 'object' && 'status' in error ? 
-        (typeof error.status === 'number' ? error.status : undefined) : undefined;
+      let status: number | undefined;
+      if (error && typeof error === 'object' && 'status' in error) {
+        status = typeof error.status === 'number' ? error.status : undefined;
+      } else {
+        status = undefined;
+      }
 
       // Handle specific errors
       if (status === 404) {

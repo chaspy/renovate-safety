@@ -122,8 +122,12 @@ export const githubCompareTool = createTool({
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('GitHub Compare API failed:', errorMessage);
       
-      const status = error && typeof error === 'object' && 'status' in error ? 
-        (typeof error.status === 'number' ? error.status : undefined) : undefined;
+      let status: number | undefined;
+      if (error && typeof error === 'object' && 'status' in error) {
+        status = typeof error.status === 'number' ? error.status : undefined;
+      } else {
+        status = undefined;
+      }
       
       return {
         success: false,
