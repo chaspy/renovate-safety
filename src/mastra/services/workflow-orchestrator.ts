@@ -202,7 +202,8 @@ function extractUsageDetails(text: string): Array<{file: string, usage: string, 
     });
     
     // Extract function calls with safer pattern (avoids ReDoS)
-    const functionCallMatches = text.match(/\w+\s*\([^)]*\)/g) || [];
+    // Limit whitespace and content inside parentheses to prevent ReDoS
+    const functionCallMatches = text.match(/\w+\s{0,5}\([^)]{0,100}\)/g) || [];
     functionCallMatches.slice(0, 4).forEach(call => {
       let description = '関数を実行';
       
@@ -524,8 +525,8 @@ function parseReleaseNotesFromText(text: string): any {
     // Look for JSON in various formats
     const jsonPatterns = [
       /```json\n([\s\S]*?)\n```/,
-      // Safer pattern to avoid ReDoS - look for JSON-like structure
-      /\{[^}]*"breakingChanges"[^}]*\}/,
+      // Safer pattern to avoid ReDoS - limit content length
+      /\{[^}]{0,1000}"breakingChanges"[^}]{0,1000}\}/,
       /### Structured Output[^\n]*\n```json\n([\s\S]{0,50000}?)\n```/
     ];
     

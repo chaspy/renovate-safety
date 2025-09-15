@@ -74,7 +74,8 @@ export class BreakingChangeAnalyzer {
    * Detect Node.js requirement changes
    */
   private detectNodeRequirementChange(content: string) {
-    const nodeChangePattern = /[+-][^"\n]*"node":\s*"([^"]+)"/g;
+    // Limit character matching to prevent ReDoS
+    const nodeChangePattern = /[+-][^"\n]{0,100}"node":\s{0,5}"([^"]{1,50})"/g;
     const matches: { type: string; version: string }[] = [];
     
     let match;

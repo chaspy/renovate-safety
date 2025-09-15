@@ -29,7 +29,8 @@ function getRepositoryUrl(packageName: string): string | null {
 // Helper function to normalize file paths for main branch
 function normalizeFilePath(filePath: string): string {
   // Remove line number suffix first
-  const cleanPath = filePath.replace(/:?\d+$/, '');
+  // Limit digits to prevent ReDoS (max 10 digits for line numbers)
+  const cleanPath = filePath.replace(/:?\d{1,10}$/, '');
 
   // Handle various path formats and extract the final src/... part
   // Use lastIndexOf for safer pattern matching (avoids ReDoS)
