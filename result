@@ -10,15 +10,25 @@ Overall Status: ERROR
 
 ❌ Failed Conditions:
   • new_reliability_rating: 4 (threshold: GT 1)
-  • new_duplicated_lines_density: 3.745675772396517 (threshold: GT 3)
-  • new_security_hotspots_reviewed: 0.0 (threshold: LT 100)
+  • new_duplicated_lines_density: 3.415741072494924 (threshold: GT 3)
+  • new_security_hotspots_reviewed: 90.0 (threshold: LT 100)
 
 🐛 Issues
 --------------------------------------------------
-Total Issues: 105
-Effort Total: 1302
-Debt Total: 1302
+Total Issues: 106
+Effort Total: 1307
+Debt Total: 1307
 
+Issue Key: AZlMxVMe2p2Bx4PRB1tr
+Rule: typescript:S125
+Severity: MAJOR
+File: src/lib/code-analysis-utils.ts
+Line: 25
+Message: Remove this commented out code.
+Effort: 5min
+Debt: 5min
+Tags: unused
+--------------------------------------------------
 Issue Key: AZlMq4BBsYsZi1EjuyCX
 Rule: typescript:S3776
 Severity: CRITICAL
@@ -173,7 +183,7 @@ Issue Key: AZlG8ZpYQKiCQKWRQHPp
 Rule: typescript:S3776
 Severity: CRITICAL
 File: src/lib/api-diff-summary.ts
-Line: 8
+Line: 13
 Message: Refactor this function to reduce its Cognitive Complexity from 58 to the 15 allowed.
 Effort: 48min
 Debt: 48min
@@ -183,7 +193,7 @@ Issue Key: AZlG8ZpYQKiCQKWRQHPq
 Rule: typescript:S4138
 Severity: MINOR
 File: src/lib/api-diff-summary.ts
-Line: 25
+Line: 30
 Message: Expected a `for-of` loop instead of a `for` loop with this simple iteration.
 Effort: 5min
 Debt: 5min
@@ -443,7 +453,7 @@ Issue Key: AZlG8ZdOQKiCQKWRQHNc
 Rule: typescript:S2933
 Severity: MAJOR
 File: src/mastra/tools/breaking-change-analyzer.ts
-Line: 15
+Line: 17
 Message: Member 'detectedChanges' is never reassigned; mark it as `readonly`.
 Effort: 2min
 Debt: 2min
@@ -453,7 +463,7 @@ Issue Key: AZlG8ZdOQKiCQKWRQHNe
 Rule: typescript:S3776
 Severity: CRITICAL
 File: src/mastra/tools/breaking-change-analyzer.ts
-Line: 129
+Line: 131
 Message: Refactor this function to reduce its Cognitive Complexity from 55 to the 15 allowed.
 Effort: 45min
 Debt: 45min
@@ -1072,49 +1082,31 @@ Tags: es2015, type-dependent, unused
 
 🔒 Security Hotspots
 --------------------------------------------------
-Total Security Hotspots: 13
+Total Security Hotspots: 10
 
+Hotspot Key: AZlMxVMe2p2Bx4PRB1ts
+Rule: typescript:S5852
+Security Category: dos
+Vulnerability Probability: MEDIUM
+Status: TO_REVIEW
+File: src/lib/code-analysis-utils.ts
+Line: 32
+Message: Make sure the regex used here, which is vulnerable to super-linear runtime due to backtracking, cannot lead to denial of service.
+--------------------------------------------------
 Hotspot Key: AZlG8ZiYQKiCQKWRQHOm
 Rule: typescript:S5852
 Security Category: dos
 Vulnerability Probability: MEDIUM
-Status: TO_REVIEW
+Status: REVIEWED
 File: src/mastra/services/report-generator.ts
 Line: 31
-Message: Make sure the regex used here, which is vulnerable to super-linear runtime due to backtracking, cannot lead to denial of service.
---------------------------------------------------
-Hotspot Key: AZlMuJmvc2xh2OrR3jR9
-Rule: typescript:S5852
-Security Category: dos
-Vulnerability Probability: MEDIUM
-Status: TO_REVIEW
-File: src/mastra/services/workflow-orchestrator.ts
-Line: 114
-Message: Make sure the regex used here, which is vulnerable to super-linear runtime due to backtracking, cannot lead to denial of service.
---------------------------------------------------
-Hotspot Key: AZlMuJmvc2xh2OrR3jR-
-Rule: typescript:S5852
-Security Category: dos
-Vulnerability Probability: MEDIUM
-Status: TO_REVIEW
-File: src/mastra/services/workflow-orchestrator.ts
-Line: 115
-Message: Make sure the regex used here, which is vulnerable to super-linear runtime due to backtracking, cannot lead to denial of service.
---------------------------------------------------
-Hotspot Key: AZlMuJmvc2xh2OrR3jR_
-Rule: typescript:S5852
-Security Category: dos
-Vulnerability Probability: MEDIUM
-Status: TO_REVIEW
-File: src/mastra/services/workflow-orchestrator.ts
-Line: 116
 Message: Make sure the regex used here, which is vulnerable to super-linear runtime due to backtracking, cannot lead to denial of service.
 --------------------------------------------------
 Hotspot Key: AZlG8Zi2QKiCQKWRQHO4
 Rule: typescript:S5852
 Security Category: dos
 Vulnerability Probability: MEDIUM
-Status: TO_REVIEW
+Status: REVIEWED
 File: src/mastra/services/workflow-orchestrator.ts
 Line: 205
 Message: Make sure the regex used here, which is vulnerable to super-linear runtime due to backtracking, cannot lead to denial of service.
@@ -1123,7 +1115,7 @@ Hotspot Key: AZlMuJmvc2xh2OrR3jSA
 Rule: typescript:S5852
 Security Category: dos
 Vulnerability Probability: MEDIUM
-Status: TO_REVIEW
+Status: REVIEWED
 File: src/mastra/services/workflow-orchestrator.ts
 Line: 528
 Message: Make sure the regex used here, which is vulnerable to super-linear runtime due to backtracking, cannot lead to denial of service.
@@ -1132,34 +1124,25 @@ Hotspot Key: AZlG8ZdOQKiCQKWRQHNd
 Rule: typescript:S5852
 Security Category: dos
 Vulnerability Probability: MEDIUM
-Status: TO_REVIEW
+Status: REVIEWED
 File: src/mastra/tools/breaking-change-analyzer.ts
-Line: 68
+Line: 70
 Message: Make sure the regex used here, which is vulnerable to super-linear runtime due to backtracking, cannot lead to denial of service.
 --------------------------------------------------
 Hotspot Key: AZlG8ZdrQKiCQKWRQHNx
 Rule: typescript:S5852
 Security Category: dos
 Vulnerability Probability: MEDIUM
-Status: TO_REVIEW
+Status: REVIEWED
 File: src/mastra/tools/usage-impact-analyzer.ts
 Line: 131
 Message: Make sure the regex used here, which is vulnerable to super-linear runtime due to backtracking, cannot lead to denial of service.
---------------------------------------------------
-Hotspot Key: AZlG8ZbUQKiCQKWRQHNL
-Rule: typescript:S5332
-Security Category: encrypt-data
-Vulnerability Probability: LOW
-Status: TO_REVIEW
-File: src/mastra/tools/__tests__/source-tracker.test.ts
-Line: 325
-Message: Using http protocol is insecure. Use https instead.
 --------------------------------------------------
 Hotspot Key: AZlG8ZmYQKiCQKWRQHPO
 Rule: typescript:S4036
 Security Category: others
 Vulnerability Probability: LOW
-Status: TO_REVIEW
+Status: REVIEWED
 File: src/mastra/cli/index.ts
 Line: 168
 Message: Make sure the "PATH" variable only contains fixed, unwriteable directories.
@@ -1168,7 +1151,7 @@ Hotspot Key: AZlG8ZmYQKiCQKWRQHPP
 Rule: typescript:S4036
 Security Category: others
 Vulnerability Probability: LOW
-Status: TO_REVIEW
+Status: REVIEWED
 File: src/mastra/cli/index.ts
 Line: 183
 Message: Make sure the "PATH" variable only contains fixed, unwriteable directories.
@@ -1177,7 +1160,7 @@ Hotspot Key: AZlG8ZbvQKiCQKWRQHNM
 Rule: typescript:S4036
 Security Category: others
 Vulnerability Probability: LOW
-Status: TO_REVIEW
+Status: REVIEWED
 File: src/mastra/tools/github-link-generator.ts
 Line: 35
 Message: Make sure the "PATH" variable only contains fixed, unwriteable directories.
@@ -1186,7 +1169,7 @@ Hotspot Key: AZlG8ZfSQKiCQKWRQHN7
 Rule: typescript:S4036
 Security Category: others
 Vulnerability Probability: LOW
-Status: TO_REVIEW
+Status: REVIEWED
 File: src/mastra/tools/npm-diff.ts
 Line: 178
 Message: Make sure the "PATH" variable only contains fixed, unwriteable directories.
@@ -1194,9 +1177,9 @@ Message: Make sure the "PATH" variable only contains fixed, unwriteable director
 
 🔄 Code Duplication
 --------------------------------------------------
-Duplication Density: 3.745675772396517%
-Duplicated Blocks: 24
-Duplicated Lines: 628
+Duplication Density: 3.415741072494924%
+Duplicated Blocks: 22
+Duplicated Lines: 572
 
 📊 Test Coverage
 --------------------------------------------------

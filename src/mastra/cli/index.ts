@@ -22,59 +22,7 @@ program
   .option('--threshold <score>', 'Risk threshold for auto-merge', parseInt, 1)
   .option('--concurrency <number>', 'Number of dependencies to analyze in parallel', parseInt, 3)
   .action(async (options) => {
-    try {
-      // Validate configuration
-      console.log('🔧 Validating configuration...');
-      validateConfig();
-      
-      // Get PR number
-      const prNumber = options.pr || await detectCurrentPR();
-      
-      if (!prNumber) {
-        console.error('❌ No PR number provided and could not detect from current branch');
-        console.error('💡 Use: renovate-safety agent analyze --pr <number>');
-        process.exit(1);
-      }
-      
-      console.log(`🔍 Analyzing PR #${prNumber}...`);
-      console.log('DEBUG - CLI working directory:', process.cwd());
-      
-      // Run workflow
-      const result = await analyzeRenovatePR({
-        prNumber,
-        postMode: options.post,
-        format: options.format,
-        language: options.language,
-        threshold: options.threshold,
-        concurrency: options.concurrency,
-      });
-      
-      // Output results
-      if (options.format === 'json') {
-        const output = result.report.format === 'json' ? result.report.json : JSON.stringify(result);
-        console.log(output);
-      } else {
-        const output = result.report.format === 'markdown' ? result.report.markdown : JSON.stringify(result);
-        console.log('\n' + output);
-      }
-      
-      // Exit code based on risk
-      const riskScore = getRiskScore(result.overallRisk);
-      
-      if (riskScore <= options.threshold) {
-        console.log(`✅ Risk score ${riskScore} is within threshold ${options.threshold}`);
-        process.exit(0);
-      } else {
-        console.log(`⚠️ Risk score ${riskScore} exceeds threshold ${options.threshold}`);
-        process.exit(1);
-      }
-    } catch (error) {
-      console.error('❌ Error:', error instanceof Error ? error.message : error);
-      if (error instanceof Error && error.stack) {
-        console.error('Stack:', error.stack);
-      }
-      process.exit(1);
-    }
+    await handleAnalyzeCommand(options, false);
   });
 
 // Legacy commands for backward compatibility
@@ -107,60 +55,68 @@ program
   .option('--concurrency <number>', 'Number of dependencies to analyze in parallel', parseInt, 3)
   .action(async (options) => {
     console.warn('⚠️ Using legacy command. Use "renovate-safety agent analyze" instead.');
-    // Run the same analysis logic
-    try {
-      // Validate configuration
-      console.log('🔧 Validating configuration...');
-      validateConfig();
-      
-      // Get PR number
-      const prNumber = options.pr || await detectCurrentPR();
-      
-      if (!prNumber) {
-        console.error('❌ No PR number provided and could not detect from current branch');
-        console.error('💡 Use: renovate-safety analyze --pr <number>');
-        process.exit(1);
-      }
-      
-      console.log(`🔍 Analyzing PR #${prNumber}...`);
-      console.log('DEBUG - CLI working directory:', process.cwd());
-      
-      // Run workflow
-      const result = await analyzeRenovatePR({
-        prNumber,
-        postMode: options.post,
-        format: options.format,
-        language: options.language,
-        threshold: options.threshold,
-        concurrency: options.concurrency,
-      });
-      
-      // Output results
-      if (options.format === 'json') {
-        const output = result.report.format === 'json' ? result.report.json : JSON.stringify(result);
-        console.log(output);
-      } else {
-        const output = result.report.format === 'markdown' ? result.report.markdown : JSON.stringify(result);
-        console.log('\n' + output);
-      }
-      
-      // Exit code based on risk
-      const riskScore = getRiskScore(result.overallRisk);
-      
-      if (riskScore <= options.threshold) {
-        console.log(`✅ Risk score ${riskScore} is within threshold ${options.threshold}`);
-        process.exit(0);
-      } else {
-        console.log(`⚠️ Risk score ${riskScore} exceeds threshold ${options.threshold}`);
-        process.exit(1);
-      }
-    } catch (error) {
-      console.error('❌ Error:', error instanceof Error ? error.message : error);
-      process.exit(1);
-    }
+    await handleAnalyzeCommand(options, true);
   });
 
 program.parse(process.argv);
+
+// Shared function to handle analyze command logic
+async function handleAnalyzeCommand(options: any, isLegacy: boolean = false): Promise<void> {
+  try {
+    // Validate configuration
+    console.log('🔧 Validating configuration...');
+    validateConfig();
+
+    // Get PR number
+    const prNumber = options.pr || await detectCurrentPR();
+
+    if (!prNumber) {
+      console.error('❌ No PR number provided and could not detect from current branch');
+      const command = isLegacy ? 'renovate-safety analyze' : 'renovate-safety agent analyze';
+      console.error(`💡 Use: ${command} --pr <number>`);
+      process.exit(1);
+    }
+
+    console.log(`🔍 Analyzing PR #${prNumber}...`);
+    console.log('DEBUG - CLI working directory:', process.cwd());
+
+    // Run workflow
+    const result = await analyzeRenovatePR({
+      prNumber,
+      postMode: options.post,
+      format: options.format,
+      language: options.language,
+      threshold: options.threshold,
+      concurrency: options.concurrency,
+    });
+
+    // Output results
+    if (options.format === 'json') {
+      const output = result.report.format === 'json' ? result.report.json : JSON.stringify(result);
+      console.log(output);
+    } else {
+      const output = result.report.format === 'markdown' ? result.report.markdown : JSON.stringify(result);
+      console.log('\n' + output);
+    }
+
+    // Exit code based on risk
+    const riskScore = getRiskScore(result.overallRisk);
+
+    if (riskScore <= options.threshold) {
+      console.log(`✅ Risk score ${riskScore} is within threshold ${options.threshold}`);
+      process.exit(0);
+    } else {
+      console.log(`⚠️ Risk score ${riskScore} exceeds threshold ${options.threshold}`);
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error('❌ Error:', error instanceof Error ? error.message : error);
+    if (!isLegacy && error instanceof Error && error.stack) {
+      console.error('Stack:', error.stack);
+    }
+    process.exit(1);
+  }
+}
 
 async function detectCurrentPR(): Promise<number | null> {
   try {

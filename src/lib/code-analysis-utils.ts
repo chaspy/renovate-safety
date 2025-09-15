@@ -22,7 +22,7 @@ export function extractExportedNamesFromLine(line: string): string[] {
     names.push(m[1]);
   }
 
-  // export { name1, name2 }
+  // Check for export list: export { name1, name2 }
   const expBrace = /export\s*\{([^}]+)\}/.exec(content);
   if (expBrace) {
     const parts = expBrace[1]

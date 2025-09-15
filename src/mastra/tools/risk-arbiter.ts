@@ -1,6 +1,12 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import semver from 'semver';
+import {
+  analyzeVersionJump,
+  determineDiffDepth,
+  determineMigrationComplexity,
+  calculateBaseRiskScore,
+  determineBaseRiskLevel,
+} from '../../lib/risk-assessment-utils.js';
 
 // Input schema for risk assessment
 const inputSchema = z.object({
@@ -101,97 +107,11 @@ export const riskArbiterTool = createTool({
   },
 });
 
-function analyzeVersionJump(fromVersion: string, toVersion: string) {
-  try {
-    const from = semver.coerce(fromVersion);
-    const to = semver.coerce(toVersion);
-
-    if (!from || !to) {
-      // Fallback to simple parsing
-      return { major: 1, minor: 0, patch: 0 };
-    }
-
-    return {
-      major: semver.major(to) - semver.major(from),
-      minor: semver.minor(to) - semver.minor(from),
-      patch: semver.patch(to) - semver.patch(from),
-    };
-  } catch {
-    return { major: 1, minor: 0, patch: 0 };
-  }
-}
-
-function determineDiffDepth(hasChangelog: boolean, hasDiff: boolean): 'full' | 'partial' | 'none' {
-  if (hasChangelog && hasDiff) return 'full';
-  if (hasChangelog || hasDiff) return 'partial';
-  return 'none';
-}
-
-function determineMigrationComplexity(
-  breakingChanges: string[],
-  usageCount: number
-): 'simple' | 'moderate' | 'complex' {
-  if (breakingChanges.length === 0) return 'simple';
-  if (breakingChanges.length > 5 || usageCount > 20) return 'complex';
-  if (breakingChanges.length > 2 || usageCount > 10) return 'moderate';
-  return 'simple';
-}
+// These functions are now imported from risk-assessment-utils.ts
 
 function calculateRiskScore(factors: any): number {
-  let score = 0;
-
-  // Version jump impact (0-40 points)
-  score += factors.versionJump.major * 20;
-  score += factors.versionJump.minor * 5;
-  score += factors.versionJump.patch * 1;
-
-  // Usage impact (0-30 points)
-  score += Math.min(factors.usage.directUsageCount * 2, 20);
-  score += factors.usage.criticalPathUsage ? 10 : 0;
-
-  // Breaking changes impact (0-20 points)
-  score += Math.min(factors.packageSpecific.breakingChangePatterns.length * 5, 20);
-
-  // Confidence penalty (0-10 points)
-  if (factors.confidence.diffAnalysisDepth === 'none') score += 10;
-  else if (factors.confidence.diffAnalysisDepth === 'partial') score += 5;
-
-  // Test coverage mitigation (-20 to 0 points)
-  score -= (factors.usage.testCoverage / 100) * 20;
-
-  // Special handling for @types/* packages - apply reduction after all calculations
-  if (factors.packageSpecific.isTypeDefinition) {
-    // @types/* packages have much lower risk
-    if (
-      factors.versionJump.patch > 0 &&
-      factors.versionJump.major === 0 &&
-      factors.versionJump.minor === 0
-    ) {
-      score = Math.max(0, score - 10); // Patch updates for @types/* are very safe
-    } else if (factors.versionJump.minor > 0 && factors.versionJump.major === 0) {
-      score = Math.max(0, score - 5); // Minor updates for @types/* are relatively safe
-    } else if (factors.versionJump.major > 0) {
-      // Major updates should maintain at least LOW risk (score 10)
-      score = Math.max(score * 0.3, 10);
-    } else {
-      // Other cases: reduce overall risk for type definitions
-      score *= 0.3; // More aggressive reduction for @types/* packages
-    }
-  }
-
-  // DevDependencies have lower risk
-  if (factors.packageSpecific.isDevDependency) {
-    score -= 1;
-  }
-
-  // Lockfile-only changes have significantly lower risk
-  if (factors.packageSpecific.isLockfileOnly) {
-    // Lockfile-only changes are capped at score 10 (LOW risk threshold)
-    // This ensures lockfile-only changes are never higher than LOW risk
-    score = Math.min(score * 0.3, 10);
-  }
-
-  return Math.max(0, Math.min(100, score));
+  // Use the shared base calculation
+  return calculateBaseRiskScore(factors);
 }
 
 function determineRiskLevel(score: number, factors: any): 'safe' | 'low' | 'medium' | 'high' | 'critical' {
