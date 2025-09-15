@@ -447,8 +447,8 @@ describe('Report Generator', () => {
     vi.doUnmock('../report-generator.js');
     const { generateReport } = await import('../report-generator.js');
     const report = await generateReport(assessments, {
-      format: 'markdown' as 'markdown',
-      language: 'en' as 'en',
+      format: 'markdown' as const,
+      language: 'en' as const,
       prInfo: { number: 123, title: 'Test', base: 'main', head: 'test', repository: { owner: 'test', name: 'repo' } },
     });
 

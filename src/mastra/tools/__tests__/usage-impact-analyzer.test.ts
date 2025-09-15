@@ -167,5 +167,6 @@ console.log('Pending:', limit.pendingCount);
 
     // Should only process up to 50 files as per the implementation
     expect(mockReadFile.mock.calls.length).toBeLessThanOrEqual(50);
+    expect(result).toBeDefined();  // Ensure result is used
   });
 });

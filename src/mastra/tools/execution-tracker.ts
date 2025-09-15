@@ -54,7 +54,7 @@ export interface ExecutionStats {
 }
 
 class ExecutionTracker {
-  private stats: ExecutionStats;
+  private readonly stats: ExecutionStats;
   private readonly activeAgents: Map<string, AgentExecution> = new Map();
   private readonly activeTools: Map<string, ToolExecution> = new Map();
 
