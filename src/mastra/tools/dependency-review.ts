@@ -4,15 +4,8 @@ import { Octokit } from '@octokit/rest';
 import type { Endpoints } from '@octokit/types';
 import { getEnvironmentConfig } from '../../lib/env-config.js';
 
-/**
- * Extract dependency changes from PR diff as fallback
- */
-async function extractDependenciesFromPRDiff(
-  owner: string,
-  repo: string,
-  branchOrPrNumber: string,
-  auth: string
-): Promise<Array<{
+// Type for dependency change
+type DependencyChange = {
   name: string;
   fromVersion: string;
   toVersion: string;
@@ -21,106 +14,165 @@ async function extractDependenciesFromPRDiff(
   vulnerabilities: any[];
   manifest: string;
   scope: string;
-}>> {
+};
+
+// Extract PR number from direct number format
+function extractDirectPrNumber(branchOrPrNumber: string): number | null {
+  if (!isNaN(parseInt(branchOrPrNumber)) && !branchOrPrNumber.includes('/')) {
+    return parseInt(branchOrPrNumber);
+  }
+  return null;
+}
+
+// Extract PR number from PR-style branch name (e.g., "PR-16")
+function extractPrNumberFromBranch(branchOrPrNumber: string): number | null {
+  if (branchOrPrNumber.startsWith('PR-') || branchOrPrNumber.includes('PR-')) {
+    const prMatch = /PR-(\d+)/.exec(branchOrPrNumber);
+    if (prMatch) {
+      return parseInt(prMatch[1]);
+    }
+  }
+  return null;
+}
+
+// Find PR number by branch name
+async function findPrByBranch(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branchName: string
+): Promise<number> {
+  const { data: pulls } = await octokit.rest.pulls.list({
+    owner,
+    repo,
+    head: `${owner}:${branchName}`,
+    state: 'open',
+  });
+
+  if (pulls.length === 0) {
+    throw new Error(`No open PR found for branch ${branchName}`);
+  }
+
+  return pulls[0].number;
+}
+
+// Determine PR number using various strategies
+async function determinePrNumber(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branchOrPrNumber: string
+): Promise<number> {
+  // Strategy 1: Direct PR number
+  const directNumber = extractDirectPrNumber(branchOrPrNumber);
+  if (directNumber !== null) {
+    return directNumber;
+  }
+
+  // Strategy 2: Extract from PR-style branch name
+  const prFromBranch = extractPrNumberFromBranch(branchOrPrNumber);
+  if (prFromBranch !== null) {
+    return prFromBranch;
+  }
+
+  // Strategy 3: Find PR by branch name
+  return await findPrByBranch(octokit, owner, repo, branchOrPrNumber);
+}
+
+// Parse a removed dependency line from patch
+function parseRemovedDependency(line: string): { name: string; version: string } | null {
+  if (!line.startsWith('-') || !line.includes(':') || !line.includes('"^')) {
+    return null;
+  }
+
+  const removedMatch = line.match(/-\s*"([^"]+)":\s*"([^"]+)"/);
+  if (removedMatch) {
+    const [, packageName, fromVersion] = removedMatch;
+    return { name: packageName, version: fromVersion };
+  }
+
+  return null;
+}
+
+// Find matching added dependency line
+function findAddedDependency(
+  lines: string[],
+  startIndex: number,
+  packageName: string
+): string | null {
+  const endIndex = Math.min(startIndex + 5, lines.length);
+
+  for (let j = startIndex + 1; j < endIndex; j++) {
+    const nextLine = lines[j];
+    if (nextLine.startsWith('+') && nextLine.includes(`"${packageName}"`)) {
+      const addedMatch = nextLine.match(/\+\s*"[^"]+":\s*"([^"]+)"/);
+      if (addedMatch) {
+        return addedMatch[1];
+      }
+    }
+  }
+
+  return null;
+}
+
+// Extract dependency changes from patch lines
+function extractChangesFromPatch(patch: string): DependencyChange[] {
+  const changes: DependencyChange[] = [];
+  const lines = patch.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const removedDep = parseRemovedDependency(lines[i]);
+    if (!removedDep) continue;
+
+    const toVersion = findAddedDependency(lines, i, removedDep.name);
+    if (!toVersion) continue;
+
+    changes.push({
+      name: removedDep.name,
+      fromVersion: removedDep.version.replace('^', ''),
+      toVersion: toVersion.replace('^', ''),
+      type: 'dependencies',
+      changeType: 'updated',
+      vulnerabilities: [],
+      manifest: 'package.json',
+      scope: 'runtime',
+    });
+  }
+
+  return changes;
+}
+
+/**
+ * Extract dependency changes from PR diff as fallback
+ */
+async function extractDependenciesFromPRDiff(
+  owner: string,
+  repo: string,
+  branchOrPrNumber: string,
+  auth: string
+): Promise<DependencyChange[]> {
   const octokit = new Octokit({ auth });
-  
-  // Get PR number - try different strategies
-  let actualPrNumber: number;
-  
+
   try {
-    // Strategy 1: Direct PR number
-    if (!isNaN(parseInt(branchOrPrNumber)) && !branchOrPrNumber.includes('/')) {
-      actualPrNumber = parseInt(branchOrPrNumber);
-    }
-    // Strategy 2: Extract from PR-style branch name (e.g., "PR-16")
-    else if (branchOrPrNumber.startsWith('PR-') || branchOrPrNumber.includes('PR-')) {
-      const prMatch = /PR-(\d+)/.exec(branchOrPrNumber);
-      if (prMatch) {
-        actualPrNumber = parseInt(prMatch[1]);
-      } else {
-        throw new Error(`Cannot extract PR number from ${branchOrPrNumber}`);
-      }
-    }
-    // Strategy 3: Find PR by branch name
-    else {
-      const { data: pulls } = await octokit.rest.pulls.list({
-        owner,
-        repo,
-        head: `${owner}:${branchOrPrNumber}`,
-        state: 'open',
-      });
-      
-      if (pulls.length === 0) {
-        throw new Error(`No open PR found for branch ${branchOrPrNumber}`);
-      }
-      
-      actualPrNumber = pulls[0].number;
-    }
-    
+    // Get PR number using various strategies
+    const actualPrNumber = await determinePrNumber(octokit, owner, repo, branchOrPrNumber);
+
     // Get PR files
     const { data: files } = await octokit.rest.pulls.listFiles({
       owner,
       repo,
       pull_number: actualPrNumber,
     });
-    
-    const changes: Array<{
-      name: string;
-      fromVersion: string;
-      toVersion: string;
-      type: string;
-      changeType: string;
-      vulnerabilities: any[];
-      manifest: string;
-      scope: string;
-    }> = [];
-    
+
     // Look for package.json changes
     const packageJsonFile = files.find(f => f.filename === 'package.json');
-    
-    if (packageJsonFile?.patch) {
-      const patch = packageJsonFile.patch;
-      
-      // Extract dependency changes from patch
-      const lines = patch.split('\n');
-      
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        
-        // Look for removed dependency lines (-)
-        if (line.startsWith('-') && line.includes(':') && line.includes('"^')) {
-          const removedMatch = line.match(/-\s*"([^"]+)":\s*"([^"]+)"/);
-          if (removedMatch) {
-            const [, packageName, fromVersion] = removedMatch;
-            
-            // Look for corresponding added line (+)
-            for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
-              const nextLine = lines[j];
-              if (nextLine.startsWith('+') && nextLine.includes(`"${packageName}"`)) {
-                const addedMatch = nextLine.match(/\+\s*"[^"]+":\s*"([^"]+)"/);
-                if (addedMatch) {
-                  const [, toVersion] = addedMatch;
-                  
-                  changes.push({
-                    name: packageName,
-                    fromVersion: fromVersion.replace('^', ''),
-                    toVersion: toVersion.replace('^', ''),
-                    type: 'dependencies',
-                    changeType: 'updated',
-                    vulnerabilities: [],
-                    manifest: 'package.json',
-                    scope: 'runtime',
-                  });
-                  break;
-                }
-              }
-            }
-          }
-        }
-      }
+
+    if (!packageJsonFile?.patch) {
+      return [];
     }
-    
-    return changes;
+
+    // Extract dependency changes from patch
+    return extractChangesFromPatch(packageJsonFile.patch);
   } catch (error) {
     console.error('Error in extractDependenciesFromPRDiff:', error);
     throw error;
