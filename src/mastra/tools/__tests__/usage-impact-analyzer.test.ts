@@ -163,7 +163,7 @@ console.log('Pending:', limit.pendingCount);
       { text: 'breaking change', category: 'api-change' }
     ];
 
-    const result = await analyzer.analyzeImpact('test-package', breakingChanges, '/project');
+    await analyzer.analyzeImpact('test-package', breakingChanges, '/project');
 
     // Should only process up to 50 files as per the implementation
     expect(mockReadFile.mock.calls.length).toBeLessThanOrEqual(50);

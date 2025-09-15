@@ -240,8 +240,8 @@ describe('Execution Tracker', () => {
     });
 
     it('should handle zero tokens gracefully', () => {
-      const tracker = initializeTracking(123);
-      
+      initializeTracking(123);
+
       const finalStats = finalizeTracking();
       
       // When no tokens recorded, cost may be undefined or 0 depending on implementation
