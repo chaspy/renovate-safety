@@ -3,7 +3,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { breakingChangeAnalyzer, type BreakingChange } from '../breaking-change-analyzer.js';
+import { breakingChangeAnalyzer } from '../breaking-change-analyzer.js';
 
 describe('BreakingChangeAnalyzer', () => {
   test('should detect Node.js requirement changes accurately', () => {
