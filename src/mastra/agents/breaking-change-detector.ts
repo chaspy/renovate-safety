@@ -199,7 +199,7 @@ function findMigrationSectionRange(
     }
 
     // Find end of migration section (next header)
-    if (sectionStart !== -1 && /^#/.test(line)) {
+    if (sectionStart !== -1 && line.startsWith('#')) {
       return { start: sectionStart, end: i - 1 };
     }
   }
