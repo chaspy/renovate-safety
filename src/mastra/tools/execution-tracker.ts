@@ -317,6 +317,131 @@ export function finalizeTracking(): ExecutionStats | null {
   return stats;
 }
 
+// Helper type for token usage
+type TokenUsage = {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+};
+
+// Extract token usage from a usage object
+function extractFromUsage(usage: any): TokenUsage | null {
+  if (!usage) return null;
+  return {
+    inputTokens: usage.prompt_tokens || usage.input_tokens || usage.promptTokens || usage.inputTokens,
+    outputTokens: usage.completion_tokens || usage.output_tokens || usage.completionTokens || usage.outputTokens,
+    totalTokens: usage.total_tokens || usage.totalTokens
+  };
+}
+
+// Try to extract token usage from common response paths
+function tryExtractFromCommonPaths(resultObj: any): TokenUsage | undefined {
+  const paths = [
+    resultObj.usage,
+    resultObj.response?.usage,
+    resultObj.result?.usage,
+    resultObj.object?.usage,
+    resultObj._meta?.usage,
+    resultObj.rawResponse?.usage,
+  ];
+
+  for (const usage of paths) {
+    if (usage) {
+      const extracted = extractFromUsage(usage);
+      if (extracted) return extracted;
+    }
+  }
+
+  return undefined;
+}
+
+// Sum token usage from steps array
+function sumTokensFromSteps(steps: any[]): TokenUsage | undefined {
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalAllTokens = 0;
+
+  for (const step of steps) {
+    const stepUsage = extractFromUsage(step.usage || step);
+    if (stepUsage) {
+      totalInputTokens += stepUsage.inputTokens || 0;
+      totalOutputTokens += stepUsage.outputTokens || 0;
+      totalAllTokens += stepUsage.totalTokens || 0;
+    }
+  }
+
+  if (totalAllTokens > 0 || totalInputTokens > 0 || totalOutputTokens > 0) {
+    return {
+      inputTokens: totalInputTokens || undefined,
+      outputTokens: totalOutputTokens || undefined,
+      totalTokens: totalAllTokens || (totalInputTokens + totalOutputTokens) || undefined
+    };
+  }
+
+  return undefined;
+}
+
+// Debug log token extraction
+function debugLogTokenExtraction(resultObj: any, tokenUsage: TokenUsage | undefined): void {
+  if (tokenUsage && (tokenUsage.inputTokens || tokenUsage.outputTokens || tokenUsage.totalTokens)) {
+    console.log('DEBUG - Token tracking - extracted usage:', tokenUsage);
+    return;
+  }
+
+  console.log('DEBUG - Token tracking - no usage found or empty, checking response structure...');
+
+  if (resultObj.usage) {
+    console.log('DEBUG - Found resultObj.usage:', resultObj.usage);
+    const extracted = extractFromUsage(resultObj.usage);
+    console.log('DEBUG - Extraction result:', extracted);
+  }
+
+  // Search for any property containing "token" or "usage"
+  searchForTokensInObject(resultObj);
+}
+
+// Recursively search for token-related properties (for debugging)
+function searchForTokensInObject(obj: any, path = ''): void {
+  if (!obj || typeof obj !== 'object') return;
+
+  for (const [key, value] of Object.entries(obj)) {
+    const currentPath = path ? `${path}.${key}` : key;
+
+    if (key.toLowerCase().includes('usage') || key.toLowerCase().includes('token')) {
+      console.log(`DEBUG - Found potential token data at ${currentPath}:`, value);
+    }
+
+    if (typeof value === 'object' && path.length < 20) { // Limit depth to prevent infinite recursion
+      searchForTokensInObject(value, currentPath);
+    }
+  }
+}
+
+// Extract token usage from result object
+function extractTokenUsageFromResult(result: any): TokenUsage | undefined {
+  if (!result || typeof result !== 'object') {
+    return undefined;
+  }
+
+  const resultObj = result as any;
+
+  // Debug: log the structure
+  console.log('DEBUG - Token tracking - response has usage:', !!resultObj.usage, 'totalTokens:', resultObj.usage?.totalTokens);
+
+  // Try common paths first
+  let tokenUsage = tryExtractFromCommonPaths(resultObj);
+
+  // If not found and steps array exists, sum from steps
+  if (!tokenUsage && resultObj.steps && Array.isArray(resultObj.steps)) {
+    tokenUsage = sumTokensFromSteps(resultObj.steps);
+  }
+
+  // Debug logging
+  debugLogTokenExtraction(resultObj, tokenUsage);
+
+  return tokenUsage;
+}
+
 /**
  * Utility function to wrap agent execution with tracking
  */
@@ -331,112 +456,10 @@ export async function trackAgent<T>(
   }
 
   const executionId = tracker.startAgent(agentName, model);
-  
+
   try {
     const result = await execution();
-    
-    // Extract token usage from Mastra response
-    let tokenUsage: {
-      inputTokens?: number;
-      outputTokens?: number;
-      totalTokens?: number;
-    } | undefined;
-
-    if (result && typeof result === 'object') {
-      const resultObj = result as any;
-      
-      // Debug: log the structure to understand what we're getting (condensed)
-      console.log('DEBUG - Token tracking - response has usage:', !!resultObj.usage, 'totalTokens:', resultObj.usage?.totalTokens);
-      
-      // Try to extract token usage from various possible locations
-      const extractFromUsage = (usage: any) => {
-        if (!usage) return null;
-        return {
-          inputTokens: usage.prompt_tokens || usage.input_tokens || usage.promptTokens || usage.inputTokens,
-          outputTokens: usage.completion_tokens || usage.output_tokens || usage.completionTokens || usage.outputTokens,
-          totalTokens: usage.total_tokens || usage.totalTokens
-        };
-      };
-      
-      // Check various paths where usage might be stored
-      if (resultObj.usage) {
-        tokenUsage = extractFromUsage(resultObj.usage) || undefined;
-      } else if (resultObj.response?.usage) {
-        tokenUsage = extractFromUsage(resultObj.response.usage) || undefined;
-      } else if (resultObj.result?.usage) {
-        tokenUsage = extractFromUsage(resultObj.result.usage) || undefined;
-      } else if (resultObj.object?.usage) {
-        tokenUsage = extractFromUsage(resultObj.object.usage) || undefined;
-      } else if (resultObj._meta?.usage) {
-        tokenUsage = extractFromUsage(resultObj._meta.usage) || undefined;
-      } else if (resultObj.rawResponse?.usage) {
-        tokenUsage = extractFromUsage(resultObj.rawResponse.usage) || undefined;
-      } else if (resultObj.steps && Array.isArray(resultObj.steps)) {
-        // Sum up tokens from all steps
-        let totalInputTokens = 0;
-        let totalOutputTokens = 0;
-        let totalAllTokens = 0;
-        
-        for (const step of resultObj.steps) {
-          const stepUsage = extractFromUsage(step.usage || step);
-          if (stepUsage) {
-            totalInputTokens += stepUsage.inputTokens || 0;
-            totalOutputTokens += stepUsage.outputTokens || 0;
-            totalAllTokens += stepUsage.totalTokens || 0;
-          }
-        }
-        
-        if (totalAllTokens > 0 || totalInputTokens > 0 || totalOutputTokens > 0) {
-          tokenUsage = {
-            inputTokens: totalInputTokens || undefined,
-            outputTokens: totalOutputTokens || undefined,
-            totalTokens: totalAllTokens || (totalInputTokens + totalOutputTokens) || undefined
-          };
-        }
-      }
-      
-      // Debug: log what we extracted
-      if (tokenUsage && (tokenUsage.inputTokens || tokenUsage.outputTokens || tokenUsage.totalTokens)) {
-        console.log('DEBUG - Token tracking - extracted usage:', tokenUsage);
-      } else {
-        console.log('DEBUG - Token tracking - no usage found or empty, checking response structure...');
-        
-        // Enhanced debugging to check if extraction logic is working
-        if (resultObj.usage) {
-          console.log('DEBUG - Found resultObj.usage:', resultObj.usage);
-          const extracted = extractFromUsage(resultObj.usage);
-          console.log('DEBUG - Extraction result:', extracted);
-          
-          if (extracted && (extracted.inputTokens || extracted.outputTokens || extracted.totalTokens)) {
-            tokenUsage = extracted;
-            console.log('DEBUG - Successfully extracted token usage on retry:', tokenUsage);
-          }
-        }
-        
-        if (!tokenUsage || (!tokenUsage.inputTokens && !tokenUsage.outputTokens && !tokenUsage.totalTokens)) {
-          // Try to find any property containing "token" or "usage"
-          const searchForTokens = (obj: any, path = ''): any => {
-            if (!obj || typeof obj !== 'object') return null;
-            
-            for (const [key, value] of Object.entries(obj)) {
-              const currentPath = path ? `${path}.${key}` : key;
-              
-              if (key.toLowerCase().includes('usage') || key.toLowerCase().includes('token')) {
-                console.log(`DEBUG - Found potential token data at ${currentPath}:`, value);
-              }
-              
-              if (typeof value === 'object') {
-                const found = searchForTokens(value, currentPath);
-                if (found) return found;
-              }
-            }
-            return null;
-          };
-          searchForTokens(resultObj);
-        }
-      }
-    }
-    
+    const tokenUsage = extractTokenUsageFromResult(result);
     tracker.endAgent(executionId, true, undefined, tokenUsage);
     return result;
   } catch (error) {
