@@ -155,7 +155,11 @@ export async function generateEnhancedReport(
         : 'Transitive';
     report += `${typeLabel}: ${typeValue}\n`;
     report += `${isJa ? '- **カテゴリ**' : '- **Category**'}: ${result.dependencyUsage.usageType}\n`;
-    report += `${isJa ? '- **影響範囲**' : '- **Impact**'}: ${isJa ? `${result.dependencyUsage.dependents.length} パッケージに影響` : `Affects ${result.dependencyUsage.dependents.length} packages`}\n\n`;
+    const impactLabel = isJa ? '- **影響範囲**' : '- **Impact**';
+    const impactValue = isJa
+      ? `${result.dependencyUsage.dependents.length} パッケージに影響`
+      : `Affects ${result.dependencyUsage.dependents.length} packages`;
+    report += `${impactLabel}: ${impactValue}\n\n`;
 
     if (!result.dependencyUsage.isDirect) {
       const paths = result.dependencyUsage.dependents.slice(0, 5);
