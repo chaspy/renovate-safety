@@ -542,6 +542,7 @@ function parseReleaseNotesFromText(text: string): any {
           }
         } catch (jsonError) {
           // Continue to next pattern if JSON parsing fails
+          console.debug('JSON parsing failed for pattern, trying next:', jsonError);
           continue;
         }
       }
