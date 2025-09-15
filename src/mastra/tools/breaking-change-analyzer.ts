@@ -4,6 +4,13 @@
  */
 
 import { extractExportedNamesFromLine as extractExportedNamesBase, extractFunctionSignature, normalizeSignature } from '../../lib/code-analysis-utils.js';
+import {
+  ExportTracking,
+  processChangeContent,
+  detectApiRemovals,
+  detectSignatureChanges,
+  shouldSkipFile,
+} from './breaking-change-analyzer-helpers.js';
 
 export interface BreakingChange {
   text: string;
@@ -129,97 +136,52 @@ export class BreakingChangeAnalyzer {
    * Analyze code changes (API changes, exports, etc.)
    */
   private analyzeCodeChanges(diff: any[]) {
-    // Aggregate across files for more accurate results (removal/addition offset, signature diff)
-    const removedExportNames = new Set<string>();
-    const addedExportNames = new Set<string>();
-
-    const removedSignatures: Map<string, Set<string>> = new Map();
-    const addedSignatures: Map<string, Set<string>> = new Map();
+    const tracking: ExportTracking = {
+      removedExportNames: new Set<string>(),
+      addedExportNames: new Set<string>(),
+      removedSignatures: new Map<string, Set<string>>(),
+      addedSignatures: new Map<string, Set<string>>(),
+    };
 
     for (const change of diff) {
       const file = String(change.file || '');
 
-      // Skip documentation and non-public/noisy paths
-      if (this.isIgnoredFile(file)) continue;
-      // If we have explicit public entry hints, restrict analysis to those files only
-      if (this.publicEntryHints.length > 0 && !this.isPublicPath(file)) {
+      if (shouldSkipFile(file,
+        (f) => this.isIgnoredFile(f),
+        this.publicEntryHints,
+        (f) => this.isPublicPath(f)
+      )) {
         continue;
       }
 
-      if (!change.content || typeof change.content !== 'string') continue;
+      processChangeContent(
+        change,
+        tracking,
+        (line, f) => this.extractExportedNamesFromLine(line, f),
+        extractFunctionSignature,
+        normalizeSignature
+      );
 
-      const lines = change.content.split('\n');
-      for (const line of lines) {
-        // Added lines
-        if (line.startsWith('+') && !line.startsWith('+++')) {
-          const names = this.extractExportedNamesFromLine(line, file);
-          for (const n of names) addedExportNames.add(n);
-
-          const sig = extractFunctionSignature(line);
-          if (sig) {
-            const norm = normalizeSignature(sig.params);
-            if (!addedSignatures.has(sig.name)) addedSignatures.set(sig.name, new Set());
-            addedSignatures.get(sig.name)!.add(norm);
-          }
-        }
-
-        // Removed lines
-        if (line.startsWith('-') && !line.startsWith('---')) {
-          const names = this.extractExportedNamesFromLine(line, file);
-          for (const n of names) removedExportNames.add(n);
-
-          const sig = extractFunctionSignature(line);
-          if (sig) {
-            const norm = normalizeSignature(sig.params);
-            if (!removedSignatures.has(sig.name)) removedSignatures.set(sig.name, new Set());
-            removedSignatures.get(sig.name)!.add(norm);
-          }
-        }
-      }
-
-      // Other export structure changes (placeholder)
+      // Other export structure changes
       this.detectExportChanges(change);
       this.detectFunctionChanges(change);
     }
 
-    // True removals = removed - added
-    const trueRemoved = Array.from(removedExportNames).filter((n) => !addedExportNames.has(n));
-    if (trueRemoved.length > 0) {
-      const changeKey = 'api-removal';
-      if (!this.detectedChanges.has(changeKey)) {
-        this.breakingChanges.push({
-          text: 'API functions or classes removed',
-          severity: 'breaking',
-          source: 'npm-diff',
-          category: 'api-change',
-          confidence: 0.85,
-        });
-        this.detectedChanges.add(changeKey);
-      }
-    }
+    // Detect API removals
+    detectApiRemovals(
+      tracking.removedExportNames,
+      tracking.addedExportNames,
+      this.breakingChanges,
+      this.detectedChanges
+    );
 
-    // Signature changes: names present in both sides but with different normalized param lists
-    const signatureChanges: string[] = [];
-    for (const [name, removedSet] of removedSignatures.entries()) {
-      const addedSet = addedSignatures.get(name);
-      if (!addedSet || addedSet.size === 0) continue; // Not re-added => handled as removal
-      const diffExists = Array.from(removedSet).some((sig) => !addedSet.has(sig));
-      if (diffExists) signatureChanges.push(name);
-    }
-
-    if (signatureChanges.length > 0) {
-      const changeKey = 'signature-change';
-      if (!this.detectedChanges.has(changeKey)) {
-        this.breakingChanges.push({
-          text: `Function signatures changed: ${signatureChanges.join(', ')}`,
-          severity: 'breaking',
-          source: 'npm-diff',
-          category: 'api-change',
-          confidence: 0.8,
-        });
-        this.detectedChanges.add(changeKey);
-      }
-    }
+    // Detect signature changes
+    detectSignatureChanges(
+      tracking.removedSignatures,
+      tracking.addedSignatures,
+      this.breakingChanges,
+      this.detectedChanges
+    );
   }
 
   /**

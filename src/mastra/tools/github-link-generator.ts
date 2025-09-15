@@ -63,10 +63,10 @@ function normalizeFilePath(filePath: string): string {
   
   // Try to find and remove absolute path prefixes
   const pathSegments = cleanPath.split('/');
-  const srcIndex = pathSegments.findIndex(segment => segment === 'src');
-  
-  if (srcIndex !== -1) {
-    return pathSegments.slice(srcIndex).join('/');
+  const srcSegmentIndex = pathSegments.findIndex(segment => segment === 'src');
+
+  if (srcSegmentIndex !== -1) {
+    return pathSegments.slice(srcSegmentIndex).join('/');
   }
   
   // Last resort: return the cleaned path
