@@ -55,8 +55,8 @@ export interface ExecutionStats {
 
 class ExecutionTracker {
   private stats: ExecutionStats;
-  private activeAgents: Map<string, AgentExecution> = new Map();
-  private activeTools: Map<string, ToolExecution> = new Map();
+  private readonly activeAgents: Map<string, AgentExecution> = new Map();
+  private readonly activeTools: Map<string, ToolExecution> = new Map();
 
   constructor(prNumber: number, analysisId?: string) {
     this.stats = {
