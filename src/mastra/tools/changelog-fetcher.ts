@@ -208,7 +208,7 @@ async function fetchPyPiChangelog(
 
 function extractChangelogFromReadme(readme: string, _fromVersion: string, toVersion: string): string | null {
   // Look for changelog section
-  const changelogMatch = readme.match(/#{1,3}\s*(changelog|changes|release notes|history)/i);
+  const changelogMatch = /#{1,3}\s*(changelog|changes|release notes|history)/i.exec(readme);
   
   if (!changelogMatch) {
     return null;
