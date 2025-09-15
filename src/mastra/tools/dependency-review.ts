@@ -78,7 +78,7 @@ async function extractDependenciesFromPRDiff(
     // Look for package.json changes
     const packageJsonFile = files.find(f => f.filename === 'package.json');
     
-    if (packageJsonFile && packageJsonFile.patch) {
+    if (packageJsonFile?.patch) {
       const patch = packageJsonFile.patch;
       
       // Extract dependency changes from patch
@@ -193,7 +193,7 @@ export const dependencyReviewTool = createTool({
           name: change.name,
           fromVersion: change.version_before || '',
           toVersion: change.version_after || change.version || '',
-          type: change.manifest && change.manifest.includes('dev') ? 'devDependencies' : 'dependencies',
+          type: change.manifest?.includes('dev') ? 'devDependencies' : 'dependencies',
           changeType: change.change_type,
           vulnerabilities: change.vulnerabilities || [],
           manifest: change.manifest || '',

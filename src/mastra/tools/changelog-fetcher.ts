@@ -256,7 +256,7 @@ function extractChangelogFromText(text: string, _fromVersion: string, toVersion:
     const restText = text.substring(startIndex + versionMatch[0].length);
     const nextMatch = restText.match(nextVersionPattern);
     
-    if (nextMatch && nextMatch.index) {
+    if (nextMatch?.index) {
       return text.substring(startIndex, startIndex + versionMatch[0].length + nextMatch.index);
     }
     
