@@ -127,11 +127,12 @@ export class UsageImpactAnalyzer {
     for (const change of breakingChanges) {
       if (change.category === 'api-change') {
         // Try to extract function names from breaking change text
-        const functionMatch = /function\s+(\w+)|(\w+)\s+(?:removed|renamed|changed)/i.exec(change.text);
+        // Use limited whitespace matching to prevent ReDoS
+        const functionMatch = /function\s{1,3}(\w+)|(\w+)\s{1,3}(?:removed|renamed|changed)/i.exec(change.text);
         if (functionMatch) {
           const functionName = functionMatch[1] || functionMatch[2];
           patterns.push({
-            pattern: new RegExp(`\\b${functionName}\\s*\\(`, 'g'),
+            pattern: new RegExp(`\\b${functionName}\\s{0,3}\\(`, 'g'),
             description: `Uses potentially affected function: ${functionName}`,
             riskLevel: 'high'
           });
