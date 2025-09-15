@@ -174,6 +174,13 @@ async function executeNpmDiff(
   spec1: string,
   spec2: string
 ): Promise<{ success: boolean; output: string }> {
+  // Validate package specs to prevent command injection
+  // Allow scoped packages, versions, and common npm spec formats
+  const validSpecPattern = /^(@?[\w\/-]+)@([\w\.\-~^]+)$/;
+  if (!validSpecPattern.test(spec1) || !validSpecPattern.test(spec2)) {
+    return { success: false, output: 'Invalid package specification format' };
+  }
+
   return new Promise((resolve) => {
     const child = spawn('npm', ['diff', '--diff', spec1, '--diff', spec2]);
 
