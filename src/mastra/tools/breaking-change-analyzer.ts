@@ -21,7 +21,7 @@ export interface BreakingChange {
 }
 
 export class BreakingChangeAnalyzer {
-  private detectedChanges = new Set<string>();
+  private readonly detectedChanges = new Set<string>();
   private breakingChanges: BreakingChange[] = [];
   private publicEntryHints: string[] = [];
 
