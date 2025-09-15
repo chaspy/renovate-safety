@@ -96,6 +96,69 @@ export const githubReleasesFetcher = createTool({
   },
 });
 
+// Fetch a single page of releases
+async function fetchReleasesPage(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  page: number,
+  perPage: number
+): Promise<any[]> {
+  try {
+    const { data: releases } = await octokit.repos.listReleases({
+      owner,
+      repo,
+      per_page: perPage,
+      page,
+    });
+    return releases;
+  } catch (error) {
+    console.warn(`Error fetching releases page ${page}:`, error);
+    return [];
+  }
+}
+
+// Filter releases within version range
+function filterReleasesInRange(
+  releases: any[],
+  fromVersion: string,
+  toVersion: string
+): any[] {
+  const filtered: any[] = [];
+
+  for (const release of releases) {
+    const releaseVersion = normalizeVersion(release.tag_name || '');
+    if (releaseVersion && isVersionInRange(releaseVersion, fromVersion, toVersion)) {
+      filtered.push(release);
+    }
+  }
+
+  return filtered;
+}
+
+// Check if we've gone past the version range
+function isPageBeyondRange(
+  releases: any[],
+  fromVersion: string
+): boolean {
+  if (releases.length === 0) return false;
+
+  const oldestRelease = releases[releases.length - 1];
+  if (!oldestRelease) return false;
+
+  const oldestVersion = normalizeVersion(oldestRelease.tag_name || '');
+  return oldestVersion ? compareVersions(oldestVersion, fromVersion) < 0 : false;
+}
+
+// Sort releases by version (newest first)
+function sortReleasesByVersion(releases: any[]): any[] {
+  return releases.sort((a, b) => {
+    const aVersion = normalizeVersion(a.tag_name || '');
+    const bVersion = normalizeVersion(b.tag_name || '');
+    return compareVersions(bVersion, aVersion);
+  });
+}
+
 async function fetchReleasesBetweenVersions(
   octokit: Octokit,
   owner: string,
@@ -104,51 +167,23 @@ async function fetchReleasesBetweenVersions(
   toVersion: string
 ): Promise<any[]> {
   const allReleases: any[] = [];
-  let page = 1;
   const perPage = 100;
   const maxPages = 10; // Limit to prevent excessive API calls
 
-  while (page <= maxPages) {
-    try {
-      const { data: releases } = await octokit.repos.listReleases({
-        owner,
-        repo,
-        per_page: perPage,
-        page,
-      });
+  for (let page = 1; page <= maxPages; page++) {
+    const releases = await fetchReleasesPage(octokit, owner, repo, page, perPage);
 
-      if (releases.length === 0) break;
+    if (releases.length === 0) break;
 
-      for (const release of releases) {
-        const releaseVersion = normalizeVersion(release.tag_name || '');
-        
-        // Check if this release is in our version range
-        if (releaseVersion && isVersionInRange(releaseVersion, fromVersion, toVersion)) {
-          allReleases.push(release);
-        }
-      }
+    const filteredReleases = filterReleasesInRange(releases, fromVersion, toVersion);
+    allReleases.push(...filteredReleases);
 
-      // Stop if we've gone past our range (assuming releases are sorted newest first)
-      const oldestRelease = releases[releases.length - 1];
-      if (oldestRelease) {
-        const oldestVersion = normalizeVersion(oldestRelease.tag_name || '');
-        if (oldestVersion && compareVersions(oldestVersion, fromVersion) < 0) {
-          break; // We've gone past our range
-        }
-      }
+    // Check if we've gone past our range
+    if (isPageBeyondRange(releases, fromVersion)) break;
 
-      if (releases.length < perPage) break;
-      page++;
-    } catch (error) {
-      console.warn(`Error fetching releases page ${page}:`, error);
-      break;
-    }
+    // Check if this was the last page
+    if (releases.length < perPage) break;
   }
 
-  // Sort by version (newest first)
-  return allReleases.sort((a, b) => {
-    const aVersion = normalizeVersion(a.tag_name || '');
-    const bVersion = normalizeVersion(b.tag_name || '');
-    return compareVersions(bVersion, aVersion);
-  });
+  return sortReleasesByVersion(allReleases);
 }
