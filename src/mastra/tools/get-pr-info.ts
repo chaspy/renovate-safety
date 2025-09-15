@@ -1,10 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { Octokit } from '@octokit/rest';
 import type { Endpoints } from '@octokit/types';
 import { getEnvironmentConfig } from '../../lib/env-config.js';
 import { secureSystemExec } from '../../lib/secure-exec.js';
-import { safeJsonParse } from '../../lib/safe-json.js';
 import {
   fetchPRWithGHCLI,
   fetchPRWithOctokit,

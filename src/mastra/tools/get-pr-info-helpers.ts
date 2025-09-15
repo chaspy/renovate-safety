@@ -133,8 +133,13 @@ export async function fetchPRWithOctokit(
     return { success: true, data: prInfo };
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const status = error && typeof error === 'object' && 'status' in error ?
-      (typeof error.status === 'number' ? error.status : undefined) : undefined;
+
+    let status: number | undefined = undefined;
+    if (error && typeof error === 'object' && 'status' in error) {
+      if (typeof error.status === 'number') {
+        status = error.status;
+      }
+    }
 
     return {
       success: false,

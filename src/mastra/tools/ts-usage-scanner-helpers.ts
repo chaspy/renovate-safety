@@ -44,9 +44,8 @@ export async function setupProject(projectPath: string): Promise<{ project: Proj
     for (const pattern of patterns) {
       try {
         await project.addSourceFilesAtPaths(pattern);
-      } catch (error) {
-        // Pattern might not match any files
-        continue;
+      } catch {
+        // Pattern might not match any files - this is expected and safe to ignore
       }
     }
   }

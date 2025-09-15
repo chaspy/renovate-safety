@@ -257,26 +257,47 @@ function formatChangeSourceLinks(
   source: string,
   isJapanese: boolean
 ): string {
-  let markdown = '';
   const repoUrl = getRepositoryUrl(dependency.name);
 
-  if (source === 'npm-diff' && repoUrl) {
-    const referenceLink = `[GitHub Compare](${repoUrl}/compare/v${dependency.fromVersion}...v${dependency.toVersion})`;
-    markdown += `     - ${isJapanese ? '確認リンク' : 'Reference'}: ${referenceLink}\n`;
-    markdown += `     - ${isJapanese ? 'npm diff コマンド' : 'npm diff command'}: \`npm diff ${dependency.name}@${dependency.fromVersion} ${dependency.name}@${dependency.toVersion}\`\n`;
-  } else if ((source === 'GitHub release notes' || source === 'GitHub Releases') && repoUrl) {
-    const referenceLink = `[GitHub Release v${dependency.toVersion}](${repoUrl}/releases/tag/v${dependency.toVersion})`;
-    markdown += `     - ${isJapanese ? '確認リンク' : 'Reference'}: ${referenceLink}\n`;
-  } else if (releaseNotes?.sources) {
-    const sourceInfo = releaseNotes.sources.find((s: any) =>
-      s.type === source || s.type.includes(source) || source.includes(s.type)
-    );
-    if (sourceInfo?.url) {
-      markdown += `     - ${isJapanese ? '確認リンク' : 'Reference'}: [${sourceInfo.type}](${sourceInfo.url})\n`;
-    }
+  if (source === 'npm-diff') {
+    return formatNpmDiffLinks(dependency, repoUrl, isJapanese);
   }
 
+  if (source === 'GitHub release notes' || source === 'GitHub Releases') {
+    return formatGitHubReleaseLinks(dependency, repoUrl, isJapanese);
+  }
+
+  return formatOtherSourceLinks(releaseNotes, source, isJapanese);
+}
+
+function formatNpmDiffLinks(dependency: any, repoUrl: string | null, isJapanese: boolean): string {
+  if (!repoUrl) return '';
+
+  const referenceLink = `[GitHub Compare](${repoUrl}/compare/v${dependency.fromVersion}...v${dependency.toVersion})`;
+  let markdown = `     - ${isJapanese ? '確認リンク' : 'Reference'}: ${referenceLink}\n`;
+  markdown += `     - ${isJapanese ? 'npm diff コマンド' : 'npm diff command'}: \`npm diff ${dependency.name}@${dependency.fromVersion} ${dependency.name}@${dependency.toVersion}\`\n`;
   return markdown;
+}
+
+function formatGitHubReleaseLinks(dependency: any, repoUrl: string | null, isJapanese: boolean): string {
+  if (!repoUrl) return '';
+
+  const referenceLink = `[GitHub Release v${dependency.toVersion}](${repoUrl}/releases/tag/v${dependency.toVersion})`;
+  return `     - ${isJapanese ? '確認リンク' : 'Reference'}: ${referenceLink}\n`;
+}
+
+function formatOtherSourceLinks(releaseNotes: any, source: string, isJapanese: boolean): string {
+  if (!releaseNotes?.sources) return '';
+
+  const sourceInfo = releaseNotes.sources.find((s: any) =>
+    s.type === source || s.type.includes(source) || source.includes(s.type)
+  );
+
+  if (sourceInfo?.url) {
+    return `     - ${isJapanese ? '確認リンク' : 'Reference'}: [${sourceInfo.type}](${sourceInfo.url})\n`;
+  }
+
+  return '';
 }
 
 function formatChangeImpactNote(changeText: string, isJapanese: boolean): string {

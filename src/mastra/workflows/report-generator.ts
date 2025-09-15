@@ -7,7 +7,6 @@ import {
   generateRecommendationsSection,
   generateReportHeader,
   generateReportFooter,
-  getRiskEmoji,
   getHighestRisk,
 } from './report-generator-helpers.js';
 
