@@ -44,15 +44,175 @@ const outputSchema = z.object({
   status: z.number().optional(),
 });
 
+// Get current labels on PR
+async function getCurrentLabels(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<{ names: string[]; labels: any[] }> {
+  const labelsResponse: ListLabelsResponse = await octokit.issues.listLabelsOnIssue({
+    owner,
+    repo,
+    issue_number: prNumber,
+  });
+
+  return {
+    names: labelsResponse.data.map(label => label.name),
+    labels: labelsResponse.data,
+  };
+}
+
+// Remove labels matching criteria
+async function removeLabelsMatchingCriteria(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  currentLabels: any[],
+  removePrefix: string | undefined,
+  operation: string
+): Promise<void> {
+  if (!removePrefix && operation !== 'replace') {
+    return;
+  }
+
+  const toRemove = currentLabels
+    .filter(label => removePrefix ? label.name.startsWith(removePrefix) : true)
+    .map(label => label.name);
+
+  for (const label of toRemove) {
+    if (operation === 'replace' || (removePrefix && label.startsWith(removePrefix))) {
+      await octokit.issues.removeLabel({
+        owner,
+        repo,
+        issue_number: prNumber,
+        name: label,
+      });
+    }
+  }
+}
+
+// Remove specific labels
+async function removeSpecificLabels(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  labels: string[]
+): Promise<void> {
+  for (const label of labels) {
+    try {
+      await octokit.issues.removeLabel({
+        owner,
+        repo,
+        issue_number: prNumber,
+        name: label,
+      });
+    } catch (error: any) {
+      // 404 errors are expected if label doesn't exist
+      if (error.status !== 404) {
+        throw error;
+      }
+    }
+  }
+}
+
+// Add labels to PR
+async function addLabelsToPR(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number,
+  labels: string[]
+): Promise<void> {
+  if (labels.length > 0) {
+    await octokit.issues.addLabels({
+      owner,
+      repo,
+      issue_number: prNumber,
+      labels,
+    });
+  }
+}
+
+// Calculate removed labels
+function calculateRemovedLabels(
+  operation: string,
+  labels: string[],
+  removePrefix: string | undefined,
+  currentLabelNames: string[]
+): string[] {
+  if (operation === 'remove') {
+    return labels;
+  }
+  if (removePrefix) {
+    return currentLabelNames.filter(name => name.startsWith(removePrefix));
+  }
+  return [];
+}
+
+// Extract error status
+function extractErrorStatus(error: unknown): number | undefined {
+  if (error && typeof error === 'object' && 'status' in error) {
+    return typeof error.status === 'number' ? error.status : undefined;
+  }
+  return undefined;
+}
+
+// Create error response
+function createErrorResponse(
+  operation: 'add' | 'replace' | 'remove',
+  error: unknown,
+  prNumber: number
+): any {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  console.error('PR Label operation failed:', errorMessage);
+
+  const status = extractErrorStatus(error);
+
+  if (status === 404) {
+    return {
+      success: false,
+      operation,
+      labelsAdded: [],
+      labelsRemoved: [],
+      currentLabels: [],
+      error: `PR #${prNumber} not found or repository not accessible`,
+    };
+  }
+
+  if (status === 403) {
+    return {
+      success: false,
+      operation,
+      labelsAdded: [],
+      labelsRemoved: [],
+      currentLabels: [],
+      error: 'Insufficient permissions to modify labels',
+    };
+  }
+
+  return {
+    success: false,
+    operation,
+    labelsAdded: [],
+    labelsRemoved: [],
+    currentLabels: [],
+    error: errorMessage,
+    status,
+  };
+}
+
 export const prLabelTool = createTool({
   id: 'pr-label',
   description: 'Add, remove, or update labels on PR',
   inputSchema,
   outputSchema,
   execute: async ({ context: {
-    prNumber, 
-    labels, 
-    removePrefix, 
+    prNumber,
+    labels,
+    removePrefix,
     operation = 'add'
   } }) => {
     const config = getEnvironmentConfig();
@@ -73,140 +233,57 @@ export const prLabelTool = createTool({
       const [owner, repo] = await getRepoInfo();
       const octokit = new Octokit({ auth });
 
-      // 既存のラベルを取得
-      const labelsResponse: ListLabelsResponse = await octokit.issues.listLabelsOnIssue({
+      // Get current labels
+      const { names: currentLabelNames, labels: currentLabels } = await getCurrentLabels(
+        octokit,
         owner,
         repo,
-        issue_number: prNumber,
-      });
+        prNumber
+      );
 
-      const currentLabels = labelsResponse.data;
-      const currentLabelNames = currentLabels.map(label => label.name);
+      // Remove labels matching criteria (for replace or prefix removal)
+      await removeLabelsMatchingCriteria(
+        octokit,
+        owner,
+        repo,
+        prNumber,
+        currentLabels,
+        removePrefix,
+        operation
+      );
 
-      // プレフィックス付きラベルを削除
-      if (removePrefix || operation === 'replace') {
-        const toRemove = currentLabels
-          .filter(label => removePrefix ? label.name.startsWith(removePrefix) : true)
-          .map(label => label.name);
+      let resultLabels: string[];
 
-        for (const label of toRemove) {
-          if (operation === 'replace' || (removePrefix && label.startsWith(removePrefix))) {
-            await octokit.issues.removeLabel({
-              owner,
-              repo,
-              issue_number: prNumber,
-              name: label,
-            });
-          }
-        }
-      }
-
-      let resultLabels = [];
-
-      // ラベル操作を実行
+      // Execute label operation
       if (operation === 'remove') {
-        // ラベルを削除
-        for (const label of labels) {
-          try {
-            await octokit.issues.removeLabel({
-              owner,
-              repo,
-              issue_number: prNumber,
-              name: label,
-            });
-          } catch (error: any) {
-            // 404 errors are expected if label doesn't exist
-            if (error.status !== 404) {
-              throw error;
-            }
-          }
-        }
-        
-        // 残ったラベルを取得
-        const remainingResponse: ListLabelsResponse = await octokit.issues.listLabelsOnIssue({
-          owner,
-          repo,
-          issue_number: prNumber,
-        });
-        resultLabels = remainingResponse.data.map(label => label.name);
+        await removeSpecificLabels(octokit, owner, repo, prNumber, labels);
       } else {
-        // ラベルを追加（add または replace）
-        if (labels.length > 0) {
-          await octokit.issues.addLabels({
-            owner,
-            repo,
-            issue_number: prNumber,
-            labels,
-          });
-        }
-
-        // 更新後のラベルを取得
-        const updatedResponse: ListLabelsResponse = await octokit.issues.listLabelsOnIssue({
-          owner,
-          repo,
-          issue_number: prNumber,
-        });
-        resultLabels = updatedResponse.data.map(label => label.name);
+        await addLabelsToPR(octokit, owner, repo, prNumber, labels);
       }
+
+      // Get updated labels
+      const { names: updatedLabels } = await getCurrentLabels(
+        octokit,
+        owner,
+        repo,
+        prNumber
+      );
+      resultLabels = updatedLabels;
 
       return {
         success: true,
         operation,
         labelsAdded: operation !== 'remove' ? labels : [],
-        labelsRemoved: (() => {
-          if (operation === 'remove') {
-            return labels;
-          }
-          if (removePrefix) {
-            return currentLabelNames.filter(name => name.startsWith(removePrefix));
-          }
-          return [];
-        })(),
+        labelsRemoved: calculateRemovedLabels(
+          operation,
+          labels,
+          removePrefix,
+          currentLabelNames
+        ),
         currentLabels: resultLabels,
       };
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('PR Label operation failed:', errorMessage);
-
-      let status: number | undefined;
-      if (error && typeof error === 'object' && 'status' in error) {
-        status = typeof error.status === 'number' ? error.status : undefined;
-      } else {
-        status = undefined;
-      }
-
-      // Handle specific errors
-      if (status === 404) {
-        return {
-          success: false,
-          operation,
-          labelsAdded: [],
-          labelsRemoved: [],
-          currentLabels: [],
-          error: `PR #${prNumber} not found or repository not accessible`,
-        };
-      }
-
-      if (status === 403) {
-        return {
-          success: false,
-          operation,
-          labelsAdded: [],
-          labelsRemoved: [],
-          currentLabels: [],
-          error: 'Insufficient permissions to modify labels',
-        };
-      }
-
-      return {
-        success: false,
-        operation,
-        labelsAdded: [],
-        labelsRemoved: [],
-        currentLabels: [],
-        error: errorMessage,
-        status,
-      };
+      return createErrorResponse(operation, error, prNumber);
     }
   },
 });
