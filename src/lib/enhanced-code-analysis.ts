@@ -331,8 +331,7 @@ function parseApiChange(line: string, file: string, lineNumber: number): ApiChan
   const content = line.substring(1).trim();
 
   // Function/method definitions
-  const functionRegex =
-    /(export\s{1,10})?(function\s{1,10}|const\s{1,10})(\w+)(\s{0,10}=\s{0,10}|\s{0,10})\(([^)]{0,200})\)/;
+  const functionRegex = /(export\s+)?(function\s+|const\s+)(\w+)(\s*=\s*|\s*)\(([^)]{0,200})\)/;
   const functionMatch = functionRegex.exec(content);
   if (functionMatch) {
     const [, , , name] = functionMatch;
@@ -373,14 +372,14 @@ async function detectBreakingPatterns(codeDiff: CodeDiff): Promise<BreakingPatte
   // Common breaking change patterns
   const breakingChangePatterns = [
     {
-      pattern: /\.prototype\s{0,10}=|delete\s{1,10}\w+\.prototype/,
+      pattern: /\.prototype\s*=|delete\s+\w+\.prototype/,
       description: 'Prototype modification detected',
       severity: 'high' as const,
       migrationRequired: true,
       autoFixable: false,
     },
     {
-      pattern: /-\s{0,10}export\s{1,10}(function|class|const)/,
+      pattern: /-\s*export\s+(function|class|const)/,
       description: 'Public API removal detected',
       severity: 'critical' as const,
       migrationRequired: true,
@@ -394,7 +393,7 @@ async function detectBreakingPatterns(codeDiff: CodeDiff): Promise<BreakingPatte
       autoFixable: false,
     },
     {
-      pattern: /-\s{0,10}\w+\.default\s{0,10}=|\+\s{0,10}\w+\.default\s{0,10}=/,
+      pattern: /-\s*\w+\.default\s*=|\+\s*\w+\.default\s*=/,
       description: 'Default export change',
       severity: 'high' as const,
       migrationRequired: true,

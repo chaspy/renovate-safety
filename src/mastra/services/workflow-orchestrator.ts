@@ -111,9 +111,9 @@ function extractCodeImpactData(codeImpactResult: any): any {
     
     // Try multiple patterns to match recommendations
     const patterns = [
-      /\*\*Recommendations?\*\*:\s{0,10}\n((?:[\s]{0,10}- .+(?:\n|$))+)/im,
-      /(?:Recommendations?|Actions?):\s{0,10}\n((?:[\s]{0,10}- .+(?:\n|$))+)/im,
-      /### Recommendations?\s{0,10}\n((?:[\s]{0,10}- .+(?:\n|$))+)/im,
+      /\*\*Recommendations?\*\*:\s*\n((?:\s*- .+(?:\n|$))+)/im,
+      /(?:Recommendations?|Actions?):\s*\n((?:\s*- .+(?:\n|$))+)/im,
+      /### Recommendations?\s*\n((?:\s*- .+(?:\n|$))+)/im,
     ];
     
     for (const pattern of patterns) {
@@ -169,8 +169,8 @@ function extractUsageDetails(text: string): Array<{file: string, usage: string, 
   const usageDetails: Array<{file: string, usage: string, context: string, description?: string}> = [];
   
   try {
-    // Extract import statements with more detailed context
-    const importMatches = text.match(/import\s+(?:(?:[\w{},\s*]+)\s+from\s+)?['"`]([^'"`]*)['"`]/g) || [];
+    // Extract import statements with safer pattern (avoids ReDoS)
+    const importMatches = text.match(/import[^;\n]+from\s+['"`][^'"`]+['"`]/g) || [];
     importMatches.forEach(importStmt => {
       const packageMatch = /from\s+['"`]([^'"`]*)['"`]/.exec(importStmt);
       const importedItemsMatch = /import\s+(?:\{([^}]+)\}|\*\s+as\s+(\w+)|(\w+))/.exec(importStmt);
@@ -201,8 +201,8 @@ function extractUsageDetails(text: string): Array<{file: string, usage: string, 
       }
     });
     
-    // Extract function calls with surrounding context
-    const functionCallMatches = text.match(/(?:const|let|var)?\s{0,10}\w{0,50}\s{0,10}=?\s{0,10}\w+\([^)]{0,200}\)[^;\n]{0,100}/g) || [];
+    // Extract function calls with safer pattern (avoids ReDoS)
+    const functionCallMatches = text.match(/\w+\s*\([^)]*\)/g) || [];
     functionCallMatches.slice(0, 4).forEach(call => {
       let description = '関数を実行';
       
@@ -242,8 +242,8 @@ function extractUsageDetails(text: string): Array<{file: string, usage: string, 
       });
     });
 
-    // Extract function definitions that might use the package
-    const functionDefMatches = text.match(/(?:function\s+\w+|const\s+\w+\s*=\s*(?:async\s*)?\([^)]*\)\s*=>|async\s+function\s+\w+)[^{]*\{/g) || [];
+    // Extract function definitions with safer pattern (avoids ReDoS)
+    const functionDefMatches = text.match(/(function\s+\w+|const\s+\w+\s*=|async\s+function)/g) || [];
     functionDefMatches.slice(0, 2).forEach(funcDef => {
       usageDetails.push({
         file: 'unknown',
@@ -524,8 +524,9 @@ function parseReleaseNotesFromText(text: string): any | null {
     // Look for JSON in various formats
     const jsonPatterns = [
       /```json\n([\s\S]*?)\n```/,
-      /\{[\s\S]*?"breakingChanges"[\s\S]*?\}/,
-      /### Structured Output\s{0,10}\n```json\n([\s\S]{0,50000}?)\n```/
+      // Safer pattern to avoid ReDoS - look for JSON-like structure
+      /\{[^}]*"breakingChanges"[^}]*\}/,
+      /### Structured Output[^\n]*\n```json\n([\s\S]{0,50000}?)\n```/
     ];
     
     for (const pattern of jsonPatterns) {
@@ -566,7 +567,7 @@ function extractFromPlainText(text: string): any {
     /Export structure changed/gi,
     /Functions removed or renamed/gi,
     /API methods? (removed|added|changed)/gi,
-    /Breaking[:\s]+(.*?)(?:\n|$)/gi
+    /Breaking[:\s]+([^\n]+)/gi
   ];
   
   for (const pattern of breakingPatterns) {

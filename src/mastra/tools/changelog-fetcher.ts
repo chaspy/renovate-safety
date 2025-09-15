@@ -240,7 +240,7 @@ function extractChangelogFromText(text: string, _fromVersion: string, toVersion:
     const startIndex = versionMatch.index || 0;
     // Find next version section or take next 1000 chars
     // Limit whitespace matching to prevent ReDoS (Regular Expression Denial of Service)
-    const nextVersionPattern = /[#*\-v]\s{0,10}\d+\.\d+/;
+    const nextVersionPattern = /[#*\-v]\s*\d+\.\d+/;
     const restText = text.substring(startIndex + versionMatch[0].length);
     const nextMatch = restText.match(nextVersionPattern);
     

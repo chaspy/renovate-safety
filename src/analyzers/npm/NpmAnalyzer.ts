@@ -230,12 +230,12 @@ export class NpmAnalyzer extends PackageAnalyzer {
     // Very safe patterns that avoid any complex quantifiers
     return [
       /import\s+\w+\s+from\s+['"]([^'"]+)['"]/g,                    // import name from 'module'
-      /import\s{0,10}\{\s{0,10}\w+\s{0,10}\}\s{0,10}from\s{1,10}['"]([^'"]+)['"]/g,         // import { single } from 'module'
-      /import\s{0,10}\{\s{0,10}\w+\s{0,10},\s{0,10}\w+\s{0,10}\}\s{0,10}from\s{1,10}['"]([^'"]+)['"]/g, // import { a, b } from 'module'
-      /import\s{0,10}\*\s{0,10}as\s{1,10}\w+\s{0,10}from\s{1,10}['"]([^'"]+)['"]/g,        // import * as name from 'module'
-      /import\s{0,10}\(['"]([^'"]+)['"]\)/g,                            // import('module')
-      /require\s{0,10}\(['"]([^'"]+)['"]\)/g,                           // require('module')
-      /require\.resolve\s{0,10}\(['"]([^'"]+)['"]\)/g                   // require.resolve('module')
+      /import\s*\{\s*\w+\s*\}\s*from\s+['"]([^'"]+)['"]/g,         // import { single } from 'module'
+      /import\s*\{\s*\w+\s*,\s*\w+\s*\}\s*from\s+['"]([^'"]+)['"]/g, // import { a, b } from 'module'
+      /import\s*\*\s*as\s+\w+\s*from\s+['"]([^'"]+)['"]/g,        // import * as name from 'module'
+      /import\s*\(['"]([^'"]+)['"]\)/g,                            // import('module')
+      /require\s*\(['"]([^'"]+)['"]\)/g,                           // require('module')
+      /require\.resolve\s*\(['"]([^'"]+)['"]\)/g                   // require.resolve('module')
     ];
   }
 

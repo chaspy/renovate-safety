@@ -47,9 +47,10 @@ function normalizeFilePath(filePath: string): string {
   }
   
   // Fallback: try to extract path after 'src/' or other common patterns
-  const srcMatch = filePath.match(/.*\/src\/(.+)$/);
-  if (srcMatch) {
-    return `src/${srcMatch[1]}`;
+  // Use lastIndexOf for safer pattern matching (avoids ReDoS)
+  const srcIndex = filePath.lastIndexOf('/src/');
+  if (srcIndex !== -1) {
+    return filePath.substring(srcIndex + 1);
   }
   
   // Another fallback: remove common path prefixes

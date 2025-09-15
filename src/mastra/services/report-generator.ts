@@ -29,21 +29,20 @@ function getRepositoryUrl(packageName: string): string | null {
 function normalizeFilePath(filePath: string): string {
   // Remove line number suffix first
   const cleanPath = filePath.replace(/:?\d+$/, '');
-  
+
   // Handle various path formats and extract the final src/... part
+  // Use lastIndexOf for safer pattern matching (avoids ReDoS)
   if (cleanPath.includes('worktree-agent-version/src/')) {
-    // Extract everything after the last worktree-agent-version/src/
-    const match = /.*?worktree-agent-version\/(src\/.+)$/.exec(cleanPath);
-    if (match) {
-      return match[1];
+    const idx = cleanPath.lastIndexOf('worktree-agent-version/src/');
+    if (idx !== -1) {
+      return cleanPath.substring(idx + 'worktree-agent-version/'.length);
     }
   }
-  
+
   if (cleanPath.includes('/src/')) {
-    // Extract everything after the last /src/
-    const match = /.*\/(src\/.+)$/.exec(cleanPath);
-    if (match) {
-      return match[1];
+    const idx = cleanPath.lastIndexOf('/src/');
+    if (idx !== -1) {
+      return cleanPath.substring(idx + 1);
     }
   }
   
