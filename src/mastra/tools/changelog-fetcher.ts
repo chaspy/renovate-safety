@@ -137,7 +137,7 @@ async function fetchPyPiChangelog(
   try {
     // Fetch package info from PyPI
     const response = await httpGet<any>(`https://pypi.org/pypi/${packageName.toLowerCase()}/json`);
-    
+
     if (!response.ok || !response.data) {
       return {
         success: false,
@@ -146,52 +146,15 @@ async function fetchPyPiChangelog(
     }
 
     const data = response.data;
-    
-    // Check for GitHub URL in project URLs
-    const projectUrls = data.info?.project_urls || {};
-    let changelogUrl = null;
-    
-    for (const [key, url] of Object.entries(projectUrls)) {
-      if (typeof url === 'string') {
-        // Look for changelog-specific URLs
-        if (key.toLowerCase().includes('changelog') || key.toLowerCase().includes('changes')) {
-          changelogUrl = url;
-          break;
-        }
-      }
-    }
-    
-    // Try to extract changelog from description
-    const description = data.info?.description || '';
-    const summary = data.info?.summary || '';
-    
-    // Get release information if available
-    const releases = data.releases || {};
-    const toRelease = releases[toVersion];
-    
-    let content = `# ${packageName} Changelog\n\n`;
-    content += `## Version ${toVersion}\n\n`;
-    
-    if (toRelease?.[0]?.comment_text) {
-      content += toRelease[0].comment_text + '\n\n';
-    } else if (summary) {
-      content += `${summary}\n\n`;
-    }
-    
-    if (description?.toLowerCase().includes('change')) {
-      // Extract changelog-like sections from description
-      const changelogSection = extractChangelogFromText(description, fromVersion, toVersion);
-      if (changelogSection) {
-        content += changelogSection;
-      } else {
-        content += description.substring(0, 1000); // Limit description length
-      }
-    }
-    
-    if (changelogUrl) {
-      content += `\n\nFull changelog: ${changelogUrl}`;
-    }
-    
+    const changelogUrl = findChangelogUrl(data.info?.project_urls || {});
+    const content = buildPyPiChangelogContent(
+      packageName,
+      toVersion,
+      fromVersion,
+      data,
+      changelogUrl
+    );
+
     return {
       success: true,
       content,
@@ -204,6 +167,55 @@ async function fetchPyPiChangelog(
       error: `Failed to fetch PyPI changelog: ${errorMessage}`,
     };
   }
+}
+
+function findChangelogUrl(projectUrls: Record<string, unknown>): string | null {
+  for (const [key, url] of Object.entries(projectUrls)) {
+    if (typeof url === 'string') {
+      const keyLower = key.toLowerCase();
+      if (keyLower.includes('changelog') || keyLower.includes('changes')) {
+        return url;
+      }
+    }
+  }
+  return null;
+}
+
+function buildPyPiChangelogContent(
+  packageName: string,
+  toVersion: string,
+  fromVersion: string,
+  data: any,
+  changelogUrl: string | null
+): string {
+  const description = data.info?.description || '';
+  const summary = data.info?.summary || '';
+  const releases = data.releases || {};
+  const toRelease = releases[toVersion];
+
+  let content = `# ${packageName} Changelog\n\n`;
+  content += `## Version ${toVersion}\n\n`;
+
+  if (toRelease?.[0]?.comment_text) {
+    content += toRelease[0].comment_text + '\n\n';
+  } else if (summary) {
+    content += `${summary}\n\n`;
+  }
+
+  if (description?.toLowerCase().includes('change')) {
+    const changelogSection = extractChangelogFromText(description, fromVersion, toVersion);
+    if (changelogSection) {
+      content += changelogSection;
+    } else {
+      content += description.substring(0, 1000);
+    }
+  }
+
+  if (changelogUrl) {
+    content += `\n\nFull changelog: ${changelogUrl}`;
+  }
+
+  return content;
 }
 
 function extractChangelogFromReadme(readme: string, _fromVersion: string, toVersion: string): string | null {
