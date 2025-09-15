@@ -10,24 +10,33 @@ Overall Status: ERROR
 
 ❌ Failed Conditions:
   • new_reliability_rating: 4 (threshold: GT 1)
-  • new_duplicated_lines_density: 3.415741072494924 (threshold: GT 3)
   • new_security_hotspots_reviewed: 90.0 (threshold: LT 100)
 
 🐛 Issues
 --------------------------------------------------
-Total Issues: 106
-Effort Total: 1307
-Debt Total: 1307
+Total Issues: 107
+Effort Total: 1310
+Debt Total: 1310
 
-Issue Key: AZlMxVMe2p2Bx4PRB1tr
-Rule: typescript:S125
-Severity: MAJOR
-File: src/lib/code-analysis-utils.ts
-Line: 25
-Message: Remove this commented out code.
-Effort: 5min
-Debt: 5min
-Tags: unused
+Issue Key: AZlMzyqzb5WLIgSoGISs
+Rule: typescript:S3776
+Severity: CRITICAL
+File: src/mastra/cli/index.ts
+Line: 64
+Message: Refactor this function to reduce its Cognitive Complexity from 17 to the 15 allowed.
+Effort: 7min
+Debt: 7min
+Tags: architecture, brain-overload
+--------------------------------------------------
+Issue Key: AZlMzygJb5WLIgSoGISr
+Rule: typescript:S1128
+Severity: MINOR
+File: src/mastra/tools/risk-arbiter.ts
+Line: 8
+Message: Remove this unused import of 'determineBaseRiskLevel'.
+Effort: 1min
+Debt: 1min
+Tags: es2015, type-dependent, unused
 --------------------------------------------------
 Issue Key: AZlMq4BBsYsZi1EjuyCX
 Rule: typescript:S3776
@@ -203,7 +212,7 @@ Issue Key: AZlG8ZnKQKiCQKWRQHPR
 Rule: typescript:S1135
 Severity: INFO
 File: src/lib/enhanced-grade.ts
-Line: 100
+Line: 103
 Message: Complete the task associated to this "TODO" comment.
 Effort: 0min
 Debt: 0min
@@ -213,7 +222,7 @@ Issue Key: AZlG8ZnKQKiCQKWRQHPT
 Rule: typescript:S3776
 Severity: CRITICAL
 File: src/lib/enhanced-grade.ts
-Line: 243
+Line: 162
 Message: Refactor this function to reduce its Cognitive Complexity from 18 to the 15 allowed.
 Effort: 8min
 Debt: 8min
@@ -223,7 +232,7 @@ Issue Key: AZlG8ZnKQKiCQKWRQHPU
 Rule: typescript:S1135
 Severity: INFO
 File: src/lib/enhanced-grade.ts
-Line: 295
+Line: 212
 Message: Complete the task associated to this "TODO" comment.
 Effort: 0min
 Debt: 0min
@@ -1144,7 +1153,7 @@ Security Category: others
 Vulnerability Probability: LOW
 Status: REVIEWED
 File: src/mastra/cli/index.ts
-Line: 168
+Line: 124
 Message: Make sure the "PATH" variable only contains fixed, unwriteable directories.
 --------------------------------------------------
 Hotspot Key: AZlG8ZmYQKiCQKWRQHPP
@@ -1153,7 +1162,7 @@ Security Category: others
 Vulnerability Probability: LOW
 Status: REVIEWED
 File: src/mastra/cli/index.ts
-Line: 183
+Line: 139
 Message: Make sure the "PATH" variable only contains fixed, unwriteable directories.
 --------------------------------------------------
 Hotspot Key: AZlG8ZbvQKiCQKWRQHNM
@@ -1177,9 +1186,9 @@ Message: Make sure the "PATH" variable only contains fixed, unwriteable director
 
 🔄 Code Duplication
 --------------------------------------------------
-Duplication Density: 3.415741072494924%
-Duplicated Blocks: 22
-Duplicated Lines: 572
+Duplication Density: 2.2138680033416875%
+Duplicated Blocks: 17
+Duplicated Lines: 371
 
 📊 Test Coverage
 --------------------------------------------------

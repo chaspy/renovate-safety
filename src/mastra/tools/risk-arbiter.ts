@@ -5,7 +5,6 @@ import {
   determineDiffDepth,
   determineMigrationComplexity,
   calculateBaseRiskScore,
-  determineBaseRiskLevel,
 } from '../../lib/risk-assessment-utils.js';
 
 // Input schema for risk assessment

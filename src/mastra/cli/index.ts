@@ -60,6 +60,44 @@ program
 
 program.parse(process.argv);
 
+// Helper function to get and validate PR number
+async function getPRNumber(options: any, isLegacy: boolean): Promise<number> {
+  const prNumber = options.pr || await detectCurrentPR();
+
+  if (!prNumber) {
+    console.error('❌ No PR number provided and could not detect from current branch');
+    const command = isLegacy ? 'renovate-safety analyze' : 'renovate-safety agent analyze';
+    console.error(`💡 Use: ${command} --pr <number>`);
+    process.exit(1);
+  }
+
+  return prNumber;
+}
+
+// Helper function to output results
+function outputResults(result: any, format: string): void {
+  if (format === 'json') {
+    const output = result.report.format === 'json' ? result.report.json : JSON.stringify(result);
+    console.log(output);
+  } else {
+    const output = result.report.format === 'markdown' ? result.report.markdown : JSON.stringify(result);
+    console.log('\n' + output);
+  }
+}
+
+// Helper function to handle exit based on risk score
+function handleExitBasedOnRisk(result: any, threshold: number): void {
+  const riskScore = getRiskScore(result.overallRisk);
+
+  if (riskScore <= threshold) {
+    console.log(`✅ Risk score ${riskScore} is within threshold ${threshold}`);
+    process.exit(0);
+  } else {
+    console.log(`⚠️ Risk score ${riskScore} exceeds threshold ${threshold}`);
+    process.exit(1);
+  }
+}
+
 // Shared function to handle analyze command logic
 async function handleAnalyzeCommand(options: any, isLegacy: boolean = false): Promise<void> {
   try {
@@ -68,14 +106,7 @@ async function handleAnalyzeCommand(options: any, isLegacy: boolean = false): Pr
     validateConfig();
 
     // Get PR number
-    const prNumber = options.pr || await detectCurrentPR();
-
-    if (!prNumber) {
-      console.error('❌ No PR number provided and could not detect from current branch');
-      const command = isLegacy ? 'renovate-safety analyze' : 'renovate-safety agent analyze';
-      console.error(`💡 Use: ${command} --pr <number>`);
-      process.exit(1);
-    }
+    const prNumber = await getPRNumber(options, isLegacy);
 
     console.log(`🔍 Analyzing PR #${prNumber}...`);
     console.log('DEBUG - CLI working directory:', process.cwd());
@@ -91,24 +122,10 @@ async function handleAnalyzeCommand(options: any, isLegacy: boolean = false): Pr
     });
 
     // Output results
-    if (options.format === 'json') {
-      const output = result.report.format === 'json' ? result.report.json : JSON.stringify(result);
-      console.log(output);
-    } else {
-      const output = result.report.format === 'markdown' ? result.report.markdown : JSON.stringify(result);
-      console.log('\n' + output);
-    }
+    outputResults(result, options.format);
 
     // Exit code based on risk
-    const riskScore = getRiskScore(result.overallRisk);
-
-    if (riskScore <= options.threshold) {
-      console.log(`✅ Risk score ${riskScore} is within threshold ${options.threshold}`);
-      process.exit(0);
-    } else {
-      console.log(`⚠️ Risk score ${riskScore} exceeds threshold ${options.threshold}`);
-      process.exit(1);
-    }
+    handleExitBasedOnRisk(result, options.threshold);
   } catch (error) {
     console.error('❌ Error:', error instanceof Error ? error.message : error);
     if (!isLegacy && error instanceof Error && error.stack) {

@@ -29,7 +29,11 @@ export function extractExportedNamesFromLine(line: string): string[] {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
-      .map((s) => s.split(/\s+as\s+/)[0].trim());
+      .map((s) => {
+        // Safer approach to avoid ReDoS warning
+        const asIndex = s.indexOf(' as ');
+        return asIndex !== -1 ? s.substring(0, asIndex).trim() : s.trim();
+      });
     names.push(...parts);
   }
 
