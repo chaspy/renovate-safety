@@ -56,61 +56,107 @@ export function extractBreakingChanges(
   const breakingChanges: BreakingChange[] = [];
   const seenLines = new Set<string>();
 
-  // Add engines.node change as breaking if major version increased
-  if (enginesDiff && enginesDiff.from !== enginesDiff.to) {
-    const fromMajor = parseInt(/\d+/.exec(enginesDiff.from)?.[0] || '0');
-    const toMajor = parseInt(/\d+/.exec(enginesDiff.to)?.[0] || '0');
+  // Process engines diff
+  processEnginesDiff(enginesDiff, breakingChanges, seenLines);
 
-    if (toMajor > fromMajor) {
-      const engineChange = `Minimum Node.js version changed from ${enginesDiff.from} to ${enginesDiff.to}`;
-      breakingChanges.push({
-        line: engineChange,
-        severity: 'breaking',
-      });
-      seenLines.add(engineChange.toLowerCase().replace(/\s+/g, ' '));
-    }
-  }
-
+  // Process each line
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    for (const { pattern, severity } of BREAKING_PATTERNS) {
-      if (pattern.test(line)) {
-        // Get the full context (current line + next few lines if it's a list item)
-        const context = extractContext(lines, i);
-        const contextKey = context.toLowerCase().replace(/\s+/g, ' ');
-
-        // Avoid duplicates
-        if (!seenLines.has(contextKey)) {
-          seenLines.add(contextKey);
-          breakingChanges.push({
-            line: context,
-            severity,
-          });
-        }
-        break; // Don't check other patterns for this line
-      }
+    // Check for pattern matches
+    const patternChange = checkLineForPattern(lines, i, seenLines);
+    if (patternChange) {
+      breakingChanges.push(patternChange);
+      continue;
     }
 
-    // Also check for common breaking change sections
+    // Check for breaking change sections
     if (isBreakingChangeSection(line)) {
-      // Extract all items in this section
-      const sectionItems = extractSectionItems(lines, i);
-      for (const item of sectionItems) {
-        const itemKey = item.toLowerCase().replace(/\s+/g, ' ');
-        if (!seenLines.has(itemKey)) {
-          seenLines.add(itemKey);
-          breakingChanges.push({
-            line: item,
-            severity: 'breaking',
-          });
-        }
-      }
+      const sectionChanges = processSectionForBreaking(lines, i, seenLines);
+      breakingChanges.push(...sectionChanges);
     }
   }
 
   return breakingChanges;
+}
+
+function processEnginesDiff(
+  enginesDiff: { from: string; to: string } | undefined,
+  breakingChanges: BreakingChange[],
+  seenLines: Set<string>
+): void {
+  if (!enginesDiff || enginesDiff.from === enginesDiff.to) {
+    return;
+  }
+
+  const fromMajor = parseInt(/\d+/.exec(enginesDiff.from)?.[0] || '0');
+  const toMajor = parseInt(/\d+/.exec(enginesDiff.to)?.[0] || '0');
+
+  if (toMajor > fromMajor) {
+    const engineChange = `Minimum Node.js version changed from ${enginesDiff.from} to ${enginesDiff.to}`;
+    const key = normalizeKey(engineChange);
+
+    if (!seenLines.has(key)) {
+      seenLines.add(key);
+      breakingChanges.push({
+        line: engineChange,
+        severity: 'breaking',
+      });
+    }
+  }
+}
+
+function checkLineForPattern(
+  lines: string[],
+  index: number,
+  seenLines: Set<string>
+): BreakingChange | null {
+  const line = lines[index].trim();
+
+  for (const { pattern, severity } of BREAKING_PATTERNS) {
+    if (pattern.test(line)) {
+      const context = extractContext(lines, index);
+      const contextKey = normalizeKey(context);
+
+      if (!seenLines.has(contextKey)) {
+        seenLines.add(contextKey);
+        return {
+          line: context,
+          severity,
+        };
+      }
+      break;
+    }
+  }
+
+  return null;
+}
+
+function processSectionForBreaking(
+  lines: string[],
+  sectionIndex: number,
+  seenLines: Set<string>
+): BreakingChange[] {
+  const sectionItems = extractSectionItems(lines, sectionIndex);
+  const changes: BreakingChange[] = [];
+
+  for (const item of sectionItems) {
+    const itemKey = normalizeKey(item);
+    if (!seenLines.has(itemKey)) {
+      seenLines.add(itemKey);
+      changes.push({
+        line: item,
+        severity: 'breaking',
+      });
+    }
+  }
+
+  return changes;
+}
+
+function normalizeKey(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, ' ');
 }
 
 function extractContext(lines: string[], index: number): string {

@@ -372,60 +372,90 @@ async function generateCodeImpactRecommendations(codeImpact: any, isJapanese: bo
 
 // Build high-level functional change bullets from available context
 async function buildFunctionalSummary(assessment: any, isJapanese: boolean): Promise<string[]> {
-  const bullets: string[] = [];
-
   try {
+    const bullets: string[] = [];
     const dep = assessment.dependency || {};
     const releaseNotes = assessment.releaseNotes || {};
-    const breaking = Array.isArray(releaseNotes.breakingChanges) ? releaseNotes.breakingChanges : [];
 
-    // Prefer release notes items as functional clues
-    if (breaking.length > 0) {
-      const texts = breaking.map((bc: any) => (typeof bc === 'string' ? bc : bc.text || bc.description || '')).filter(Boolean);
-      const top = texts.slice(0, 3);
-      const translated = isJapanese ? await translateRecommendations(top, 'ja') : top;
-      bullets.push(...translated);
+    // Process breaking changes
+    const breakingBullets = await processBreakingChanges(releaseNotes, isJapanese);
+    bullets.push(...breakingBullets);
+
+    // Add version jump context
+    const versionBullet = getVersionJumpBullet(dep.fromVersion, dep.toVersion, isJapanese);
+    if (versionBullet) {
+      bullets.push(versionBullet);
     }
 
-    // API diff from code diffs if available (summarize functional changes)
-    if (assessment?.compareResult?.data || assessment?.codeImpact) {
-      // We don't have raw CodeDiff here, but unified workflow also posts one in the top-level report.
-    }
-    if (assessment?.compareResult?.data?.files) {
-      // No direct patches here; high-level only
-    }
-    if (assessment?.dependency && !assessment?.compareResult && !assessment?.codeImpact) {
-      // noop
-    }
-
-    // If code diff (from main CLI path) is present on global result, we cannot access it here.
-    // Try to reconstruct via GitHub compare-based summary for this package (best-effort): skip for now.
-
-    // Always include the version jump context
-    const majorJump = getMajorJump(dep.fromVersion, dep.toVersion);
-    if (majorJump > 0) {
-      bullets.push(
-        isJapanese ? `メジャーバージョン更新（+${majorJump}）: 互換性に注意` : `Major version update (+${majorJump}): Backward compatibility may be affected`
-      );
-    }
-
-    // If no explicit functional changes detected, add safe summary bullets
+    // Add fallback bullets if no changes detected
     if (bullets.length === 0) {
-      bullets.push(
-        isJapanese ? '破壊的変更は検出されていません（自動解析）' : 'No breaking API changes detected by automated analysis'
-      );
-      if (assessment.codeImpact?.totalUsages >= 0) {
-        const n = assessment.codeImpact.totalUsages;
-        bullets.push(
-          isJapanese ? `本リポジトリでの利用箇所: ${n} 箇所` : `Usage in this repo: ${n} locations`
-        );
-      }
+      const fallbackBullets = getFallbackBullets(assessment, isJapanese);
+      bullets.push(...fallbackBullets);
     }
+
+    return bullets.slice(0, 5);
   } catch {
-    // ignore
+    return [];
+  }
+}
+
+async function processBreakingChanges(
+  releaseNotes: any,
+  isJapanese: boolean
+): Promise<string[]> {
+  const breaking = Array.isArray(releaseNotes.breakingChanges)
+    ? releaseNotes.breakingChanges
+    : [];
+
+  if (breaking.length === 0) {
+    return [];
   }
 
-  return bullets.slice(0, 5);
+  const texts = breaking
+    .map((bc: any) =>
+      typeof bc === 'string' ? bc : bc.text || bc.description || ''
+    )
+    .filter(Boolean)
+    .slice(0, 3);
+
+  return isJapanese ? await translateRecommendations(texts, 'ja') : texts;
+}
+
+function getVersionJumpBullet(
+  fromVersion: string | undefined,
+  toVersion: string | undefined,
+  isJapanese: boolean
+): string | null {
+  const majorJump = getMajorJump(fromVersion, toVersion);
+
+  if (majorJump > 0) {
+    return isJapanese
+      ? `メジャーバージョン更新（+${majorJump}）: 互換性に注意`
+      : `Major version update (+${majorJump}): Backward compatibility may be affected`;
+  }
+
+  return null;
+}
+
+function getFallbackBullets(assessment: any, isJapanese: boolean): string[] {
+  const bullets: string[] = [];
+
+  bullets.push(
+    isJapanese
+      ? '破壊的変更は検出されていません（自動解析）'
+      : 'No breaking API changes detected by automated analysis'
+  );
+
+  if (assessment.codeImpact?.totalUsages >= 0) {
+    const n = assessment.codeImpact.totalUsages;
+    bullets.push(
+      isJapanese
+        ? `本リポジトリでの利用箇所: ${n} 箇所`
+        : `Usage in this repo: ${n} locations`
+    );
+  }
+
+  return bullets;
 }
 
 function getMajorJump(from?: string, to?: string): number {
@@ -475,57 +505,76 @@ async function generateRecommendationsSection(assessments: any[], overallRisk: s
 function generateExecutionStatsSection(stats: ExecutionStats, isJapanese: boolean): string {
   let markdown = `<details>\n<summary><small><em>${isJapanese ? '📊 実行統計' : '📊 Execution Statistics'}</em></small></summary>\n\n`;
   markdown += '<small><em>\n\n';
-  
-  if (stats.totalDuration) {
-    const duration = Math.round(stats.totalDuration / 1000);
-    markdown += `- ${isJapanese ? '実行時間' : 'Duration'}: ${duration}s\n`;
-  }
-  
-  // Agent details
+
+  markdown += formatDurationStats(stats, isJapanese);
+  markdown += formatAgentStats(stats, isJapanese);
+  markdown += formatApiCallStats(stats, isJapanese);
+  markdown += formatTokenStats(stats, isJapanese);
+  markdown += formatCostStats(stats, isJapanese);
+  markdown += formatDataSourceStats(stats, isJapanese);
+
+  markdown += '\n</em></small>\n</details>\n\n';
+
+  return markdown;
+}
+
+function formatDurationStats(stats: ExecutionStats, isJapanese: boolean): string {
+  if (!stats.totalDuration) return '';
+  const duration = Math.round(stats.totalDuration / 1000);
+  return `- ${isJapanese ? '実行時間' : 'Duration'}: ${duration}s\n`;
+}
+
+function formatAgentStats(stats: ExecutionStats, isJapanese: boolean): string {
+  let result = `- ${isJapanese ? 'エージェント数' : 'Agents Used'}: ${stats.agents.length}\n`;
+
   const agentNames = stats.agents.map(agent => agent.agentName).join(', ');
-  markdown += `- ${isJapanese ? 'エージェント数' : 'Agents Used'}: ${stats.agents.length}\n`;
   if (agentNames) {
-    markdown += `  - ${isJapanese ? '使用エージェント' : 'Agent Names'}: ${agentNames}\n`;
+    result += `  - ${isJapanese ? '使用エージェント' : 'Agent Names'}: ${agentNames}\n`;
   }
-  
-  // API call details  
-  markdown += `- ${isJapanese ? 'API呼び出し' : 'API Calls'}: ${stats.apiCalls.total}\n`;
-  
-  // Model breakdown
+
+  return result;
+}
+
+function formatApiCallStats(stats: ExecutionStats, isJapanese: boolean): string {
+  let result = `- ${isJapanese ? 'API呼び出し' : 'API Calls'}: ${stats.apiCalls.total}\n`;
+
   const modelBreakdown = Object.entries(stats.apiCalls.byModel)
     .map(([model, count]) => `${model}: ${count}`)
     .join(', ');
+
   if (modelBreakdown) {
-    markdown += `  - ${isJapanese ? 'モデル別' : 'By Model'}: ${modelBreakdown}\n`;
+    result += `  - ${isJapanese ? 'モデル別' : 'By Model'}: ${modelBreakdown}\n`;
   }
-  
-  // Token usage details
+
+  return result;
+}
+
+function formatTokenStats(stats: ExecutionStats, isJapanese: boolean): string {
   const totalTokens = stats.agents.reduce((sum, agent) => sum + (agent.totalTokens || 0), 0);
-  if (totalTokens > 0) {
-    markdown += `- ${isJapanese ? 'トークン使用量' : 'Token Usage'}: ${totalTokens.toLocaleString()}\n`;
-    
-    // Input/Output token breakdown
-    const inputTokens = stats.agents.reduce((sum, agent) => sum + (agent.inputTokens || 0), 0);
-    const outputTokens = stats.agents.reduce((sum, agent) => sum + (agent.outputTokens || 0), 0);
-    if (inputTokens > 0 && outputTokens > 0) {
-      markdown += `  - ${isJapanese ? '入力/出力' : 'Input/Output'}: ${inputTokens.toLocaleString()}/${outputTokens.toLocaleString()}\n`;
-    }
+  if (totalTokens === 0) return '';
+
+  let result = `- ${isJapanese ? 'トークン使用量' : 'Token Usage'}: ${totalTokens.toLocaleString()}\n`;
+
+  const inputTokens = stats.agents.reduce((sum, agent) => sum + (agent.inputTokens || 0), 0);
+  const outputTokens = stats.agents.reduce((sum, agent) => sum + (agent.outputTokens || 0), 0);
+
+  if (inputTokens > 0 && outputTokens > 0) {
+    result += `  - ${isJapanese ? '入力/出力' : 'Input/Output'}: ${inputTokens.toLocaleString()}/${outputTokens.toLocaleString()}\n`;
   }
-  
-  if (stats.apiCalls.estimatedCost !== undefined) {
-    const cost = stats.apiCalls.estimatedCost.toFixed(4);
-    markdown += `- ${isJapanese ? '推定コスト' : 'Estimated Cost'}: $${cost}\n`;
-  }
-  
-  // Data sources used
-  if (stats.dataSourcesUsed && stats.dataSourcesUsed.length > 0) {
-    const dataSources = stats.dataSourcesUsed.join(', ');
-    markdown += `- ${isJapanese ? 'データソース' : 'Data Sources'}: ${dataSources}\n`;
-  }
-  
-  markdown += '\n</em></small>\n</details>\n\n';
-  
-  return markdown;
+
+  return result;
+}
+
+function formatCostStats(stats: ExecutionStats, isJapanese: boolean): string {
+  if (stats.apiCalls.estimatedCost === undefined) return '';
+  const cost = stats.apiCalls.estimatedCost.toFixed(4);
+  return `- ${isJapanese ? '推定コスト' : 'Estimated Cost'}: $${cost}\n`;
+}
+
+function formatDataSourceStats(stats: ExecutionStats, isJapanese: boolean): string {
+  if (!stats.dataSourcesUsed || stats.dataSourcesUsed.length === 0) return '';
+  const dataSources = stats.dataSourcesUsed.join(', ');
+  return `- ${isJapanese ? 'データソース' : 'Data Sources'}: ${dataSources}\n`;
 }
 
 // Generate detailed risk assessment breakdown

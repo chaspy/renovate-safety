@@ -160,39 +160,64 @@ function calculateRiskScore(factors: RiskFactors): number {
 }
 
 function determineRiskLevel(score: number, factors: RiskFactors): RiskAssessment['level'] {
-  // Special handling for @types/* packages
-  if (factors.packageSpecific.isTypeDefinition) {
-    // @types/* patch updates are always safe
-    if (
-      factors.versionJump.patch > 0 &&
-      factors.versionJump.major === 0 &&
-      factors.versionJump.minor === 0
-    ) {
-      return 'safe';
-    }
-    // @types/* minor updates are low risk at most
-    if (factors.versionJump.minor > 0 && factors.versionJump.major === 0) {
-      return score <= 10 ? 'safe' : 'low';
-    }
+  // Check for type definition package special cases
+  const typeDefLevel = getTypeDefinitionRiskLevel(factors, score);
+  if (typeDefLevel) {
+    return typeDefLevel;
   }
 
-  // If we have no information and it's not a special package, return unknown
-  if (
+  // Check if we have insufficient information
+  if (hasInsufficientInformation(factors)) {
+    return 'unknown';
+  }
+
+  // Return risk level based on score thresholds
+  return getRiskLevelByScore(score);
+}
+
+function getTypeDefinitionRiskLevel(
+  factors: RiskFactors,
+  score: number
+): RiskAssessment['level'] | null {
+  if (!factors.packageSpecific.isTypeDefinition) {
+    return null;
+  }
+
+  // @types/* patch updates are always safe
+  if (isPatchOnlyUpdate(factors.versionJump)) {
+    return 'safe';
+  }
+
+  // @types/* minor updates are low risk at most
+  if (isMinorOnlyUpdate(factors.versionJump)) {
+    return score <= 10 ? 'safe' : 'low';
+  }
+
+  return null;
+}
+
+function isPatchOnlyUpdate(versionJump: VersionJump): boolean {
+  return versionJump.patch > 0 && versionJump.major === 0 && versionJump.minor === 0;
+}
+
+function isMinorOnlyUpdate(versionJump: VersionJump): boolean {
+  return versionJump.minor > 0 && versionJump.major === 0;
+}
+
+function hasInsufficientInformation(factors: RiskFactors): boolean {
+  return (
     factors.confidence.diffAnalysisDepth === 'none' &&
     factors.packageSpecific.breakingChangePatterns.length === 0 &&
     !factors.packageSpecific.isTypeDefinition
-  ) {
-    return 'unknown'; // 'unknown' is valid RiskAssessment level
-  }
+  );
+}
 
-  // Adjusted thresholds for better calibration
-  if (score <= 1) return 'safe'; // Very low score is safe
-  if (score <= 3) return 'low'; // Low score is low risk
-  if (score <= 10) return 'low'; // Keep existing threshold
+function getRiskLevelByScore(score: number): RiskAssessment['level'] {
+  if (score <= 1) return 'safe';
+  if (score <= 10) return 'low';
   if (score < 30) return 'medium';
   if (score < 50) return 'high';
-  if (score >= 50) return 'critical';
-  return 'medium'; // Default to medium if somehow we get here
+  return 'critical';
 }
 
 function calculateConfidence(factors: RiskFactors): number {

@@ -34,48 +34,71 @@ export function detectBreakingChangesFromText(text: string): BreakingChangeInfo[
     const line = lines[i].trim();
     if (!line) continue;
 
-    for (const pattern of BREAKING_CHANGE_PATTERNS) {
-      if (pattern.test(line)) {
-        const changeKey = line.toLowerCase().replace(/\s+/g, ' ');
-        if (!seenChanges.has(changeKey)) {
-          seenChanges.add(changeKey);
-          
-          let severity: 'breaking' | 'warning' | 'removal' = 'breaking';
-          if (/DEPRECATED/i.test(line) || /Renamed/i.test(line) || /Moved/i.test(line)) {
-            severity = 'warning';
-          } else if (/Removed/i.test(line) || /Deleted/i.test(line)) {
-            severity = 'removal';
-          }
-
-          breakingChanges.push({
-            text: line,
-            pattern,
-            lineNumber: i + 1,
-            severity,
-          });
-        }
-        break;
-      }
+    // Check for pattern matches
+    const patternMatch = checkLineForBreakingPattern(line, i + 1);
+    if (patternMatch) {
+      addUniqueBreakingChange(breakingChanges, seenChanges, patternMatch);
+      continue;
     }
 
     // Check for breaking change sections
     if (isBreakingChangeSection(line)) {
-      const sectionItems = extractSectionItems(lines, i);
-      for (const item of sectionItems) {
-        const itemKey = item.toLowerCase().replace(/\s+/g, ' ');
-        if (!seenChanges.has(itemKey)) {
-          seenChanges.add(itemKey);
-          breakingChanges.push({
-            text: item,
-            pattern: /Breaking Changes?/i,
-            severity: 'breaking',
-          });
-        }
-      }
+      const sectionChanges = processSectionItems(lines, i);
+      sectionChanges.forEach(change =>
+        addUniqueBreakingChange(breakingChanges, seenChanges, change)
+      );
     }
   }
 
   return breakingChanges;
+}
+
+function checkLineForBreakingPattern(
+  line: string,
+  lineNumber: number
+): BreakingChangeInfo | null {
+  for (const pattern of BREAKING_CHANGE_PATTERNS) {
+    if (pattern.test(line)) {
+      return {
+        text: line,
+        pattern,
+        lineNumber,
+        severity: determineSeverity(line),
+      };
+    }
+  }
+  return null;
+}
+
+function determineSeverity(line: string): 'breaking' | 'warning' | 'removal' {
+  if (/DEPRECATED/i.test(line) || /Renamed/i.test(line) || /Moved/i.test(line)) {
+    return 'warning';
+  }
+  if (/Removed/i.test(line) || /Deleted/i.test(line)) {
+    return 'removal';
+  }
+  return 'breaking';
+}
+
+function addUniqueBreakingChange(
+  breakingChanges: BreakingChangeInfo[],
+  seenChanges: Set<string>,
+  change: BreakingChangeInfo
+): void {
+  const changeKey = change.text.toLowerCase().replace(/\s+/g, ' ');
+  if (!seenChanges.has(changeKey)) {
+    seenChanges.add(changeKey);
+    breakingChanges.push(change);
+  }
+}
+
+function processSectionItems(lines: string[], sectionIndex: number): BreakingChangeInfo[] {
+  const sectionItems = extractSectionItems(lines, sectionIndex);
+  return sectionItems.map(item => ({
+    text: item,
+    pattern: /Breaking Changes?/i,
+    severity: 'breaking' as const,
+  }));
 }
 
 function isBreakingChangeSection(line: string): boolean {
@@ -121,6 +144,40 @@ function extractSectionItems(lines: string[], sectionIndex: number): string[] {
 }
 
 export function extractMigrationSteps(text: string): string[] {
+  const lines = text.split('\n');
+  const steps: string[] = [];
+  const sectionRange = findMigrationSectionRange(lines);
+
+  if (!sectionRange) {
+    return steps;
+  }
+
+  for (let i = sectionRange.start; i <= sectionRange.end; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+
+    if (!trimmedLine) continue;
+
+    // Process code blocks
+    if (trimmedLine.startsWith('```')) {
+      const codeBlock = extractCodeBlock(lines, i);
+      steps.push(codeBlock.content);
+      i = codeBlock.endIndex;
+      continue;
+    }
+
+    // Process list items and indented content
+    if (isMigrationStep(trimmedLine)) {
+      steps.push(trimmedLine);
+    }
+  }
+
+  return steps;
+}
+
+function findMigrationSectionRange(
+  lines: string[]
+): { start: number; end: number } | null {
   const migrationSections = [
     /migration guide/i,
     /migration steps/i,
@@ -130,46 +187,56 @@ export function extractMigrationSteps(text: string): string[] {
     /how to upgrade/i,
   ];
 
-  const steps: string[] = [];
-  const lines = text.split('\n');
-  let inMigrationSection = false;
+  let sectionStart = -1;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    
-    if (migrationSections.some(p => p.test(line))) {
-      inMigrationSection = true;
+
+    // Find start of migration section
+    if (sectionStart === -1 && migrationSections.some(p => p.test(line))) {
+      sectionStart = i + 1;
       continue;
     }
 
-    if (inMigrationSection && line.trim()) {
-      // Capture numbered lists, bullet points, or code blocks
-      if (/^[\d\-*•]/.test(line.trim()) || /^\s{2,}/.test(line)) {
-        steps.push(line.trim());
-      }
-      
-      // Also capture code blocks
-      if (line.trim().startsWith('```')) {
-        const codeBlock: string[] = [line];
-        i++;
-        while (i < lines.length && !lines[i].trim().startsWith('```')) {
-          codeBlock.push(lines[i]);
-          i++;
-        }
-        if (i < lines.length) {
-          codeBlock.push(lines[i]);
-        }
-        steps.push(codeBlock.join('\n'));
-      }
-    }
-
-    // Section ends when we hit another header
-    if (inMigrationSection && /^#/.test(line)) {
-      break;
+    // Find end of migration section (next header)
+    if (sectionStart !== -1 && /^#/.test(line)) {
+      return { start: sectionStart, end: i - 1 };
     }
   }
 
-  return steps;
+  // If we found a start but no end, go to the end of the document
+  if (sectionStart !== -1) {
+    return { start: sectionStart, end: lines.length - 1 };
+  }
+
+  return null;
+}
+
+function extractCodeBlock(
+  lines: string[],
+  startIndex: number
+): { content: string; endIndex: number } {
+  const codeBlock: string[] = [lines[startIndex]];
+  let i = startIndex + 1;
+
+  while (i < lines.length && !lines[i].trim().startsWith('```')) {
+    codeBlock.push(lines[i]);
+    i++;
+  }
+
+  if (i < lines.length) {
+    codeBlock.push(lines[i]);
+  }
+
+  return {
+    content: codeBlock.join('\n'),
+    endIndex: i,
+  };
+}
+
+function isMigrationStep(line: string): boolean {
+  // Capture numbered lists, bullet points, or indented content
+  return /^[\d\-*•]/.test(line) || /^\s{2,}/.test(line);
 }
 
 export function assessRiskLevel(breakingChanges: BreakingChangeInfo[], packageName: string): 'safe' | 'low' | 'medium' | 'high' {

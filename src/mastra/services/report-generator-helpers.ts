@@ -129,30 +129,87 @@ export function generateBreakingChangeDetails(
   const source = change.source || 'npm-diff-tool';
   const pointsContribution = 5;
 
-  let markdown = `  ${index + 1}. **${changeText}** (+${pointsContribution}${isJapanese ? '点' : ' points'})\n`;
-  markdown += `     - ${isJapanese ? '重要度' : 'Severity'}: ${severity.toUpperCase()}\n`;
-  markdown += `     - ${isJapanese ? 'ソース' : 'Source'}: ${source}\n`;
-
-  // Add source links
-  const repoUrl = getRepositoryUrl(dependency.name);
-  if (source === 'npm-diff' && repoUrl) {
-    const referenceLink = `[GitHub Compare](${repoUrl}/compare/v${dependency.fromVersion}...v${dependency.toVersion})`;
-    markdown += `     - ${isJapanese ? '確認リンク' : 'Reference'}: ${referenceLink}\n`;
-    markdown += `     - ${isJapanese ? 'npm diff コマンド' : 'npm diff command'}: \`npm diff ${dependency.name}@${dependency.fromVersion} ${dependency.name}@${dependency.toVersion}\`\n`;
-  } else if ((source === 'GitHub release notes' || source === 'GitHub Releases') && repoUrl) {
-    const referenceLink = `[GitHub Release v${dependency.toVersion}](${repoUrl}/releases/tag/v${dependency.toVersion})`;
-    markdown += `     - ${isJapanese ? '確認リンク' : 'Reference'}: ${referenceLink}\n`;
-  }
-
-  // Add impact explanation for critical changes
-  if (changeText.includes('Node.js requirement')) {
-    markdown += isJapanese ?
-      `     - 💡 Node.js要件変更は実行環境に直接影響する重要な変更です\n` :
-      `     - 💡 Node.js requirement changes directly impact the runtime environment\n`;
-  }
-
+  let markdown = formatChangeHeader(index, changeText, pointsContribution, isJapanese);
+  markdown += formatChangeMeta(severity, source, isJapanese);
+  markdown += formatSourceLinks(source, dependency, getRepositoryUrl, isJapanese);
+  markdown += formatImpactExplanation(changeText, isJapanese);
   markdown += '\n';
+
   return markdown;
+}
+
+function formatChangeHeader(
+  index: number,
+  changeText: string,
+  pointsContribution: number,
+  isJapanese: boolean
+): string {
+  return `  ${index + 1}. **${changeText}** (+${pointsContribution}${isJapanese ? '点' : ' points'})\n`;
+}
+
+function formatChangeMeta(
+  severity: string,
+  source: string,
+  isJapanese: boolean
+): string {
+  let markdown = `     - ${isJapanese ? '重要度' : 'Severity'}: ${severity.toUpperCase()}\n`;
+  markdown += `     - ${isJapanese ? 'ソース' : 'Source'}: ${source}\n`;
+  return markdown;
+}
+
+function formatSourceLinks(
+  source: string,
+  dependency: any,
+  getRepositoryUrl: (name: string) => string | null,
+  isJapanese: boolean
+): string {
+  const repoUrl = getRepositoryUrl(dependency.name);
+  if (!repoUrl) return '';
+
+  if (source === 'npm-diff') {
+    return formatNpmDiffLinks(dependency, repoUrl, isJapanese);
+  }
+
+  if (source === 'GitHub release notes' || source === 'GitHub Releases') {
+    return formatGitHubReleaseLink(dependency.toVersion, repoUrl, isJapanese);
+  }
+
+  return '';
+}
+
+function formatNpmDiffLinks(
+  dependency: any,
+  repoUrl: string,
+  isJapanese: boolean
+): string {
+  const compareLink = `[GitHub Compare](${repoUrl}/compare/v${dependency.fromVersion}...v${dependency.toVersion})`;
+  const npmCommand = `\`npm diff ${dependency.name}@${dependency.fromVersion} ${dependency.name}@${dependency.toVersion}\``;
+
+  let markdown = `     - ${isJapanese ? '確認リンク' : 'Reference'}: ${compareLink}\n`;
+  markdown += `     - ${isJapanese ? 'npm diff コマンド' : 'npm diff command'}: ${npmCommand}\n`;
+  return markdown;
+}
+
+function formatGitHubReleaseLink(
+  toVersion: string,
+  repoUrl: string,
+  isJapanese: boolean
+): string {
+  const releaseLink = `[GitHub Release v${toVersion}](${repoUrl}/releases/tag/v${toVersion})`;
+  return `     - ${isJapanese ? '確認リンク' : 'Reference'}: ${releaseLink}\n`;
+}
+
+function formatImpactExplanation(
+  changeText: string,
+  isJapanese: boolean
+): string {
+  if (!changeText.includes('Node.js requirement')) {
+    return '';
+  }
+
+  return isJapanese
+    ? `     - 💡 Node.js要件変更は実行環境に直接影響する重要な変更です\n`
+    : `     - 💡 Node.js requirement changes directly impact the runtime environment\n`;
 }
 
 // Generate code impact analysis section

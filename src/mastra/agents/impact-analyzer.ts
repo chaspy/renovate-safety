@@ -110,32 +110,9 @@ function getImpactLevel(score: number): ImpactAnalysis['level'] {
 
 function findCriticalPaths(usages: Array<TsUsage | ConfigUsage>): CriticalPath[] {
   const critical: CriticalPath[] = [];
-  
+
   for (const usage of usages) {
-    let reason: string | null = null;
-    
-    // Check if it's a critical file
-    if (usage.file.includes('index')) {
-      reason = 'Entry point file';
-    } else if (usage.file.includes('main')) {
-      reason = 'Main application file';
-    } else if (usage.file.includes('app')) {
-      reason = 'Application root file';
-    } else if (usage.file === 'package.json') {
-      reason = 'Project configuration file';
-    } else if (usage.file.includes('config')) {
-      reason = 'Configuration file';
-    }
-    
-    // Check for critical usage types
-    if (usage.type === 'constructor') {
-      reason = reason ? `${reason} (Constructor usage)` : 'Constructor usage';
-    } else if (usage.type === 'extends') {
-      reason = reason ? `${reason} (Inheritance)` : 'Class inheritance';
-    } else if (usage.type === 'config') {
-      reason = reason ? `${reason} (Config dependency)` : 'Configuration dependency';
-    }
-    
+    const reason = determineCriticalReason(usage);
     if (reason) {
       critical.push({
         file: usage.file,
@@ -144,19 +121,65 @@ function findCriticalPaths(usages: Array<TsUsage | ConfigUsage>): CriticalPath[]
       });
     }
   }
-  
-  // Remove duplicates and limit to top 10 most critical
-  const uniqueCritical = critical.reduce((acc, curr) => {
-    const exists = acc.find(
-      item => item.file === curr.file && item.line === curr.line
-    );
-    if (!exists) {
-      acc.push(curr);
+
+  return removeDuplicatePaths(critical).slice(0, 10);
+}
+
+function determineCriticalReason(usage: TsUsage | ConfigUsage): string | null {
+  const fileReason = getCriticalFileReason(usage.file);
+  const typeReason = getCriticalUsageTypeReason(usage.type);
+
+  if (fileReason && typeReason) {
+    return `${fileReason} (${typeReason})`;
+  }
+  return fileReason || typeReason;
+}
+
+function getCriticalFileReason(file: string): string | null {
+  const criticalFilePatterns: Array<[string, string]> = [
+    ['index', 'Entry point file'],
+    ['main', 'Main application file'],
+    ['app', 'Application root file'],
+    ['config', 'Configuration file'],
+  ];
+
+  // Special case for exact match
+  if (file === 'package.json') {
+    return 'Project configuration file';
+  }
+
+  for (const [pattern, reason] of criticalFilePatterns) {
+    if (file.includes(pattern)) {
+      return reason;
     }
-    return acc;
-  }, [] as CriticalPath[]);
-  
-  return uniqueCritical.slice(0, 10);
+  }
+
+  return null;
+}
+
+function getCriticalUsageTypeReason(type: string): string | null {
+  const criticalTypes: Record<string, string> = {
+    'constructor': 'Constructor usage',
+    'extends': 'Class inheritance',
+    'config': 'Configuration dependency',
+  };
+
+  return criticalTypes[type] || null;
+}
+
+function removeDuplicatePaths(paths: CriticalPath[]): CriticalPath[] {
+  const uniquePaths: CriticalPath[] = [];
+  const seen = new Set<string>();
+
+  for (const path of paths) {
+    const key = `${path.file}:${path.line}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniquePaths.push(path);
+    }
+  }
+
+  return uniquePaths;
 }
 
 function generateRecommendations(
