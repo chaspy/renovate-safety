@@ -152,11 +152,11 @@ export function buildChangelogEntry(
     date: date.toISOString(),
     changes,
     breaking,
-    type: breaking
-      ? 'major'
-      : changes.some((c) => c.toLowerCase().includes('fix'))
-        ? 'patch'
-        : 'minor',
+    type: (() => {
+      if (breaking) return 'major';
+      if (changes.some((c) => c.toLowerCase().includes('fix'))) return 'patch';
+      return 'minor';
+    })(),
   };
 }
 

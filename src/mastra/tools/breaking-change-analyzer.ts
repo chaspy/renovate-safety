@@ -307,8 +307,8 @@ export class BreakingChangeAnalyzer {
     return this.breakingChanges
       .filter(change => {
         // Filter out non-breaking additions
-        if (change.text.match(/(?:added|new).+(?:method|function|feature)/i) && 
-            !change.text.match(/removed|changed|renamed|replace/i)) {
+        if (/(?:added|new).+(?:method|function|feature)/i.test(change.text) &&
+            !/removed|changed|renamed|replace/i.test(change.text)) {
           return false;
         }
         
@@ -380,12 +380,12 @@ export class BreakingChangeAnalyzer {
 
     for (const line of lines) {
       for (const p of keyPatterns) {
-        const m = line.match(p);
+        const m = p.exec(line);
         if (m) hints.add(m[1]);
       }
 
       // crude exports field extraction: "exports": { "/feature": { "import": "./src/feature.js" } }
-      const match = line.match(/"(?:import|require|default)"\s*:\s*"([^"]+)"/);
+      const match = /"(?:import|require|default)"\s*:\s*"([^"]+)"/.exec(line);
       if (match) hints.add(match[1]);
     }
     if (hints.size > 0) this.publicEntryHints = this.normalizeHints(Array.from(hints));
@@ -419,14 +419,14 @@ export class BreakingChangeAnalyzer {
     if (!pathOk) return names;
 
     // ESM named exports: export function|class|const|let|var NAME
-    const esmDecl = content.match(/export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/);
+    const esmDecl = /export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(content);
     if (esmDecl) names.push(esmDecl[1]);
 
     // ESM default export
     if (/export\s+default\s+/.test(content)) names.push('default');
 
     // ESM list: export { a, b as c }
-    const listMatch = content.match(/export\s*\{([^}]+)\}/);
+    const listMatch = /export\s*\{([^}]+)\}/.exec(content);
     if (listMatch) {
       const parts = listMatch[1]
         .split(',')
@@ -437,10 +437,10 @@ export class BreakingChangeAnalyzer {
     }
 
     // CommonJS: exports.name = ..., module.exports = { a, b }
-    const cjsProp = content.match(/exports\.([A-Za-z_$][\w$]*)\s*=/);
+    const cjsProp = /exports\.([A-Za-z_$][\w$]*)\s*=/.exec(content);
     if (cjsProp) names.push(cjsProp[1]);
 
-    const cjsObj = content.match(/module\.exports\s*=\s*\{([^}]+)\}/);
+    const cjsObj = /module\.exports\s*=\s*\{([^}]+)\}/.exec(content);
     if (cjsObj) {
       const parts = cjsObj[1]
         .split(',')
@@ -460,15 +460,15 @@ export class BreakingChangeAnalyzer {
     const content = line.substring(1);
 
     // export function name(params)
-    let m = content.match(/export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/);
+    let m = /export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/.exec(content);
     if (m) return { name: m[1], params: m[2] };
 
     // export const name = (params) =>
-    m = content.match(/export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>/);
+    m = /export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>/.exec(content);
     if (m) return { name: m[1], params: m[2] };
 
     // TypeScript .d.ts style
-    m = content.match(/declare\s+function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/);
+    m = /declare\s+function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/.exec(content);
     if (m) return { name: m[1], params: m[2] };
 
     return null;

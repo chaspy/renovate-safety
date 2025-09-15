@@ -43,14 +43,28 @@ export async function generateEnhancedReport(
     report += `- **Version Jump**: ${versionJump}\n`;
   }
 
-  report += `${isJa ? '- **チェンジログソース**' : '- **Changelog Source**'}: ${result.changelogDiff?.source || (isJa ? '未取得' : 'Not found')}\n`;
+  const changelogLabel = isJa ? '- **チェンジログソース**' : '- **Changelog Source**';
+  const changelogValue = result.changelogDiff?.source || (isJa ? '未取得' : 'Not found');
+  report += `${changelogLabel}: ${changelogValue}\n`;
   const codeDiffStatus = result.codeDiff
     ? `${result.codeDiff.filesChanged} files changed`
     : isJa
       ? '利用不可'
       : 'Not available';
   report += `${isJa ? '- **コード差分**' : '- **Code Diff**'}: ${codeDiffStatus}\n`;
-  report += `${isJa ? '- **依存関係の種類**' : '- **Dependency Type**'}: ${result.dependencyUsage?.isDirect ? (isJa ? '直接' : 'Direct') : isJa ? '間接' : 'Transitive'} ${result.dependencyUsage?.usageType || 'dependencies'}\n`;
+  const depTypeLabel = isJa ? '- **依存関係の種類**' : '- **Dependency Type**';
+  const depTypeValue = (() => {
+    if (!result.dependencyUsage) return 'dependencies';
+    const directText = result.dependencyUsage.isDirect
+      ? isJa
+        ? '直接'
+        : 'Direct'
+      : isJa
+        ? '間接'
+        : 'Transitive';
+    return `${directText} ${result.dependencyUsage.usageType || 'dependencies'}`;
+  })();
+  report += `${depTypeLabel}: ${depTypeValue}\n`;
 
   // Add library description for well-known packages
   const libraryDescription = getLibraryDescription(result.package.name, isJa);
@@ -131,7 +145,15 @@ export async function generateEnhancedReport(
   // Dependency usage with enhanced visualization
   if (result.dependencyUsage) {
     report += isJa ? '### 🌳 依存関係の利用状況\n' : '### 🌳 Dependency Usage\n';
-    report += `${isJa ? '- **種類**' : '- **Type**'}: ${result.dependencyUsage.isDirect ? (isJa ? '直接依存' : 'Direct') : isJa ? '間接依存' : 'Transitive'}\n`;
+    const typeLabel = isJa ? '- **種類**' : '- **Type**';
+    const typeValue = result.dependencyUsage.isDirect
+      ? isJa
+        ? '直接依存'
+        : 'Direct'
+      : isJa
+        ? '間接依存'
+        : 'Transitive';
+    report += `${typeLabel}: ${typeValue}\n`;
     report += `${isJa ? '- **カテゴリ**' : '- **Category**'}: ${result.dependencyUsage.usageType}\n`;
     report += `${isJa ? '- **影響範囲**' : '- **Impact**'}: ${isJa ? `${result.dependencyUsage.dependents.length} パッケージに影響` : `Affects ${result.dependencyUsage.dependents.length} packages`}\n\n`;
 
@@ -337,8 +359,24 @@ export async function generateEnhancedReport(
   report += `${isJa ? '- **必要なテスト範囲**' : '- **Required Testing Scope**'}: ${result.riskAssessment.testingScope}\n`;
   report += `${isJa ? '- **検出された破壊的変更**' : '- **Breaking Changes Found**'}: ${result.breakingChanges.length}\n`;
   report += `${isJa ? '- **API利用検出数**' : '- **API Usages Found**'}: ${result.apiUsages.length}\n`;
-  report += `${isJa ? '- **AI解析**' : '- **AI Analysis**'}: ${result.llmSummary ? (isJa ? '実施済み' : 'Completed') : isJa ? 'スキップ' : 'Skipped'}\n`;
-  report += `${isJa ? '- **詳細解析**' : '- **Deep Analysis**'}: ${result.deepAnalysis ? (isJa ? '実施済み' : 'Completed') : isJa ? '無効' : 'Disabled'}\n\n`;
+  const aiLabel = isJa ? '- **AI解析**' : '- **AI Analysis**';
+  const aiValue = result.llmSummary
+    ? isJa
+      ? '実施済み'
+      : 'Completed'
+    : isJa
+      ? 'スキップ'
+      : 'Skipped';
+  report += `${aiLabel}: ${aiValue}\n`;
+  const deepLabel = isJa ? '- **詳細解析**' : '- **Deep Analysis**';
+  const deepValue = result.deepAnalysis
+    ? isJa
+      ? '実施済み'
+      : 'Completed'
+    : isJa
+      ? '無効'
+      : 'Disabled';
+  report += `${deepLabel}: ${deepValue}\n\n`;
 
   report += isJa ? '**根拠 (Risk Factors):**\n' : '**Risk Factors:**\n';
   const factors = result.riskAssessment.factors || [];
@@ -365,101 +403,6 @@ function getRiskEmoji(level: string): string {
     unknown: '❓',
   };
   return emojis[level as keyof typeof emojis] || '❓';
-}
-
-function translateAction(action: string, isJa: boolean): string {
-  if (!isJa) return action;
-  const map: Record<string, string> = {
-    'Merge the PR - no action required': 'PRをマージしてください（追加の対応は不要です）',
-    'Review the changelog for any subtle changes':
-      'チェンジログを確認し、細かな変更点を把握してください',
-    'Run your test suite to confirm': 'テストスイートを実行して動作確認してください',
-    'Merge if tests pass': 'テストが通過したらマージしてください',
-    'Review all breaking changes listed above': '上記の破壊的変更をすべて確認してください',
-    'Check affected files for necessary updates':
-      '影響ファイルに必要な修正がないか確認してください',
-    'Run comprehensive tests on affected features':
-      '影響する機能に対して包括的なテストを実施してください',
-    'Update code as needed before merging': 'マージ前に必要なコード修正を行ってください',
-    'Carefully review all breaking changes': '破壊的変更の内容を慎重に確認してください',
-    'Update all affected code locations': '影響を受けるコード箇所をすべて更新してください',
-    'Add or update tests for changed functionality':
-      '変更された機能に対するテストを追加/更新してください',
-    'Run full regression test suite': 'フル回帰テストを実行してください',
-    'Consider staging deployment before production':
-      '本番適用前にステージング環境での動作確認を検討してください',
-    'Manually review package documentation': 'パッケージのドキュメントを手動で確認してください',
-    'Check package repository for migration guides':
-      '移行ガイドがないかリポジトリを確認してください',
-    'Search for community discussions about this update':
-      'この更新に関するコミュニティでの議論を確認してください',
-    'Consider testing in isolated environment first': 'まずは隔離環境でのテストを検討してください',
-  };
-  // Dynamic template
-  if (action.startsWith('Update ') && action.endsWith(' code locations using the package APIs')) {
-    const n = action
-      .replace(/^Update\s+/, '')
-      .replace(/\s+code locations using the package APIs$/, '');
-    return `パッケージAPIを利用している ${n} 箇所を更新してください`;
-  }
-  return map[action] || action;
-}
-
-function buildDiffHighlight(content: string, maxFiles: number = 2): string {
-  const lines = content.split('\n');
-  const out: string[] = [];
-  const keyIdx = lines.findIndex((l) => l.trim().startsWith('## Key File Changes'));
-  if (keyIdx === -1) {
-    return lines.slice(0, Math.min(30, lines.length)).join('\n');
-  }
-  let i = keyIdx;
-  let filesAdded = 0;
-  while (i < lines.length && filesAdded < maxFiles) {
-    const line = lines[i];
-    // Copy the section header itself only once
-    if (i === keyIdx) {
-      out.push(lines[i]);
-      i++;
-      continue;
-    }
-    if (line.startsWith('### ')) {
-      filesAdded++;
-      out.push(line);
-      // Include status/changes lines if present
-      let j = i + 1;
-      while (j < lines.length && /^-\s*(Status|Changes):/.test(lines[j])) {
-        out.push(lines[j]);
-        j++;
-      }
-      // Include a single fenced diff block if present
-      if (j < lines.length && lines[j].startsWith('```diff')) {
-        out.push(lines[j]);
-        j++;
-        let fenceOpen = true;
-        while (j < lines.length) {
-          out.push(lines[j]);
-          if (lines[j].startsWith('```')) {
-            fenceOpen = false;
-            j++;
-            break;
-          }
-          // avoid overly long snippets
-          if (out.length > 200) {
-            break;
-          }
-          j++;
-        }
-        // Ensure code fence is closed
-        if (fenceOpen) {
-          out.push('```');
-        }
-      }
-      i = j;
-      continue;
-    }
-    i++;
-  }
-  return out.join('\n') + '\n';
 }
 
 function getRiskDescription(level: string, isJa: boolean): string {

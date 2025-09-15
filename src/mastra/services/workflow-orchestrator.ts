@@ -51,7 +51,7 @@ function extractTotalUsages(codeImpactResult: any): number {
     
     // Fallback: try to parse from text response
     const text = codeImpactResult?.text || '';
-    const totalMatch = text.match(/Total Usages.*?(\d+)/i);
+    const totalMatch = /Total Usages.*?(\d+)/i.exec(text);
     if (totalMatch) {
       return parseInt(totalMatch[1], 10);
     }
@@ -67,7 +67,7 @@ function extractCriticalUsages(codeImpactResult: any): number {
   try {
     // Try to extract from text response
     const text = codeImpactResult?.text || '';
-    const criticalMatch = text.match(/Critical Usages.*?(\d+)/i);
+    const criticalMatch = /Critical Usages.*?(\d+)/i.exec(text);
     if (criticalMatch) {
       return parseInt(criticalMatch[1], 10);
     }
@@ -89,7 +89,7 @@ function extractCodeImpactData(codeImpactResult: any): any {
     
     // Extract impact level
     let impactLevel = 'minimal';
-    const impactMatch = text.match(/Impact Level.*?(\w+)/i);
+    const impactMatch = /Impact Level.*?(\w+)/i.exec(text);
     if (impactMatch) {
       impactLevel = impactMatch[1].toLowerCase();
     }
@@ -117,7 +117,7 @@ function extractCodeImpactData(codeImpactResult: any): any {
     ];
     
     for (const pattern of patterns) {
-      const match = text.match(pattern);
+      const match = pattern.exec(text);
       if (match) {
         const recText = match[1];
         const recs = recText.match(/- (.+?)(?:\n|$)/g);
@@ -172,8 +172,8 @@ function extractUsageDetails(text: string): Array<{file: string, usage: string, 
     // Extract import statements with more detailed context
     const importMatches = text.match(/import\s+(?:(?:[\w{},\s*]+)\s+from\s+)?['"`]([^'"`]*)['"`]/g) || [];
     importMatches.forEach(importStmt => {
-      const packageMatch = importStmt.match(/from\s+['"`]([^'"`]*)['"`]/);
-      const importedItemsMatch = importStmt.match(/import\s+(?:\{([^}]+)\}|\*\s+as\s+(\w+)|(\w+))/);
+      const packageMatch = /from\s+['"`]([^'"`]*)['"`]/.exec(importStmt);
+      const importedItemsMatch = /import\s+(?:\{([^}]+)\}|\*\s+as\s+(\w+)|(\w+))/.exec(importStmt);
       
       if (packageMatch) {
         let description = 'パッケージをインポート';
@@ -270,11 +270,6 @@ function generateContextAwareRecommendations(
   const recommendations: string[] = [];
   
   try {
-    // Analyze specific usage patterns for targeted recommendations
-    const hasImport = usageDetails.some(u => u.usage === 'import');
-    const hasFunctionCalls = usageDetails.some(u => u.usage === 'function-call');
-    const hasAssignments = usageDetails.some(u => u.usage === 'assignment');
-    
     // Check for specific patterns in the text that indicate usage scenarios
     const isParallelProcessing = text.includes('parallel') || text.includes('concurrent') || text.includes('limit');
     const isAPIRelated = text.includes('api') || text.includes('http') || text.includes('request');
@@ -534,7 +529,7 @@ function parseReleaseNotesFromText(text: string): any | null {
     ];
     
     for (const pattern of jsonPatterns) {
-      const match = text.match(pattern);
+      const match = pattern.exec(text);
       if (match) {
         try {
           const jsonStr = match[1] || match[0];

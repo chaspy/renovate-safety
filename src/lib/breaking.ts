@@ -58,8 +58,8 @@ export function extractBreakingChanges(
 
   // Add engines.node change as breaking if major version increased
   if (enginesDiff && enginesDiff.from !== enginesDiff.to) {
-    const fromMajor = parseInt(enginesDiff.from.match(/\d+/)?.[0] || '0');
-    const toMajor = parseInt(enginesDiff.to.match(/\d+/)?.[0] || '0');
+    const fromMajor = parseInt(/\d+/.exec(enginesDiff.from)?.[0] || '0');
+    const toMajor = parseInt(/\d+/.exec(enginesDiff.to)?.[0] || '0');
 
     if (toMajor > fromMajor) {
       const engineChange = `Minimum Node.js version changed from ${enginesDiff.from} to ${enginesDiff.to}`;
@@ -117,12 +117,12 @@ function extractContext(lines: string[], index: number): string {
   const line = lines[index].trim();
 
   // If it's a list item, get the full item (could span multiple lines)
-  if (line.match(/^[-*•]\s/)) {
+  if (/^[-*•]\s/.test(line)) {
     let context = line;
     let i = index + 1;
 
     // Continue reading lines that are indented (continuation of the list item)
-    while (i < lines.length && lines[i].match(/^\s{2,}/) && !lines[i].match(/^[-*•]\s/)) {
+    while (i < lines.length && /^\s{2,}/.test(lines[i]) && !/^[-*•]\s/.test(lines[i])) {
       context += ' ' + lines[i].trim();
       i++;
     }
@@ -161,12 +161,12 @@ function extractSectionItems(lines: string[], sectionIndex: number): string[] {
     const line = lines[i].trim();
 
     // Stop if we hit another section header
-    if (line.match(/^#+\s/)) {
+    if (/^#+\s/.test(line)) {
       break;
     }
 
     // Extract list items
-    if (line.match(/^[-*•]\s/)) {
+    if (/^[-*•]\s/.test(line)) {
       const context = extractContext(lines, i);
       items.push(context);
     }

@@ -105,12 +105,12 @@ function extractSectionItems(lines: string[], sectionIndex: number): string[] {
     const line = lines[i].trim();
 
     // Stop if we hit another section header
-    if (line.match(/^#+\s/)) {
+    if (/^#+\s/.test(line)) {
       break;
     }
 
     // Extract list items
-    if (line.match(/^[-*•]\s/)) {
+    if (/^[-*•]\s/.test(line)) {
       items.push(line);
     }
 

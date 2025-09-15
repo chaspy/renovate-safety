@@ -44,7 +44,7 @@ export async function summarizeApiDiff(
 
     // engines.node detection (package.json)
     if (currentFile.endsWith('package.json')) {
-      const m = line.match(/[+-]\s*"node"\s*:\s*"([^"]+)"/);
+      const m = /[+-]\s*"node"\s*:\s*"([^"]+)"/.exec(line);
       if (m) {
         const val = m[1];
         if (line.startsWith('-')) nodeOld = val;
@@ -119,12 +119,11 @@ export async function summarizeApiDiff(
 function extractExportedNamesFromLine(line: string): string[] {
   const names: string[] = [];
   const content = line.substring(1);
-  const esmDecl = content.match(
-    /export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/
-  );
+  const esmDecl =
+    /export\s+(?:async\s+)?(?:function|class|const|let|var)\s+([A-Za-z_$][\w$]*)/.exec(content);
   if (esmDecl) names.push(esmDecl[1]);
   if (/export\s+default\s+/.test(content)) names.push('default');
-  const listMatch = content.match(/export\s*\{([^}]+)\}/);
+  const listMatch = /export\s*\{([^}]+)\}/.exec(content);
   if (listMatch) {
     const parts = listMatch[1]
       .split(',')
@@ -133,9 +132,9 @@ function extractExportedNamesFromLine(line: string): string[] {
       .map((s) => s.replace(/\s{1,10}as\s{1,10}[^,}]{1,100}$/, ''));
     names.push(...parts);
   }
-  const cjsProp = content.match(/exports\.([A-Za-z_$][\w$]*)\s*=/);
+  const cjsProp = /exports\.([A-Za-z_$][\w$]*)\s*=/.exec(content);
   if (cjsProp) names.push(cjsProp[1]);
-  const cjsObj = content.match(/module\.exports\s*=\s*\{([^}]+)\}/);
+  const cjsObj = /module\.exports\s*=\s*\{([^}]+)\}/.exec(content);
   if (cjsObj) {
     const parts = cjsObj[1]
       .split(',')
@@ -149,13 +148,13 @@ function extractExportedNamesFromLine(line: string): string[] {
 
 function extractFunctionSignature(line: string): { name: string; params: string } | null {
   const content = line.substring(1);
-  let m = content.match(/export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/);
+  let m = /export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/.exec(content);
   if (m) return { name: m[1], params: m[2] };
-  m = content.match(/export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>/);
+  m = /export\s+const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(([^)]*)\)\s*=>/.exec(content);
   if (m) return { name: m[1], params: m[2] };
-  m = content.match(/export\s+declare\s+function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/);
+  m = /export\s+declare\s+function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/.exec(content);
   if (m) return { name: m[1], params: m[2] };
-  m = content.match(/declare\s+function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/);
+  m = /declare\s+function\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)/.exec(content);
   if (m) return { name: m[1], params: m[2] };
   return null;
 }

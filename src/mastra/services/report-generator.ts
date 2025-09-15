@@ -33,7 +33,7 @@ function normalizeFilePath(filePath: string): string {
   // Handle various path formats and extract the final src/... part
   if (cleanPath.includes('worktree-agent-version/src/')) {
     // Extract everything after the last worktree-agent-version/src/
-    const match = cleanPath.match(/.*?worktree-agent-version\/(src\/.+)$/);
+    const match = /.*?worktree-agent-version\/(src\/.+)$/.exec(cleanPath);
     if (match) {
       return match[1];
     }
@@ -41,7 +41,7 @@ function normalizeFilePath(filePath: string): string {
   
   if (cleanPath.includes('/src/')) {
     // Extract everything after the last /src/
-    const match = cleanPath.match(/.*\/(src\/.+)$/);
+    const match = /.*\/(src\/.+)$/.exec(cleanPath);
     if (match) {
       return match[1];
     }
@@ -569,7 +569,7 @@ async function generateRiskAssessmentBreakdown(assessment: any, isJapanese: bool
   // Breaking changes detection status
   const hasBreakingChanges = risk.factors.some((factor: string) => factor.includes('breaking changes'));
   const breakingChangeCount = hasBreakingChanges ? 
-    parseInt(risk.factors.find((f: string) => f.includes('breaking changes'))?.match(/(\d+)/)?.[1] || '0') : 0;
+    parseInt((/(\d+)/.exec(risk.factors.find((f: string) => f.includes('breaking changes')) || ''))?.[1] || '0') : 0;
 
   markdown += `\n**${isJapanese ? '破壊的変更の検出状況' : 'Breaking Changes Detection'}**:\n`;
   
