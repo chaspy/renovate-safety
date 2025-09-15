@@ -152,17 +152,21 @@ export function extractMigrationSteps(text: string): string[] {
     return steps;
   }
 
-  for (let i = sectionRange.start; i <= sectionRange.end; i++) {
+  let i = sectionRange.start;
+  while (i <= sectionRange.end) {
     const line = lines[i];
     const trimmedLine = line.trim();
 
-    if (!trimmedLine) continue;
+    if (!trimmedLine) {
+      i++;
+      continue;
+    }
 
     // Process code blocks
     if (trimmedLine.startsWith('```')) {
       const codeBlock = extractCodeBlock(lines, i);
       steps.push(codeBlock.content);
-      i = codeBlock.endIndex;
+      i = codeBlock.endIndex + 1;
       continue;
     }
 
@@ -170,6 +174,8 @@ export function extractMigrationSteps(text: string): string[] {
     if (isMigrationStep(trimmedLine)) {
       steps.push(trimmedLine);
     }
+
+    i++;
   }
 
   return steps;
