@@ -21,13 +21,22 @@ describe('npm diff Tool', () => {
   });
 
   describe('npmDiffTool.execute', () => {
+    // Extract callback handlers to reduce nesting
+    const createStdoutHandler = (data: string) => (event: string, cb: any) => {
+      if (event === 'data') {
+        cb(Buffer.from(data));
+      }
+    };
+
+    const createCloseHandler = (code: number) => (event: string, cb: any) => {
+      if (event === 'close') {
+        cb(code);
+      }
+    };
+
     it('should execute npm diff with correct syntax using createTool', async () => {
       const mockStdout = {
-        on: vi.fn((event, cb) => {
-          if (event === 'data') {
-            cb(Buffer.from('diff --git a/package.json b/package.json\n+added line\n-removed line'));
-          }
-        }),
+        on: vi.fn(createStdoutHandler('diff --git a/package.json b/package.json\n+added line\n-removed line')),
       };
       const mockStderr = {
         on: vi.fn(),
@@ -35,11 +44,7 @@ describe('npm diff Tool', () => {
       const mockChild = {
         stdout: mockStdout,
         stderr: mockStderr,
-        on: vi.fn((event, cb) => {
-          if (event === 'close') {
-            cb(0);
-          }
-        }),
+        on: vi.fn(createCloseHandler(0)),
         kill: vi.fn(),
       };
 
@@ -95,20 +100,25 @@ describe('npm diff Tool', () => {
     };
 
     it('should fallback when npm diff fails', async () => {
+      // Extract callback handlers to reduce nesting
+      const handleStderrData = (event: string, cb: any) => {
+        if (event === 'data') {
+          cb(Buffer.from('npm diff: command failed'));
+        }
+      };
+
+      const handleClose = (event: string, cb: any) => {
+        if (event === 'close') {
+          cb(1);
+        }
+      };
+
       const mockChild = {
         stdout: { on: vi.fn() },
         stderr: {
-          on: vi.fn((event, cb) => {
-            if (event === 'data') {
-              cb(Buffer.from('npm diff: command failed'));
-            }
-          }),
+          on: vi.fn(handleStderrData),
         },
-        on: vi.fn((event, cb) => {
-          if (event === 'close') {
-            cb(1);
-          }
-        }),
+        on: vi.fn(handleClose),
         kill: vi.fn(),
       };
 
