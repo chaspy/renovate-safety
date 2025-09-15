@@ -132,7 +132,8 @@ export class UsageImpactAnalyzer {
         if (functionMatch) {
           const functionName = functionMatch[1] || functionMatch[2];
           patterns.push({
-            pattern: new RegExp(`\\b${functionName}\\s{0,3}\\(`, 'g'),
+            // Escape function name to prevent regex injection
+            pattern: new RegExp(`\\b${functionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s{0,3}\\(`, 'g'),
             description: `Uses potentially affected function: ${functionName}`,
             riskLevel: 'high'
           });
