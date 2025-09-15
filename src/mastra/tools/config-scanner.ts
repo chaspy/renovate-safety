@@ -58,7 +58,11 @@ async function scanConfigFile(
     const content = await fs.readFile(filePath, 'utf-8');
     return searchPackageInContent(content, packageName, configFile);
   } catch (error) {
-    // File doesn't exist or can't be read
+    // File doesn't exist or can't be read - this is expected for optional config files
+    // Log at trace level for debugging if needed
+    if (process.env.DEBUG_CONFIG_SCAN) {
+      console.debug(`Config file not accessible: ${filePath}`, error);
+    }
     return [];
   }
 }
@@ -96,12 +100,18 @@ async function scanConfigDirectory(
         );
         usages.push(...fileUsages);
       } catch (error) {
-        // Skip files that can't be read
+        // Skip files that can't be read - this is expected for permission issues
+        if (process.env.DEBUG_CONFIG_SCAN) {
+          console.debug(`Cannot read file: ${filePath}`, error);
+        }
         continue;
       }
     }
   } catch (error) {
-    // Directory doesn't exist or can't be read
+    // Directory doesn't exist or can't be read - this is expected for optional directories
+    if (process.env.DEBUG_CONFIG_SCAN) {
+      console.debug(`Config directory not accessible: ${dirPath}`, error);
+    }
   }
 
   return usages;

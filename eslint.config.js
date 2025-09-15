@@ -53,7 +53,7 @@ export default [
       'no-useless-escape': 'error', // No unnecessary escape characters
       '@typescript-eslint/no-unnecessary-type-assertion': 'error', // No unnecessary type assertions
       '@typescript-eslint/prefer-readonly': 'warn', // Mark readonly when not reassigned
-      'no-warning-comments': ['warn', { terms: ['TODO', 'FIXME'], location: 'start' }], // TODO warnings
+      'no-warning-comments': ['warn', { terms: ['TODO', 'FIXME'], location: 'start' }], // Warn on task markers
     },
   },
   {

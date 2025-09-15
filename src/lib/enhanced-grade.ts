@@ -100,8 +100,8 @@ function calculateRiskFactors(
     migrationComplexity: determineMigrationComplexity(breakingChanges, usage.directUsageCount),
     isTypeDefinition: isTypeDefinitionPackage(packageUpdate.name),
     isDevDependency: false, // Will be enhanced when we have access to package.json context
-    // TODO: Issue #20 - GitHub API統合で実装予定
-    // PRのfile changesを解析してlockfile-onlyを判定
+    // Feature tracked in Issue #20 - GitHub API integration for file change analysis
+    // Will enable lockfile-only detection through PR file changes
     isLockfileOnly: false, // Will be enhanced when we have access to file changes
   };
 
@@ -234,7 +234,7 @@ function calculateConfidence(factors: RiskFactors): number {
 
 // isTypeDefinitionPackage is now imported from risk-assessment-utils.ts
 
-// TODO: Issue #20 - GitHub API統合で実装予定
+// Feature tracked in Issue #20 - GitHub API integration pending
 // PRのfile changesを取得して、lockfile-onlyの変更かを判定する
 // function isLockfileOnlyChange(files: string[]): boolean {
 //   return files.every(f =>

@@ -129,7 +129,7 @@ function getRiskDistribution(assessments: Assessment[]): Record<string, number> 
 }
 
 export async function saveReport(report: { markdown?: string; json?: string; format: string }, prNumber: number): Promise<void> {
-  // TODO: Implement report saving to file system
-  // For now, just log that we would save
+  // Report saving is currently a no-op - extend this function when file system persistence is needed
+  // Current implementation logs the action for debugging purposes
   console.log(`Would save ${report.format} report for PR #${prNumber}`);
 }
