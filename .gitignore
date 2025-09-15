@@ -46,3 +46,4 @@ logs/
 prisma/
 *.db
 *.db-journal.envrc.backup
+sonar-result*
