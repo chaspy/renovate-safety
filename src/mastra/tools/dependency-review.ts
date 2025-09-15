@@ -187,13 +187,12 @@ export const dependencyReviewTool = createTool({
       );
 
       // 依存関係の変更を解析  
-      const changes = response.data.map((change) => {
+      const changes = response.data.map((change: any) => {
         // GitHub API provides different fields based on change_type
-        const changeWithVersions = change as any;
         return {
           name: change.name,
-          fromVersion: changeWithVersions.version_before || '',
-          toVersion: changeWithVersions.version_after || change.version || '',
+          fromVersion: change.version_before || '',
+          toVersion: change.version_after || change.version || '',
           type: change.manifest && change.manifest.includes('dev') ? 'devDependencies' : 'dependencies',
           changeType: change.change_type,
           vulnerabilities: change.vulnerabilities || [],
