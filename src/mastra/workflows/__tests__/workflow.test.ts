@@ -446,11 +446,12 @@ describe('Report Generator', () => {
     // Temporarily unmock the functions to test them directly
     vi.doUnmock('../report-generator.js');
     const { generateReport } = await import('../report-generator.js');
-    const report = await generateReport(assessments, {
-      format: 'markdown' as const,
-      language: 'en' as const,
+    const reportOptions = {
+      format: 'markdown',
+      language: 'en',
       prInfo: { number: 123, title: 'Test', base: 'main', head: 'test', repository: { owner: 'test', name: 'repo' } },
-    });
+    } as const;
+    const report = await generateReport(assessments, reportOptions);
 
     if (report.format === 'markdown') {
       expect(report.markdown).toContain('✅');
