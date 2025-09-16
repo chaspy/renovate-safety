@@ -573,7 +573,7 @@ async function analyzeConfigFiles(
             'peerDependencies',
             'optionalDependencies',
           ];
-          const jsonContent = parsedContent as any;
+          const jsonContent = parsedContent as Record<string, Record<string, unknown>>;
           for (const section of sections) {
             if (jsonContent[section]?.[packageName]) {
               usage = `Version ${jsonContent[section][packageName]} in ${section}`;

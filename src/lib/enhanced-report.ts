@@ -92,7 +92,10 @@ export async function generateEnhancedReport(
         : `- **npm diff command**: \`npm diff ${result.package.name}@${result.package.fromVersion} ${result.package.name}@${result.package.toVersion}\`\n`;
       report += '\n';
     }
-  } catch {}
+  } catch {
+    // Error handling - silently ignore
+    // Ignore library description fetch failure
+  }
 
   // Functional-level change summary from code diff (if available)
   if (result.codeDiff) {
@@ -105,7 +108,10 @@ export async function generateEnhancedReport(
         bullets.slice(0, 5).forEach((b) => (report += `- ${b}\n`));
         report += '\n';
       }
-    } catch {}
+    } catch {
+      // Error handling - silently ignore
+      // Ignore library description fetch failure
+    }
   }
 
   // Summary section
@@ -203,10 +209,10 @@ export async function generateEnhancedReport(
 
     // Separate code usage from config references
     const codeUsages = result.apiUsages.filter(
-      (u: any) => u.context !== 'config' && u.type !== 'config'
+      (u: { context?: string; type?: string }) => u.context !== 'config' && u.type !== 'config'
     );
     const configUsages = result.apiUsages.filter(
-      (u: any) => u.context === 'config' || u.type === 'config'
+      (u: { context?: string; type?: string }) => u.context === 'config' || u.type === 'config'
     );
 
     // Code usage section
@@ -215,8 +221,10 @@ export async function generateEnhancedReport(
         ? `#### 📝 コード上のAPI利用 (${codeUsages.length} 箇所)\n`
         : `#### 📝 Code API Usage (${codeUsages.length} locations)\n`;
 
-      const productionUsages = codeUsages.filter((u: any) => u.context === 'production');
-      const testUsages = codeUsages.filter((u: any) => u.context === 'test');
+      const productionUsages = codeUsages.filter(
+        (u: { context?: string }) => u.context === 'production'
+      );
+      const testUsages = codeUsages.filter((u: { context?: string }) => u.context === 'test');
 
       if (productionUsages.length > 0) {
         report += isJa
@@ -235,7 +243,10 @@ export async function generateEnhancedReport(
       try {
         const repo = await getRepositoryFromGit();
         if (repo) linkOptions = { repository: repo };
-      } catch {}
+      } catch {
+        // Error handling - silently ignore
+        // Ignore library description fetch failure
+      }
 
       const byFile = groupBy(codeUsages, 'filePath');
       // Show all files without limiting to 5
@@ -251,7 +262,7 @@ export async function generateEnhancedReport(
         }
 
         // Show all usages without limiting to 3
-        usages.forEach((usage: any) => {
+        usages.forEach((usage: { line?: number; context?: string; usageType?: string }) => {
           const line = usage.line || 1;
           const link = linkOptions
             ? generateMarkdownLink(file, line, linkOptions)
@@ -271,7 +282,11 @@ export async function generateEnhancedReport(
         ? `#### ⚙️ 設定/メタデータ参照 (${configUsages.length} 箇所)\n`
         : `#### ⚙️ Config/Metadata References (${configUsages.length} locations)\n`;
 
-      const configFiles = [...new Set(configUsages.map((u: any) => u.filePath || u.file))];
+      const configFiles = [
+        ...new Set(
+          configUsages.map((u: { filePath?: string; file?: string }) => u.filePath || u.file)
+        ),
+      ];
       configFiles.slice(0, 5).forEach((file) => {
         report += `- ${file}\n`;
       });
@@ -328,7 +343,10 @@ export async function generateEnhancedReport(
   if (isJa) {
     try {
       actions = await translateRecommendations(actions, 'ja');
-    } catch {}
+    } catch {
+      // Error handling - silently ignore
+      // Ignore library description fetch failure
+    }
   }
   actions.forEach((action: string) => {
     report += `- ${action}\n`;
@@ -450,6 +468,7 @@ function calculateVersionJump(from: string, to: string): string | null {
 
     return null;
   } catch {
+    // Error handling - silently ignore
     return null;
   }
 }
@@ -469,8 +488,10 @@ function calculateFallbackConfidence(result: AnalysisResult): number {
 
   // Usage analysis quality
   if (result.apiUsages.length > 0) {
-    const hasProductionUsage = result.apiUsages.some((u: any) => u.context === 'production');
-    const hasTestUsage = result.apiUsages.some((u: any) => u.context === 'test');
+    const hasProductionUsage = result.apiUsages.some(
+      (u: { context?: string }) => u.context === 'production'
+    );
+    const hasTestUsage = result.apiUsages.some((u: { context?: string }) => u.context === 'test');
     if (hasProductionUsage && hasTestUsage) confidence += 0.2;
     else if (hasProductionUsage || hasTestUsage) confidence += 0.1;
   }

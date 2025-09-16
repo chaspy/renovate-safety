@@ -111,7 +111,7 @@ export async function performEnhancedDependencyAnalysis(
   fromVersion: string,
   toVersion: string
 ): Promise<EnhancedDependencyAnalysis> {
-  const results = await executeInParallel<any>(
+  const results = await executeInParallel<unknown>(
     [
       () => analyzeImpact(packageName),
       () => analyzeVersionConstraints(packageName, fromVersion, toVersion),
@@ -198,7 +198,7 @@ async function findDirectUsages(packageName: string): Promise<DirectUsage[]> {
 
     for (const packageJsonPath of packageJsonFiles) {
       const packageJsonData = await readJsonFile(packageJsonPath);
-      const packageJson = packageJsonData as any;
+      const packageJson = packageJsonData as Record<string, Record<string, string>>;
 
       const depTypes = [
         'dependencies',
@@ -208,7 +208,7 @@ async function findDirectUsages(packageName: string): Promise<DirectUsage[]> {
       ] as const;
 
       for (const depType of depTypes) {
-        if (packageJson[depType] && packageJson[depType][packageName]) {
+        if (packageJson[depType]?.[packageName]) {
           const workspacePath = path.dirname(packageJsonPath);
           const purpose = determinePurpose(packageName, depType);
 
@@ -260,7 +260,7 @@ function extractTransitiveUsages(
   usages: TransitiveUsage[],
   visited = new Set<string>()
 ): void {
-  const nodeWithDeps = node as any;
+  const nodeWithDeps = node as { dependencies?: Record<string, unknown> };
   if (!nodeWithDeps?.dependencies) return;
 
   const nodeKey = `${path.join('>')}-${targetPackage}`;
@@ -271,7 +271,7 @@ function extractTransitiveUsages(
     const currentPath = [...path, depName];
 
     if (depName === targetPackage && path.length > 0) {
-      const info = depInfo as any;
+      const info = depInfo as { version?: string };
       const conflicts = detectVersionConflicts(info, currentPath);
 
       usages.push({

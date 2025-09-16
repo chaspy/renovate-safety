@@ -44,8 +44,8 @@ export async function getPackageRepository(packageName: string): Promise<string 
         return data;
       }
 
-      if (typeof data === 'object' && (data as any).repository) {
-        const repo = (data as any).repository;
+      if (typeof data === 'object' && (data as { repository?: unknown }).repository) {
+        const repo = (data as { repository?: string | { url?: string } }).repository;
         return typeof repo === 'string' ? repo : repo.url;
       }
 

@@ -239,7 +239,7 @@ async function gatherPackageInfo(packageName: string): Promise<PackageInfo> {
       return getDefaultPackageInfo();
     }
 
-    const extendedData = data as any; // Type extension for additional properties
+    const extendedData = data as Record<string, unknown>; // Type extension for additional properties
 
     return {
       description: data.description || 'No description available',
@@ -315,7 +315,7 @@ async function gatherMaintenanceInfo(packageName: string): Promise<MaintenanceIn
     const repoInfo = await getGitHubRepoInfo(packageName);
 
     if (repoInfo) {
-      const repo = repoInfo as any;
+      const repo = repoInfo as Record<string, unknown>;
       return {
         lastUpdated: repo.updated_at || '',
         releaseFrequency: analyzeReleaseFrequency(repoInfo),
@@ -375,7 +375,7 @@ async function gatherPopularityMetrics(packageName: string): Promise<PopularityM
 
     // Get GitHub stats if repository is available
     const githubStats = await getGitHubStats(packageName);
-    const stats = githubStats as any;
+    const stats = githubStats as Record<string, unknown>;
 
     return {
       downloads: {
@@ -411,7 +411,7 @@ async function gatherTechnicalDetails(
       return getDefaultTechnicalDetails();
     }
 
-    const extendedData = data as any;
+    const extendedData = data as Record<string, unknown>;
 
     return {
       bundleSize: {

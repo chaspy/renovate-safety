@@ -165,8 +165,11 @@ async function summarizeWithClaudeCLI(prompt: string): Promise<LLMSummary | null
 
 async function summarizeWithAnthropic(prompt: string): Promise<LLMSummary | null> {
   const config = getEnvironmentConfig();
+  if (!config.anthropicApiKey) {
+    throw new Error('Anthropic API key is not configured');
+  }
   const anthropic = new Anthropic({
-    apiKey: config.anthropicApiKey!,
+    apiKey: config.anthropicApiKey,
   });
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -205,8 +208,11 @@ async function summarizeWithAnthropic(prompt: string): Promise<LLMSummary | null
 
 async function summarizeWithOpenAI(prompt: string): Promise<LLMSummary | null> {
   const config = getEnvironmentConfig();
+  if (!config.openaiApiKey) {
+    throw new Error('OpenAI API key is not configured');
+  }
   const openai = new OpenAI({
-    apiKey: config.openaiApiKey!,
+    apiKey: config.openaiApiKey,
   });
 
   // Check if prompt is in Japanese

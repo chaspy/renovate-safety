@@ -100,7 +100,7 @@ async function analyzePackageJson(packageName: string): Promise<DependencyUsage 
   try {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     const packageJsonData = await readJsonFile(packageJsonPath);
-    const packageJson = packageJsonData as any;
+    const packageJson = packageJsonData as Record<string, Record<string, string>>;
 
     const dependents: DependentInfo[] = [];
     let usageType: DependencyUsage['usageType'] = 'dependencies';
@@ -156,12 +156,12 @@ function parseNpmLsOutput(data: unknown, packageName: string): DependencyUsage |
   let usageType: DependencyUsage['usageType'] = 'dependencies';
 
   function traverse(node: unknown, path: string[]): void {
-    const nodeWithDeps = node as any;
+    const nodeWithDeps = node as { dependencies?: Record<string, unknown> };
     if (!nodeWithDeps?.dependencies) return;
 
     for (const [depName, depInfo] of Object.entries(nodeWithDeps.dependencies)) {
       if (depName === packageName) {
-        const info = depInfo as any;
+        const info = depInfo as { version?: string };
         dependents.push({
           name: depName,
           version: info.version || 'unknown',
@@ -199,7 +199,7 @@ function parseYarnWhyOutput(jsonData: unknown[], packageName: string): Dependenc
   let usageType: DependencyUsage['usageType'] = 'dependencies';
 
   for (const item of jsonData) {
-    const typedItem = item as any;
+    const typedItem = item as { type?: string; data?: unknown };
     if (typedItem.type === 'info' && typedItem.data) {
       const data = typedItem.data;
       if (typeof data === 'string' && data.includes(packageName)) {
