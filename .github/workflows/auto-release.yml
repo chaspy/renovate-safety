@@ -1,4 +1,4 @@
-name: Auto Release on Main Merge
+name: Auto Release and Publish
 
 on:
   push:
@@ -9,16 +9,21 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
-  check-and-release:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # Use PAT if available to trigger release workflow
-          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Get version from package.json
         id: package-version
@@ -33,6 +38,20 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Install dependencies
+        if: steps.tag-exists.outputs.exists == 'false'
+        run: npm ci
+
+      - name: Build
+        if: steps.tag-exists.outputs.exists == 'false'
+        run: npm run build
+
+      - name: Publish to NPM
+        if: steps.tag-exists.outputs.exists == 'false'
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Create and push tag
         if: steps.tag-exists.outputs.exists == 'false'
         run: |
@@ -41,10 +60,19 @@ jobs:
           git tag v${{ steps.package-version.outputs.version }}
           git push origin v${{ steps.package-version.outputs.version }}
 
-      - name: Tag created notification
+      - name: Create GitHub Release
         if: steps.tag-exists.outputs.exists == 'false'
-        run: echo "🚀 Created tag v${{ steps.package-version.outputs.version }}, release workflow will be triggered"
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.package-version.outputs.version }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Tag exists notification
+      - name: Release created notification
+        if: steps.tag-exists.outputs.exists == 'false'
+        run: echo "🚀 Successfully published v${{ steps.package-version.outputs.version }} to NPM and created GitHub release"
+
+      - name: Already released notification
         if: steps.tag-exists.outputs.exists == 'true'
-        run: echo "ℹ️ Tag v${{ steps.package-version.outputs.version }} already exists, skipping"
+        run: echo "ℹ️ Version v${{ steps.package-version.outputs.version }} already released, skipping"
