@@ -6,7 +6,7 @@ import {
   type GitHubLinkOptions,
 } from '../mastra/tools/github-link-generator.js';
 import { translateRecommendations } from '../mastra/services/translation-service.js';
-import { getPackageRepository, extractGitHubRepo } from './npm-registry.js';
+import { getPackageRepository, extractGitHubRepo, getPackageFields } from './npm-registry.js';
 import { summarizeApiDiff } from './api-diff-summary.js';
 
 export async function generateEnhancedReport(
@@ -67,7 +67,7 @@ export async function generateEnhancedReport(
   report += `${depTypeLabel}: ${depTypeValue}\n`;
 
   // Add library description for well-known packages
-  const libraryDescription = getLibraryDescription(result.package.name, isJa);
+  const libraryDescription = await getLibraryDescription(result.package.name, isJa);
   if (libraryDescription) {
     report += `\n${isJa ? '#### 📚 ライブラリ概要' : '#### 📚 Library Overview'}\n`;
     report += `${libraryDescription}\n\n`;
@@ -190,7 +190,7 @@ export async function generateEnhancedReport(
       if (changes.length > 0) {
         report += `\n**${severity.charAt(0).toUpperCase() + severity.slice(1)} Changes:**\n`;
         changes.forEach((change) => {
-          report += `- ${formatBreakingChange(change.line)}\n`;
+          report += `- ${formatBreakingChange(change)}\n`;
         });
       }
     }
@@ -238,7 +238,8 @@ export async function generateEnhancedReport(
       } catch {}
 
       const byFile = groupBy(codeUsages, 'filePath');
-      const fileList = Object.entries(byFile).slice(0, 5);
+      // Show all files without limiting to 5
+      const fileList = Object.entries(byFile);
 
       for (const [file, usages] of fileList) {
         report += `**${file}** (${usages.length} ${isJa ? '箇所' : 'usages'})\n`;
@@ -249,7 +250,8 @@ export async function generateEnhancedReport(
           report += `${isJa ? '用途' : 'Usage'}: ${usageDescription}\n`;
         }
 
-        usages.slice(0, 3).forEach((usage: any) => {
+        // Show all usages without limiting to 3
+        usages.forEach((usage: any) => {
           const line = usage.line || 1;
           const link = linkOptions
             ? generateMarkdownLink(file, line, linkOptions)
@@ -257,19 +259,10 @@ export async function generateEnhancedReport(
           const ctx = usage.context || usage.usageType || (isJa ? '利用' : 'usage');
           report += `- ${link} — ${ctx}\n`;
         });
-        if (usages.length > 3) {
-          report += isJa
-            ? `- ... 他 ${usages.length - 3} 箇所\n`
-            : `- ... and ${usages.length - 3} more\n`;
-        }
         report += '\n';
       }
 
-      if (Object.keys(byFile).length > 5) {
-        report += isJa
-          ? `... 他 ${Object.keys(byFile).length - 5} ファイル\n\n`
-          : `... and ${Object.keys(byFile).length - 5} more files\n\n`;
-      }
+      // Removed file limit - showing all files
     }
 
     // Config/metadata references section
@@ -513,12 +506,22 @@ function groupBreakingChanges(changes: BreakingChange[]): Record<string, Breakin
   return grouped;
 }
 
-function formatBreakingChange(change: string): string {
-  // Clean up and format breaking change text
-  return change
+function formatBreakingChange(change: BreakingChange | string): string {
+  // Handle both string and object formats
+  if (typeof change === 'string') {
+    return change
+      .replace(/^[\s-*]+/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Format with source if available
+  const text = change.line
     .replace(/^[\s-*]+/, '')
     .replace(/\s+/g, ' ')
     .trim();
+
+  return change.source ? `${text} (Source: ${change.source})` : text;
 }
 
 function groupBy<T>(array: T[], key: keyof T): Record<string, T[]> {
@@ -616,7 +619,21 @@ function generateDetailedActions(result: AnalysisResult): string[] {
   return actions;
 }
 
-function getLibraryDescription(packageName: string, isJa: boolean): string | null {
+async function getLibraryDescription(packageName: string, isJa: boolean): Promise<string | null> {
+  // First, try to fetch from npm registry
+  try {
+    const packageInfo = await getPackageFields(packageName, ['description']);
+    if (packageInfo && packageInfo.description) {
+      // Return the npm description (usually in English)
+      // For now, use the same description for both languages
+      // In the future, could translate using AI
+      return String(packageInfo.description);
+    }
+  } catch (error) {
+    // Fall through to hardcoded descriptions
+  }
+
+  // Fallback to hardcoded descriptions for known packages
   const descriptions: Record<string, { ja: string; en: string }> = {
     'p-limit': {
       ja: 'p-limitは非同期関数の並列実行数を制限するためのライブラリです。Promise.all()で大量の非同期処理を実行する際に、同時実行数を制御してリソースの枯渇を防ぎます。主にAPI呼び出しやファイル処理などの並列処理で使用されます。',
@@ -625,6 +642,10 @@ function getLibraryDescription(packageName: string, isJa: boolean): string | nul
     react: {
       ja: 'ReactはFacebookが開発したUIライブラリです。コンポーネントベースのアーキテクチャで、宣言的なUIの構築を可能にします。仮想DOMを使用して効率的な画面更新を実現します。',
       en: 'React is a UI library developed by Facebook. It enables declarative UI building with component-based architecture. Uses virtual DOM for efficient updates.',
+    },
+    ora: {
+      ja: 'oraはターミナル用のエレガントなスピナー（ローディング表示）を提供するライブラリです。CLIツールで長時間実行されるプロセスの進行状況を視覚的に表現できます。カスタマイズ可能なスピナーパターンと色、テキストメッセージをサポートしています。',
+      en: 'ora provides elegant terminal spinners for Node.js CLI applications. It visually represents the progress of long-running processes with customizable spinner patterns, colors, and text messages.',
     },
     lodash: {
       ja: 'Lodashは汎用的なユーティリティライブラリです。配列、オブジェクト、文字列操作などの便利な関数を提供します。パフォーマンスを重視した実装が特徴です。',

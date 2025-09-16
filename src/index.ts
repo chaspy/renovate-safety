@@ -370,13 +370,14 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       } catch {}
     }
     
-    let breakingChanges = changelogDiff ? extractBreakingChanges(changelogDiff.content, enginesDiff) : [];
+    let breakingChanges = changelogDiff ? extractBreakingChanges(changelogDiff.content, enginesDiff, changelogDiff.source) : [];
     
     // Add knowledge-based breaking changes
     knowledgeBasedBreaking.forEach(change => {
       breakingChanges.push({
         line: change,
-        severity: 'breaking'
+        severity: 'breaking',
+        source: 'package-knowledge'
       });
     });
     

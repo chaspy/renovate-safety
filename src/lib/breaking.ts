@@ -50,14 +50,15 @@ const BREAKING_PATTERNS = [
 
 export function extractBreakingChanges(
   changelogContent: string,
-  enginesDiff?: { from: string; to: string }
+  enginesDiff?: { from: string; to: string },
+  source: string = 'changelog'
 ): BreakingChange[] {
   const lines = changelogContent.split('\n');
   const breakingChanges: BreakingChange[] = [];
   const seenLines = new Set<string>();
 
   // Process engines diff
-  processEnginesDiff(enginesDiff, breakingChanges, seenLines);
+  processEnginesDiff(enginesDiff, breakingChanges, seenLines, source);
 
   // Process each line
   for (let i = 0; i < lines.length; i++) {
@@ -65,7 +66,7 @@ export function extractBreakingChanges(
     if (!line) continue;
 
     // Check for pattern matches
-    const patternChange = checkLineForPattern(lines, i, seenLines);
+    const patternChange = checkLineForPattern(lines, i, seenLines, source);
     if (patternChange) {
       breakingChanges.push(patternChange);
       continue;
@@ -73,7 +74,7 @@ export function extractBreakingChanges(
 
     // Check for breaking change sections
     if (isBreakingChangeSection(line)) {
-      const sectionChanges = processSectionForBreaking(lines, i, seenLines);
+      const sectionChanges = processSectionForBreaking(lines, i, seenLines, source);
       breakingChanges.push(...sectionChanges);
     }
   }
@@ -84,7 +85,8 @@ export function extractBreakingChanges(
 function processEnginesDiff(
   enginesDiff: { from: string; to: string } | undefined,
   breakingChanges: BreakingChange[],
-  seenLines: Set<string>
+  seenLines: Set<string>,
+  source: string = 'package.json'
 ): void {
   if (!enginesDiff || enginesDiff.from === enginesDiff.to) {
     return;
@@ -102,6 +104,7 @@ function processEnginesDiff(
       breakingChanges.push({
         line: engineChange,
         severity: 'breaking',
+        source,
       });
     }
   }
@@ -110,7 +113,8 @@ function processEnginesDiff(
 function checkLineForPattern(
   lines: string[],
   index: number,
-  seenLines: Set<string>
+  seenLines: Set<string>,
+  source: string = 'changelog'
 ): BreakingChange | null {
   const line = lines[index].trim();
 
@@ -124,6 +128,7 @@ function checkLineForPattern(
         return {
           line: context,
           severity,
+          source,
         };
       }
       break;
@@ -136,7 +141,8 @@ function checkLineForPattern(
 function processSectionForBreaking(
   lines: string[],
   sectionIndex: number,
-  seenLines: Set<string>
+  seenLines: Set<string>,
+  source: string = 'changelog'
 ): BreakingChange[] {
   const sectionItems = extractSectionItems(lines, sectionIndex);
   const changes: BreakingChange[] = [];
@@ -148,6 +154,7 @@ function processSectionForBreaking(
       changes.push({
         line: item,
         severity: 'breaking',
+        source,
       });
     }
   }

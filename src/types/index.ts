@@ -53,6 +53,7 @@ export interface DependentInfo {
 export interface BreakingChange {
   line: string;
   severity: 'breaking' | 'warning' | 'removal';
+  source?: string; // e.g., 'changelog', 'release-notes', 'code-diff'
 }
 
 export interface LLMSummary {
