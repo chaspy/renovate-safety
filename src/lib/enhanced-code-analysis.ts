@@ -331,7 +331,7 @@ function parseApiChange(line: string, file: string, lineNumber: number): ApiChan
   const content = line.substring(1).trim();
 
   // Function/method definitions
-  const functionRegex = /(export\s+)?(function\s+|const\s+)(\w+)(\s*=\s*|\s*)\(([^)]*)\)/;
+  const functionRegex = /(export\s+)?(function\s+|const\s+)(\w+)(\s*=\s*|\s*)\(([^)]{0,200})\)/;
   const functionMatch = functionRegex.exec(content);
   if (functionMatch) {
     const [, , , name] = functionMatch;

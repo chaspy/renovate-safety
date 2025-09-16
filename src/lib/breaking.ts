@@ -7,6 +7,19 @@ const BREAKING_PATTERNS = [
   { pattern: /\[BREAKING\]/i, severity: 'breaking' as const },
   { pattern: /💥/, severity: 'breaking' as const }, // Explosion emoji often used for breaking changes
 
+  // Node.js version requirements
+  { pattern: /Require\s+Node\.?js\s+\d+/i, severity: 'breaking' as const },
+  {
+    pattern: /Drop(?:ped)?\s+(?:support\s+for\s+)?Node\.?js\s+\d+/i,
+    severity: 'breaking' as const,
+  },
+  { pattern: /Minimum\s+Node\.?js\s+version/i, severity: 'breaking' as const },
+  { pattern: /engines?\.node\s*[:=]\s*["']?(?:>=?|\^|~)[\d.]+/i, severity: 'breaking' as const },
+  {
+    pattern: /Node\.?js\s+>=?\s*\d+\s+(?:is\s+)?(?:now\s+)?required/i,
+    severity: 'breaking' as const,
+  },
+
   // Warning indicators
   { pattern: /⚠️/, severity: 'warning' as const },
   { pattern: /\[WARNING\]/i, severity: 'warning' as const },
@@ -35,63 +48,134 @@ const BREAKING_PATTERNS = [
   { pattern: /\[MOVED\]/i, severity: 'warning' as const },
 ];
 
-export function extractBreakingChanges(changelogContent: string): BreakingChange[] {
+export function extractBreakingChanges(
+  changelogContent: string,
+  enginesDiff?: { from: string; to: string },
+  source: string = 'changelog'
+): BreakingChange[] {
   const lines = changelogContent.split('\n');
   const breakingChanges: BreakingChange[] = [];
   const seenLines = new Set<string>();
 
+  // Process engines diff
+  processEnginesDiff(enginesDiff, breakingChanges, seenLines, source);
+
+  // Process each line
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    for (const { pattern, severity } of BREAKING_PATTERNS) {
-      if (pattern.test(line)) {
-        // Get the full context (current line + next few lines if it's a list item)
-        const context = extractContext(lines, i);
-        const contextKey = context.toLowerCase().replace(/\s+/g, ' ');
-
-        // Avoid duplicates
-        if (!seenLines.has(contextKey)) {
-          seenLines.add(contextKey);
-          breakingChanges.push({
-            line: context,
-            severity,
-          });
-        }
-        break; // Don't check other patterns for this line
-      }
+    // Check for pattern matches
+    const patternChange = checkLineForPattern(lines, i, seenLines, source);
+    if (patternChange) {
+      breakingChanges.push(patternChange);
+      continue;
     }
 
-    // Also check for common breaking change sections
+    // Check for breaking change sections
     if (isBreakingChangeSection(line)) {
-      // Extract all items in this section
-      const sectionItems = extractSectionItems(lines, i);
-      for (const item of sectionItems) {
-        const itemKey = item.toLowerCase().replace(/\s+/g, ' ');
-        if (!seenLines.has(itemKey)) {
-          seenLines.add(itemKey);
-          breakingChanges.push({
-            line: item,
-            severity: 'breaking',
-          });
-        }
-      }
+      const sectionChanges = processSectionForBreaking(lines, i, seenLines, source);
+      breakingChanges.push(...sectionChanges);
     }
   }
 
   return breakingChanges;
 }
 
+function processEnginesDiff(
+  enginesDiff: { from: string; to: string } | undefined,
+  breakingChanges: BreakingChange[],
+  seenLines: Set<string>,
+  source: string = 'package.json'
+): void {
+  if (!enginesDiff || enginesDiff.from === enginesDiff.to) {
+    return;
+  }
+
+  const fromMajor = parseInt(/\d+/.exec(enginesDiff.from)?.[0] || '0');
+  const toMajor = parseInt(/\d+/.exec(enginesDiff.to)?.[0] || '0');
+
+  if (toMajor > fromMajor) {
+    const engineChange = `Minimum Node.js version changed from ${enginesDiff.from} to ${enginesDiff.to}`;
+    const key = normalizeKey(engineChange);
+
+    if (!seenLines.has(key)) {
+      seenLines.add(key);
+      breakingChanges.push({
+        line: engineChange,
+        severity: 'breaking',
+        source,
+      });
+    }
+  }
+}
+
+function checkLineForPattern(
+  lines: string[],
+  index: number,
+  seenLines: Set<string>,
+  source: string = 'changelog'
+): BreakingChange | null {
+  const line = lines[index].trim();
+
+  for (const { pattern, severity } of BREAKING_PATTERNS) {
+    if (pattern.test(line)) {
+      const context = extractContext(lines, index);
+      const contextKey = normalizeKey(context);
+
+      if (!seenLines.has(contextKey)) {
+        seenLines.add(contextKey);
+        return {
+          line: context,
+          severity,
+          source,
+        };
+      }
+      break;
+    }
+  }
+
+  return null;
+}
+
+function processSectionForBreaking(
+  lines: string[],
+  sectionIndex: number,
+  seenLines: Set<string>,
+  source: string = 'changelog'
+): BreakingChange[] {
+  const sectionItems = extractSectionItems(lines, sectionIndex);
+  const changes: BreakingChange[] = [];
+
+  for (const item of sectionItems) {
+    const itemKey = normalizeKey(item);
+    if (!seenLines.has(itemKey)) {
+      seenLines.add(itemKey);
+      changes.push({
+        line: item,
+        severity: 'breaking',
+        source,
+      });
+    }
+  }
+
+  return changes;
+}
+
+function normalizeKey(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, ' ');
+}
+
 function extractContext(lines: string[], index: number): string {
   const line = lines[index].trim();
 
   // If it's a list item, get the full item (could span multiple lines)
-  if (line.match(/^[-*•]\s/)) {
+  if (/^[-*•]\s/.test(line)) {
     let context = line;
     let i = index + 1;
 
     // Continue reading lines that are indented (continuation of the list item)
-    while (i < lines.length && lines[i].match(/^\s{2,}/) && !lines[i].match(/^[-*•]\s/)) {
+    while (i < lines.length && /^\s{2,}/.test(lines[i]) && !/^[-*•]\s/.test(lines[i])) {
       context += ' ' + lines[i].trim();
       i++;
     }
@@ -130,12 +214,12 @@ function extractSectionItems(lines: string[], sectionIndex: number): string[] {
     const line = lines[i].trim();
 
     // Stop if we hit another section header
-    if (line.match(/^#+\s/)) {
+    if (/^#+\s/.test(line)) {
       break;
     }
 
     // Extract list items
-    if (line.match(/^[-*•]\s/)) {
+    if (/^[-*•]\s/.test(line)) {
       const context = extractContext(lines, i);
       items.push(context);
     }

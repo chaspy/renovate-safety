@@ -7,6 +7,7 @@ import { homedir } from 'os';
 import { CLIOptions, AnalysisResult, RiskAssessment, DeepAnalysisResult } from './types/index.js';
 import { extractPackageInfo } from './lib/pr.js';
 import { extractBreakingChanges } from './lib/breaking.js';
+import { summarizeApiDiff } from './lib/api-diff-summary.js';
 import { enhancedLLMAnalysis } from './lib/llm.js';
 import { fetchCodeDiff } from './lib/github-diff.js';
 import { analyzeDependencyUsage } from './lib/dependency-tree.js';
@@ -133,20 +134,31 @@ async function isPatchUpdate(fromVersion: string, toVersion: string): Promise<bo
   }
 }
 
-function generateRecommendation(riskAssessment: RiskAssessment, breakingCount: number, usageCount: number): string {
+function generateRecommendation(riskAssessment: RiskAssessment, breakingCount: number, usageCount: number, language: 'en' | 'ja' = 'en'): string {
+  const isJa = language === 'ja';
   switch (riskAssessment.level) {
     case 'safe':
-      return 'This update appears safe to merge. No breaking changes detected.';
+      return isJa ? '破壊的変更は検出されていないため、マージして問題ない見込みです。' : 'This update appears safe to merge. No breaking changes detected.';
     case 'low':
-      return `Low risk update. Found ${breakingCount} potential breaking changes but no direct usage in codebase. ${riskAssessment.estimatedEffort} effort required.`;
+      return isJa
+        ? `低リスクの更新です。破壊的変更の候補は ${breakingCount} 件ありますが、直接の使用は検出されていません。必要工数: ${riskAssessment.estimatedEffort}`
+        : `Low risk update. Found ${breakingCount} potential breaking changes but no direct usage in codebase. ${riskAssessment.estimatedEffort} effort required.`;
     case 'medium':
-      return `Medium risk update. Found ${breakingCount} breaking changes potentially affecting ${usageCount} locations. ${riskAssessment.estimatedEffort} effort with ${riskAssessment.testingScope} testing recommended.`;
+      return isJa
+        ? `中リスクの更新です。破壊的変更が ${breakingCount} 件あり、最大で ${usageCount} 箇所に影響する可能性があります。必要工数: ${riskAssessment.estimatedEffort}、推奨テスト範囲: ${riskAssessment.testingScope}`
+        : `Medium risk update. Found ${breakingCount} breaking changes potentially affecting ${usageCount} locations. ${riskAssessment.estimatedEffort} effort with ${riskAssessment.testingScope} testing recommended.`;
     case 'high':
-      return `High risk update. Found ${breakingCount} breaking changes affecting ${usageCount} locations in codebase. ${riskAssessment.estimatedEffort} effort with ${riskAssessment.testingScope} testing required.`;
+      return isJa
+        ? `高リスクの更新です。破壊的変更が ${breakingCount} 件検出され、${usageCount} 箇所に影響します。必要工数: ${riskAssessment.estimatedEffort}、必要テスト範囲: ${riskAssessment.testingScope}`
+        : `High risk update. Found ${breakingCount} breaking changes affecting ${usageCount} locations in codebase. ${riskAssessment.estimatedEffort} effort with ${riskAssessment.testingScope} testing required.`;
     case 'critical':
-      return `Critical risk update. Found ${breakingCount} breaking changes affecting ${usageCount} locations. Requires ${riskAssessment.estimatedEffort} effort and ${riskAssessment.testingScope} testing. Manual intervention strongly recommended.`;
+      return isJa
+        ? `クリティカルな更新です。破壊的変更が ${breakingCount} 件検出され、${usageCount} 箇所に影響します。必要工数: ${riskAssessment.estimatedEffort}、必要テスト範囲: ${riskAssessment.testingScope}。手動での対応を強く推奨します。`
+        : `Critical risk update. Found ${breakingCount} breaking changes affecting ${usageCount} locations. Requires ${riskAssessment.estimatedEffort} effort and ${riskAssessment.testingScope} testing. Manual intervention strongly recommended.`;
     case 'unknown':
-      return `Risk level unknown due to insufficient information. Found ${breakingCount} potential issues. Manual review strongly recommended.`;
+      return isJa
+        ? `情報不足のためリスクレベルを特定できません。潜在的な問題が ${breakingCount} 件あります。手動での確認を推奨します。`
+        : `Risk level unknown due to insufficient information. Found ${breakingCount} potential issues. Manual review strongly recommended.`;
     default:
       return 'Unknown risk level.';
   }
@@ -348,13 +360,24 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
     
     // Step 7: Extract breaking changes
     spinner = ora('Analyzing for breaking changes...').start();
-    let breakingChanges = changelogDiff ? extractBreakingChanges(changelogDiff.content) : [];
+    
+    // Extract engines diff from code diff if available
+    let enginesDiff: { from: string; to: string } | undefined;
+    if (codeDiff) {
+      try {
+        const apiDiffSummary = await summarizeApiDiff(codeDiff);
+        enginesDiff = apiDiffSummary.enginesDiff;
+      } catch {}
+    }
+    
+    let breakingChanges = changelogDiff ? extractBreakingChanges(changelogDiff.content, enginesDiff, changelogDiff.source) : [];
     
     // Add knowledge-based breaking changes
     knowledgeBasedBreaking.forEach(change => {
       breakingChanges.push({
         line: change,
-        severity: 'breaking'
+        severity: 'breaking',
+        source: 'package-knowledge'
       });
     });
     
@@ -420,14 +443,14 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
     }
     
     // Step 11: Enhanced risk assessment
-    const riskAssessment = await assessEnhancedRisk(
-      packageUpdate,
-      breakingChanges,
-      usageAnalysis,
-      llmSummary,
-      !!changelogDiff,
-      !!codeDiff
-    );
+      const riskAssessment = await assessEnhancedRisk(
+        packageUpdate,
+        breakingChanges,
+        usageAnalysis,
+        llmSummary,
+        !!changelogDiff,
+        !!codeDiff
+      );
     
     // Get migration steps from knowledge base
     const migrationSteps = await packageKnowledgeBase.getMigrationSteps(
@@ -451,10 +474,14 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
       apiUsages,
       deepAnalysis,
       riskAssessment,
-      recommendation: generateRecommendation(riskAssessment, breakingChanges.length, apiUsages.length)
+      recommendation: generateRecommendation(riskAssessment, breakingChanges.length, apiUsages.length, options.language || 'en')
     };
     
-    const report = await generateEnhancedReport(analysisResult, options.json ? 'json' : 'markdown');
+    const report = await generateEnhancedReport(
+      analysisResult,
+      options.json ? 'json' : 'markdown',
+      options.language || 'en'
+    );
     
     console.log('\n' + report);
     

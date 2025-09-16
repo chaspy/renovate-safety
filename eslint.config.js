@@ -40,6 +40,20 @@ export default [
       '@typescript-eslint/no-non-null-assertion': 'error',
       '@typescript-eslint/strict-boolean-expressions': 'off',
       'no-console': ['warn', { allow: ['warn', 'error', 'debug', 'log'] }],
+
+      // SonarCloud-compatible rules
+      'complexity': ['error', 15], // Cognitive complexity
+      'max-depth': ['warn', 4], // Maximum nesting depth
+      'no-nested-ternary': 'error', // No nested ternary operators
+      '@typescript-eslint/no-unused-expressions': 'error',
+      'no-empty': ['error', { allowEmptyCatch: false }], // Proper exception handling
+      'prefer-regex-literals': 'warn', // Use RegExp.exec() instead of String.match()
+      '@typescript-eslint/prefer-optional-chain': 'error', // Use optional chaining
+      '@typescript-eslint/prefer-string-starts-ends-with': 'error', // Use String#startsWith/endsWith
+      'no-useless-escape': 'error', // No unnecessary escape characters
+      '@typescript-eslint/no-unnecessary-type-assertion': 'error', // No unnecessary type assertions
+      '@typescript-eslint/prefer-readonly': 'warn', // Mark readonly when not reassigned
+      'no-warning-comments': ['warn', { terms: ['TODO', 'FIXME'], location: 'start' }], // Warn on task markers
     },
   },
   {

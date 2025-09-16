@@ -95,9 +95,26 @@ export async function secureNpmExec(
   const safeArgs = args.map((arg) => {
     // Skip flags
     if (arg.startsWith('-')) {
-      const allowedFlags = ['--json', '--depth', '--prod', '--dev'];
+      const allowedFlags = ['--json', '--depth', '--prod', '--dev', '--diff'];
       if (!allowedFlags.some((flag) => arg.startsWith(flag))) {
         throw new Error(`Unsafe flag: ${arg}`);
+      }
+      // For --diff flag, validate the package spec
+      if (arg.startsWith('--diff=')) {
+        const spec = arg.substring(7); // Remove '--diff='
+        if (spec.includes('@') && !spec.startsWith('@')) {
+          // Handle format: package@version
+          const lastAtIndex = spec.lastIndexOf('@');
+          const name = spec.substring(0, lastAtIndex);
+          const version = spec.substring(lastAtIndex + 1);
+          const safeName = validatePackageName(name);
+          const safeVersion = validateVersion(version);
+          return `--diff=${safeName}@${safeVersion}`;
+        } else if (spec.startsWith('@')) {
+          // Handle scoped packages
+          const safeSpec = validatePackageName(spec);
+          return `--diff=${safeSpec}`;
+        }
       }
       return arg;
     }

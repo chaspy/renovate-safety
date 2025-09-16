@@ -41,3 +41,9 @@ coverage/
 # Logs
 logs/
 *.log
+
+# Prisma (not needed for this project)
+prisma/
+*.db
+*.db-journal.envrc.backup
+sonar-result*

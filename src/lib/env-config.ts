@@ -10,12 +10,12 @@ export interface EnvironmentConfig {
   anthropicApiKey?: string;
   openaiApiKey?: string;
   githubToken?: string;
-  
+
   // Application Configuration
   language: 'en' | 'ja';
   llmProvider?: 'claude-cli' | 'anthropic' | 'openai';
   cacheDir?: string;
-  
+
   // Debug Configuration
   debug: boolean;
   verbose: boolean;
@@ -30,13 +30,27 @@ export function loadEnvironmentConfig(): EnvironmentConfig {
     // API Keys - validated and sanitized
     anthropicApiKey: getEnvVar('ANTHROPIC_API_KEY', (value) => value.length > 10),
     openaiApiKey: getEnvVar('OPENAI_API_KEY', (value) => value.length > 10),
-    githubToken: getEnvVar('GITHUB_TOKEN', (value) => value.startsWith('ghp_') || value.startsWith('github_pat_')),
-    
+    githubToken:
+      getEnvVar(
+        'GITHUB_TOKEN',
+        (value) =>
+          value.startsWith('ghp_') || value.startsWith('github_pat_') || value.startsWith('gho_')
+      ) ||
+      getEnvVar(
+        'GH_TOKEN',
+        (value) =>
+          value.startsWith('ghp_') || value.startsWith('github_pat_') || value.startsWith('gho_')
+      ),
+
     // Configuration - with validation
     language: getEnvVarEnum('RENOVATE_SAFETY_LANGUAGE', ['en', 'ja'] as const) || 'en',
-    llmProvider: getEnvVarEnum('RENOVATE_SAFETY_LLM_PROVIDER', ['claude-cli', 'anthropic', 'openai'] as const),
+    llmProvider: getEnvVarEnum('RENOVATE_SAFETY_LLM_PROVIDER', [
+      'claude-cli',
+      'anthropic',
+      'openai',
+    ] as const),
     cacheDir: getEnvVar('RENOVATE_SAFETY_CACHE_DIR', (value) => value.length > 0),
-    
+
     // Debug flags
     debug: Boolean(getEnvVar('DEBUG')),
     verbose: Boolean(getEnvVar('VERBOSE')),
@@ -73,7 +87,10 @@ export function hasGitHubAccess(): boolean {
 /**
  * Get safe configuration for logging (excludes sensitive data)
  */
-export function getSafeConfig(): Omit<EnvironmentConfig, 'anthropicApiKey' | 'openaiApiKey' | 'githubToken'> {
+export function getSafeConfig(): Omit<
+  EnvironmentConfig,
+  'anthropicApiKey' | 'openaiApiKey' | 'githubToken'
+> {
   const config = getEnvironmentConfig();
   return {
     language: config.language,

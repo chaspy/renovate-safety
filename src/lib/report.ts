@@ -43,10 +43,16 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
   sections.push(`- **Package**: \`${pkg.name}\``);
   sections.push(`- **Version**: ${pkg.fromVersion} → ${pkg.toVersion}`);
   sections.push(`- **Changelog Source**: ${changelogDiff ? changelogDiff.source : 'Not found'}`);
-  const codeDiffInfo = codeDiff ? (codeDiff.filesChanged + ' files changed (' + codeDiff.fromTag + ' → ' + codeDiff.toTag + ')') : 'Not available';
+  const codeDiffInfo = codeDiff
+    ? codeDiff.filesChanged + ' files changed (' + codeDiff.fromTag + ' → ' + codeDiff.toTag + ')'
+    : 'Not available';
   sections.push(`- **Code Diff**: ${codeDiffInfo}`);
-  
-  const dependencyTypeInfo = dependencyUsage ? ((dependencyUsage.isDirect ? 'Direct' : 'Transitive') + ' ' + dependencyUsage.usageType) : 'Unknown';
+
+  let dependencyTypeInfo = 'Unknown';
+  if (dependencyUsage) {
+    const directType = dependencyUsage.isDirect ? 'Direct' : 'Transitive';
+    dependencyTypeInfo = `${directType} ${dependencyUsage.usageType}`;
+  }
   sections.push(`- **Dependency Type**: ${dependencyTypeInfo}\n`);
 
   // Summary
@@ -264,14 +270,14 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
     sections.push(`### 🎯 Actionable Recommendations\n`);
 
     for (const rec of actionableRecs) {
-      const priorityEmoji =
-        rec.priority === 'immediate'
-          ? '🚨'
-          : rec.priority === 'high'
-            ? '🔴'
-            : rec.priority === 'medium'
-              ? '🟠'
-              : '🟡';
+      let priorityEmoji = '🟡';
+      if (rec.priority === 'immediate') {
+        priorityEmoji = '🚨';
+      } else if (rec.priority === 'high') {
+        priorityEmoji = '🔴';
+      } else if (rec.priority === 'medium') {
+        priorityEmoji = '🟠';
+      }
 
       sections.push(`#### ${priorityEmoji} ${rec.title}`);
       sections.push(
@@ -312,14 +318,14 @@ async function generateMarkdownReport(result: AnalysisResult): Promise<string> {
     }
 
     for (const issue of securityIssues) {
-      const severityEmoji =
-        issue.severity === 'critical'
-          ? '🚨'
-          : issue.severity === 'high'
-            ? '🔴'
-            : issue.severity === 'medium'
-              ? '🟠'
-              : '🟡';
+      let severityEmoji = '🟡';
+      if (issue.severity === 'critical') {
+        severityEmoji = '🚨';
+      } else if (issue.severity === 'high') {
+        severityEmoji = '🔴';
+      } else if (issue.severity === 'medium') {
+        severityEmoji = '🟠';
+      }
       sections.push(
         `${severityEmoji} **${issue.type.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}** (${issue.severity.toUpperCase()})`
       );

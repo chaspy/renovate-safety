@@ -1,13 +1,16 @@
 import type { PackageUpdate, RiskAssessment, BreakingChange, LLMSummary } from '../types/index.js';
 import type { UsageAnalysis } from '../analyzers/base.js';
-import semver from 'semver';
+import {
+  analyzeVersionJump,
+  determineDiffDepth,
+  determineMigrationComplexity,
+  calculateBaseRiskScore,
+  isTypeDefinitionPackage,
+  VersionJump,
+} from './risk-assessment-utils.js';
 
 export interface RiskFactors {
-  versionJump: {
-    major: number;
-    minor: number;
-    patch: number;
-  };
+  versionJump: VersionJump;
   usage: {
     directUsageCount: number;
     criticalPathUsage: boolean;
@@ -22,6 +25,9 @@ export interface RiskFactors {
     breakingChangePatterns: string[];
     knownIssues: unknown[];
     migrationComplexity: 'simple' | 'moderate' | 'complex';
+    isTypeDefinition?: boolean;
+    isDevDependency?: boolean;
+    isLockfileOnly?: boolean;
   };
 }
 
@@ -73,10 +79,10 @@ function calculateRiskFactors(
   // Version jump analysis
   const versionJump = analyzeVersionJump(packageUpdate.fromVersion, packageUpdate.toVersion);
 
-  // Usage analysis
+  // Usage analysis with improved critical path detection
   const usage = {
     directUsageCount: usageAnalysis?.productionUsageCount || 0,
-    criticalPathUsage: (usageAnalysis?.criticalPaths?.length || 0) > 0,
+    criticalPathUsage: determineCriticalPathUsage(usageAnalysis),
     testCoverage: estimateTestCoverage(usageAnalysis),
   };
 
@@ -92,29 +98,42 @@ function calculateRiskFactors(
     breakingChangePatterns: breakingChanges.map((bc) => bc.line),
     knownIssues: [],
     migrationComplexity: determineMigrationComplexity(breakingChanges, usage.directUsageCount),
+    isTypeDefinition: isTypeDefinitionPackage(packageUpdate.name),
+    isDevDependency: false, // Will be enhanced when we have access to package.json context
+    // Feature tracked in Issue #20 - GitHub API integration for file change analysis
+    // Will enable lockfile-only detection through PR file changes
+    isLockfileOnly: false, // Will be enhanced when we have access to file changes
   };
 
   return { versionJump, usage, confidence, packageSpecific };
 }
 
-function analyzeVersionJump(fromVersion: string, toVersion: string): RiskFactors['versionJump'] {
-  try {
-    const from = semver.coerce(fromVersion);
-    const to = semver.coerce(toVersion);
+// analyzeVersionJump is now imported from risk-assessment-utils.ts
 
-    if (!from || !to) {
-      // Fallback to simple parsing
-      return { major: 1, minor: 0, patch: 0 };
-    }
+function determineCriticalPathUsage(usageAnalysis: UsageAnalysis | null): boolean {
+  if (!usageAnalysis?.criticalPaths) return false;
 
-    return {
-      major: semver.major(to) - semver.major(from),
-      minor: semver.minor(to) - semver.minor(from),
-      patch: semver.patch(to) - semver.patch(from),
-    };
-  } catch {
-    return { major: 1, minor: 0, patch: 0 };
-  }
+  // Consider it critical if used in key entry point files
+  const criticalFilePatterns = [
+    /index\.[jt]sx?$/,
+    /main\.[jt]sx?$/,
+    /app\.[jt]sx?$/,
+    /server\.[jt]sx?$/,
+    /handler\.[jt]sx?$/,
+    /api\/.*\.[jt]sx?$/,
+    /routes\/.*\.[jt]sx?$/,
+    /src\/(?:index|main|app)\.[jt]sx?$/,
+  ];
+
+  // Check if any critical path matches key patterns
+  const hasCriticalFiles = usageAnalysis.criticalPaths.some((path) =>
+    criticalFilePatterns.some((pattern) => pattern.test(path))
+  );
+
+  // Also consider it critical if used in multiple production files
+  const multipleProductionFiles = usageAnalysis.productionUsageCount >= 3;
+
+  return hasCriticalFiles || multipleProductionFiles;
 }
 
 function estimateTestCoverage(usageAnalysis: UsageAnalysis | null): number {
@@ -123,66 +142,82 @@ function estimateTestCoverage(usageAnalysis: UsageAnalysis | null): number {
   const { productionUsageCount, testUsageCount } = usageAnalysis;
   if (productionUsageCount === 0) return 100;
 
-  // Simple heuristic: ratio of test usage to production usage
-  const ratio = testUsageCount / productionUsageCount;
-  return Math.min(ratio * 100, 100);
+  // Improved heuristic: consider test coverage as percentage of production code tested
+  // Not just ratio, but whether tests exist at all
+  if (testUsageCount === 0) return 0;
+  if (testUsageCount > 0 && productionUsageCount > 0) {
+    // Assume ~30% coverage per test file that uses the package
+    return Math.min(30 + testUsageCount * 10, 80);
+  }
+  return 50; // Default moderate coverage
 }
 
-function determineDiffDepth(hasChangelog: boolean, hasDiff: boolean): 'full' | 'partial' | 'none' {
-  if (hasChangelog && hasDiff) return 'full';
-  if (hasChangelog || hasDiff) return 'partial';
-  return 'none';
-}
-
-function determineMigrationComplexity(
-  breakingChanges: BreakingChange[],
-  usageCount: number
-): 'simple' | 'moderate' | 'complex' {
-  if (breakingChanges.length === 0) return 'simple';
-  if (breakingChanges.length > 5 || usageCount > 20) return 'complex';
-  if (breakingChanges.length > 2 || usageCount > 10) return 'moderate';
-  return 'simple';
-}
+// determineDiffDepth and determineMigrationComplexity are now imported from risk-assessment-utils.ts
 
 function calculateRiskScore(factors: RiskFactors): number {
-  let score = 0;
-
-  // Version jump impact (0-40 points)
-  score += factors.versionJump.major * 20;
-  score += factors.versionJump.minor * 5;
-  score += factors.versionJump.patch * 1;
-
-  // Usage impact (0-30 points)
-  score += Math.min(factors.usage.directUsageCount * 2, 20);
-  score += factors.usage.criticalPathUsage ? 10 : 0;
-
-  // Breaking changes impact (0-20 points)
-  score += Math.min(factors.packageSpecific.breakingChangePatterns.length * 5, 20);
-
-  // Confidence penalty (0-10 points)
-  if (factors.confidence.diffAnalysisDepth === 'none') score += 10;
-  else if (factors.confidence.diffAnalysisDepth === 'partial') score += 5;
-
-  // Test coverage mitigation (-20 to 0 points)
-  score -= (factors.usage.testCoverage / 100) * 20;
-
-  return Math.max(0, Math.min(100, score));
+  // Use the shared base calculation
+  return calculateBaseRiskScore(factors);
 }
 
 function determineRiskLevel(score: number, factors: RiskFactors): RiskAssessment['level'] {
-  // If we have no information, return unknown
-  if (
-    factors.confidence.diffAnalysisDepth === 'none' &&
-    factors.packageSpecific.breakingChangePatterns.length === 0
-  ) {
-    return 'unknown'; // 'unknown' is valid RiskAssessment level
+  // Check for type definition package special cases
+  const typeDefLevel = getTypeDefinitionRiskLevel(factors, score);
+  if (typeDefLevel) {
+    return typeDefLevel;
   }
 
-  if (score >= 70) return 'critical';
-  if (score >= 50) return 'high';
-  if (score >= 30) return 'medium';
-  if (score >= 10) return 'low';
-  return 'safe';
+  // Check if we have insufficient information
+  if (hasInsufficientInformation(factors)) {
+    return 'unknown';
+  }
+
+  // Return risk level based on score thresholds
+  return getRiskLevelByScore(score);
+}
+
+function getTypeDefinitionRiskLevel(
+  factors: RiskFactors,
+  score: number
+): RiskAssessment['level'] | null {
+  if (!factors.packageSpecific.isTypeDefinition) {
+    return null;
+  }
+
+  // @types/* patch updates are always safe
+  if (isPatchOnlyUpdate(factors.versionJump)) {
+    return 'safe';
+  }
+
+  // @types/* minor updates are low risk at most
+  if (isMinorOnlyUpdate(factors.versionJump)) {
+    return score <= 10 ? 'safe' : 'low';
+  }
+
+  return null;
+}
+
+function isPatchOnlyUpdate(versionJump: VersionJump): boolean {
+  return versionJump.patch > 0 && versionJump.major === 0 && versionJump.minor === 0;
+}
+
+function isMinorOnlyUpdate(versionJump: VersionJump): boolean {
+  return versionJump.minor > 0 && versionJump.major === 0;
+}
+
+function hasInsufficientInformation(factors: RiskFactors): boolean {
+  return (
+    factors.confidence.diffAnalysisDepth === 'none' &&
+    factors.packageSpecific.breakingChangePatterns.length === 0 &&
+    !factors.packageSpecific.isTypeDefinition
+  );
+}
+
+function getRiskLevelByScore(score: number): RiskAssessment['level'] {
+  if (score <= 1) return 'safe';
+  if (score <= 10) return 'low';
+  if (score < 30) return 'medium';
+  if (score < 50) return 'high';
+  return 'critical';
 }
 
 function calculateConfidence(factors: RiskFactors): number {
@@ -196,6 +231,18 @@ function calculateConfidence(factors: RiskFactors): number {
 
   return Math.min(confidence, 1);
 }
+
+// isTypeDefinitionPackage is now imported from risk-assessment-utils.ts
+
+// Feature tracked in Issue #20 - GitHub API integration pending
+// PRのfile changesを取得して、lockfile-onlyの変更かを判定する
+// function isLockfileOnlyChange(files: string[]): boolean {
+//   return files.every(f =>
+//     f.endsWith('package-lock.json') ||
+//     f.endsWith('yarn.lock') ||
+//     f.endsWith('pnpm-lock.yaml')
+//   );
+// }
 
 function generateRiskFactorDescriptions(factors: RiskFactors, _level: string): string[] {
   const descriptions: string[] = [];

@@ -1,27 +1,41 @@
 import type { AnalysisResult, BreakingChange } from '../types/index.js';
 import { packageKnowledgeBase } from './package-knowledge.js';
+import {
+  generateMarkdownLink,
+  getRepositoryFromGit,
+  type GitHubLinkOptions,
+} from '../mastra/tools/github-link-generator.js';
+import { translateRecommendations } from '../mastra/services/translation-service.js';
+import { getPackageRepository, extractGitHubRepo, getPackageFields } from './npm-registry.js';
+import { summarizeApiDiff } from './api-diff-summary.js';
 
 export async function generateEnhancedReport(
   result: AnalysisResult,
-  format: 'markdown' | 'json'
+  format: 'markdown' | 'json',
+  language: 'en' | 'ja' = 'en'
 ): Promise<string> {
   if (format === 'json') {
     return JSON.stringify(result, null, 2);
   }
 
   // Generate enhanced markdown report
-  let report = '# Renovate Safety Analysis Report\n\n';
+  const isJa = language === 'ja';
+  let report = isJa
+    ? '# renovate-safety 解析レポート\n\n'
+    : '# Renovate Safety Analysis Report\n\n';
 
   // Risk level with emoji and enhanced description
   const riskEmoji = getRiskEmoji(result.riskAssessment.level);
-  const riskDescription = getRiskDescription(result.riskAssessment.level);
-  report += `## ${riskEmoji} Risk Assessment: ${result.riskAssessment.level.toUpperCase()}\n`;
+  const riskDescription = getRiskDescription(result.riskAssessment.level, isJa);
+  report += isJa
+    ? `## ${riskEmoji} リスク評価: ${result.riskAssessment.level.toUpperCase()}\n`
+    : `## ${riskEmoji} Risk Assessment: ${result.riskAssessment.level.toUpperCase()}\n`;
   report += `${riskDescription}\n\n`;
 
   // Package information section
-  report += '### 📦 Package Update\n';
-  report += `- **Package**: \`${result.package.name}\`\n`;
-  report += `- **Version**: ${result.package.fromVersion} → ${result.package.toVersion}\n`;
+  report += isJa ? '### 📦 パッケージ更新\n' : '### 📦 Package Update\n';
+  report += `${isJa ? '- **パッケージ**' : '- **Package**'}: \`${result.package.name}\`\n`;
+  report += `${isJa ? '- **バージョン**' : '- **Version**'}: ${result.package.fromVersion} → ${result.package.toVersion}\n`;
 
   // Add version jump information
   const versionJump = calculateVersionJump(result.package.fromVersion, result.package.toVersion);
@@ -29,23 +43,78 @@ export async function generateEnhancedReport(
     report += `- **Version Jump**: ${versionJump}\n`;
   }
 
-  report += `- **Changelog Source**: ${result.changelogDiff?.source || 'Not found'}\n`;
-  const codeDiffStatus = result.codeDiff ? (result.codeDiff.filesChanged + ' files changed') : 'Not available';
-  report += `- **Code Diff**: ${codeDiffStatus}\n`;
-  report += `- **Dependency Type**: ${result.dependencyUsage?.isDirect ? 'Direct' : 'Transitive'} ${result.dependencyUsage?.usageType || 'dependencies'}\n`;
+  const changelogLabel = isJa ? '- **チェンジログソース**' : '- **Changelog Source**';
+  const changelogValue = result.changelogDiff?.source || (isJa ? '未取得' : 'Not found');
+  report += `${changelogLabel}: ${changelogValue}\n`;
+  let codeDiffStatus;
+  if (result.codeDiff) {
+    codeDiffStatus = `${result.codeDiff.filesChanged} files changed`;
+  } else {
+    codeDiffStatus = isJa ? '利用不可' : 'Not available';
+  }
+  report += `${isJa ? '- **コード差分**' : '- **Code Diff**'}: ${codeDiffStatus}\n`;
+  const depTypeLabel = isJa ? '- **依存関係の種類**' : '- **Dependency Type**';
+  const depTypeValue = (() => {
+    if (!result.dependencyUsage) return 'dependencies';
+    let directText;
+    if (result.dependencyUsage.isDirect) {
+      directText = isJa ? '直接' : 'Direct';
+    } else {
+      directText = isJa ? '間接' : 'Transitive';
+    }
+    return `${directText} ${result.dependencyUsage.usageType || 'dependencies'}`;
+  })();
+  report += `${depTypeLabel}: ${depTypeValue}\n`;
 
-  // Information confidence indicator
-  const confidence = calculateConfidence(result);
+  // Add library description for well-known packages
+  const libraryDescription = await getLibraryDescription(result.package.name, isJa);
+  if (libraryDescription) {
+    report += `\n${isJa ? '#### 📚 ライブラリ概要' : '#### 📚 Library Overview'}\n`;
+    report += `${libraryDescription}\n\n`;
+  }
+
+  // Information confidence indicator - use the enhanced risk assessment confidence
+  const confidence = result.riskAssessment.confidence || calculateFallbackConfidence(result);
   report += `- **Analysis Confidence**: ${getConfidenceIndicator(confidence)} (${Math.round(confidence * 100)}%)\n`;
   report += '\n';
 
+  // Upstream compare + npm diff command (concrete version diff info)
+  try {
+    const repoUrl = await getPackageRepository(result.package.name);
+    const repo = extractGitHubRepo(repoUrl || undefined);
+    if (repo) {
+      const compareUrl = `https://github.com/${repo.owner}/${repo.repo}/compare/v${result.package.fromVersion}...v${result.package.toVersion}`;
+      report += isJa
+        ? `- **外部差分リンク**: [GitHub Compare](${compareUrl})\n`
+        : `- **External Diff**: [GitHub Compare](${compareUrl})\n`;
+      report += isJa
+        ? `- **npm diff コマンド**: \`npm diff ${result.package.name}@${result.package.fromVersion} ${result.package.name}@${result.package.toVersion}\`\n`
+        : `- **npm diff command**: \`npm diff ${result.package.name}@${result.package.fromVersion} ${result.package.name}@${result.package.toVersion}\`\n`;
+      report += '\n';
+    }
+  } catch {}
+
+  // Functional-level change summary from code diff (if available)
+  if (result.codeDiff) {
+    try {
+      const { bullets } = await summarizeApiDiff(result.codeDiff, isJa ? 'ja' : 'en');
+      if (bullets.length > 0) {
+        report += isJa
+          ? '### 🔎 機能レベルの変更（要点）\n'
+          : '### 🔎 Functional Changes (Summary)\n';
+        bullets.slice(0, 5).forEach((b) => (report += `- ${b}\n`));
+        report += '\n';
+      }
+    } catch {}
+  }
+
   // Summary section
   if (result.llmSummary) {
-    report += '### 📝 Summary\n';
+    report += isJa ? '### 📝 サマリ\n' : '### 📝 Summary\n';
     report += result.llmSummary.summary + '\n\n';
 
     if (result.llmSummary.breakingChanges.length > 0) {
-      report += '**AI-Identified Breaking Changes:**\n';
+      report += isJa ? '**AI推定の破壊的変更:**\n' : '**AI-Identified Breaking Changes:**\n';
       result.llmSummary.breakingChanges.forEach((change) => {
         report += `- ${change}\n`;
       });
@@ -75,18 +144,29 @@ export async function generateEnhancedReport(
 
   // Dependency usage with enhanced visualization
   if (result.dependencyUsage) {
-    report += '### 🌳 Dependency Usage\n';
-    report += `- **Type**: ${result.dependencyUsage.isDirect ? 'Direct' : 'Transitive'} dependency\n`;
-    report += `- **Category**: ${result.dependencyUsage.usageType}\n`;
-    report += `- **Impact**: Affects ${result.dependencyUsage.dependents.length} packages\n\n`;
+    report += isJa ? '### 🌳 依存関係の利用状況\n' : '### 🌳 Dependency Usage\n';
+    const typeLabel = isJa ? '- **種類**' : '- **Type**';
+    let typeValue;
+    if (result.dependencyUsage.isDirect) {
+      typeValue = isJa ? '直接依存' : 'Direct';
+    } else {
+      typeValue = isJa ? '間接依存' : 'Transitive';
+    }
+    report += `${typeLabel}: ${typeValue}\n`;
+    report += `${isJa ? '- **カテゴリ**' : '- **Category**'}: ${result.dependencyUsage.usageType}\n`;
+    const impactLabel = isJa ? '- **影響範囲**' : '- **Impact**';
+    const impactValue = isJa
+      ? `${result.dependencyUsage.dependents.length} パッケージに影響`
+      : `Affects ${result.dependencyUsage.dependents.length} packages`;
+    report += `${impactLabel}: ${impactValue}\n\n`;
 
     if (!result.dependencyUsage.isDirect) {
       const paths = result.dependencyUsage.dependents.slice(0, 5);
       const dependencyType = paths[0].type === 'direct' ? 'Direct' : 'Transitive';
       const displayCount = Math.min(5, result.dependencyUsage.dependents.length);
       const totalCount = result.dependencyUsage.dependents.length;
-      const countSuffix = totalCount > 5 ? (' of ' + totalCount) : '';
-      
+      const countSuffix = totalCount > 5 ? ' of ' + totalCount : '';
+
       report += `**${dependencyType} Dependencies (${displayCount}${countSuffix}):**\n`;
       paths.forEach((dep) => {
         const pathStr = dep.path.join(' → ');
@@ -101,44 +181,110 @@ export async function generateEnhancedReport(
 
   // Breaking changes section
   if (result.breakingChanges.length > 0) {
-    report += `### ⚠️ Breaking Changes (${result.breakingChanges.length})\n`;
+    report += isJa
+      ? `### ⚠️ 破壊的変更 (${result.breakingChanges.length})\n`
+      : `### ⚠️ Breaking Changes (${result.breakingChanges.length})\n`;
     const grouped = groupBreakingChanges(result.breakingChanges);
 
     for (const [severity, changes] of Object.entries(grouped)) {
       if (changes.length > 0) {
         report += `\n**${severity.charAt(0).toUpperCase() + severity.slice(1)} Changes:**\n`;
         changes.forEach((change) => {
-          report += `- ${formatBreakingChange(change.line)}\n`;
+          report += `- ${formatBreakingChange(change)}\n`;
         });
       }
     }
     report += '\n';
   }
 
-  // API usage analysis
+  // API usage analysis - separated by type
   if (result.apiUsages.length > 0) {
-    report += `### 🔍 API Usage Analysis\n`;
-    report += `Found ${result.apiUsages.length} usage locations:\n\n`;
+    report += isJa ? `### 🔍 API利用箇所解析\n` : `### 🔍 API Usage Analysis\n`;
 
-    // Group by file
-    const byFile = groupBy(result.apiUsages, 'filePath');
-    const fileList = Object.entries(byFile).slice(0, 10);
+    // Separate code usage from config references
+    const codeUsages = result.apiUsages.filter(
+      (u: any) => u.context !== 'config' && u.type !== 'config'
+    );
+    const configUsages = result.apiUsages.filter(
+      (u: any) => u.context === 'config' || u.type === 'config'
+    );
 
-    fileList.forEach(([file, usages]) => {
-      report += `**${file}** (${usages.length} usages)\n`;
-      usages.slice(0, 3).forEach((usage) => {
-        report += `- Line ${usage.line}: ${usage.context || usage.usageType || 'usage'}\n`;
-      });
-      if (usages.length > 3) {
-        report += `- ... and ${usages.length - 3} more\n`;
+    // Code usage section
+    if (codeUsages.length > 0) {
+      report += isJa
+        ? `#### 📝 コード上のAPI利用 (${codeUsages.length} 箇所)\n`
+        : `#### 📝 Code API Usage (${codeUsages.length} locations)\n`;
+
+      const productionUsages = codeUsages.filter((u: any) => u.context === 'production');
+      const testUsages = codeUsages.filter((u: any) => u.context === 'test');
+
+      if (productionUsages.length > 0) {
+        report += isJa
+          ? `- **本番コード**: ${productionUsages.length} 箇所\n`
+          : `- **Production code**: ${productionUsages.length} locations\n`;
+      }
+      if (testUsages.length > 0) {
+        report += isJa
+          ? `- **テストコード**: ${testUsages.length} 箇所\n`
+          : `- **Test code**: ${testUsages.length} locations\n`;
       }
       report += '\n';
-    });
 
-    if (Object.keys(byFile).length > 10) {
-      report += `... and ${Object.keys(byFile).length - 10} more files\n\n`;
+      // Try to auto-detect repository for clickable links
+      let linkOptions: GitHubLinkOptions | null = null;
+      try {
+        const repo = await getRepositoryFromGit();
+        if (repo) linkOptions = { repository: repo };
+      } catch {}
+
+      const byFile = groupBy(codeUsages, 'filePath');
+      // Show all files without limiting to 5
+      const fileList = Object.entries(byFile);
+
+      for (const [file, usages] of fileList) {
+        report += `**${file}** (${usages.length} ${isJa ? '箇所' : 'usages'})\n`;
+
+        // Add usage description for specific files
+        const usageDescription = getUsageDescription(file, result.package.name, isJa);
+        if (usageDescription) {
+          report += `${isJa ? '用途' : 'Usage'}: ${usageDescription}\n`;
+        }
+
+        // Show all usages without limiting to 3
+        usages.forEach((usage: any) => {
+          const line = usage.line || 1;
+          const link = linkOptions
+            ? generateMarkdownLink(file, line, linkOptions)
+            : `${file}:${line}`;
+          const ctx = usage.context || usage.usageType || (isJa ? '利用' : 'usage');
+          report += `- ${link} — ${ctx}\n`;
+        });
+        report += '\n';
+      }
+
+      // Removed file limit - showing all files
+    }
+
+    // Config/metadata references section
+    if (configUsages.length > 0) {
+      report += isJa
+        ? `#### ⚙️ 設定/メタデータ参照 (${configUsages.length} 箇所)\n`
+        : `#### ⚙️ Config/Metadata References (${configUsages.length} locations)\n`;
+
+      const configFiles = [...new Set(configUsages.map((u: any) => u.filePath || u.file))];
+      configFiles.slice(0, 5).forEach((file) => {
+        report += `- ${file}\n`;
+      });
+      if (configFiles.length > 5) {
+        report += isJa
+          ? `- ... 他 ${configFiles.length - 5} ファイル\n`
+          : `- ... and ${configFiles.length - 5} more files\n`;
+      }
+      report += '\n';
     }
   }
+
+  // Removed code diff highlights section as it was not providing useful information
 
   // Deep analysis results
   if (result.deepAnalysis) {
@@ -157,51 +303,85 @@ export async function generateEnhancedReport(
   }
 
   // Actionable recommendations
-  report += '### 🎯 Actionable Recommendations\n\n';
+  report += isJa ? '### 🎯 推奨アクション\n\n' : '### 🎯 Actionable Recommendations\n\n';
 
   const priority = getPriorityFromRisk(result.riskAssessment.level);
   const timeRequired = getTimeEstimate(result.riskAssessment.estimatedEffort);
-  const automatable = isAutomatable(result);
+  let automatable = isAutomatable(result);
+  if (isJa) {
+    if (automatable === 'Yes') {
+      automatable = '可能';
+    } else if (automatable === 'No') {
+      automatable = '不可';
+    } else if (automatable === 'Partially') {
+      automatable = '一部可能';
+    }
+  }
 
-  report += `#### ${priority} Verification\n`;
-  report += `**Priority:** ${priority} | **Time Required:** ${timeRequired} | **Automatable:** ${automatable}\n\n`;
+  report += isJa ? `#### ${priority} の確認\n` : `#### ${priority} Verification\n`;
+  report += isJa
+    ? `**優先度:** ${priority} | **所要時間:** ${timeRequired} | **自動化可:** ${automatable}\n\n`
+    : `**Priority:** ${priority} | **Time Required:** ${timeRequired} | **Automatable:** ${automatable}\n\n`;
 
-  report += '**Actions:**\n';
-  const actions = generateDetailedActions(result);
-  actions.forEach((action) => {
+  report += isJa ? '**アクション:**\n' : '**Actions:**\n';
+  let actions = generateDetailedActions(result);
+  if (isJa) {
+    try {
+      actions = await translateRecommendations(actions, 'ja');
+    } catch {}
+  }
+  actions.forEach((action: string) => {
     report += `- ${action}\n`;
   });
   report += '\n';
 
   // Summary and recommendation
-  report += '### 💡 Summary\n';
+  report += isJa ? '### 💡 サマリ\n' : '### 💡 Summary\n';
   report += result.recommendation + '\n\n';
 
   // Risk analysis details
-  report += '### 📊 Risk Analysis Details\n';
-  report += `- **Risk Level**: ${result.riskAssessment.level}\n`;
+  report += isJa ? '### 📊 リスク分析詳細\n' : '### 📊 Risk Analysis Details\n';
+  report += `${isJa ? '- **リスクレベル**' : '- **Risk Level**'}: ${result.riskAssessment.level}\n`;
 
   if (result.riskAssessment.level === 'unknown') {
     report += `- **Reason**: Insufficient information for accurate assessment\n`;
   } else {
     const description = getRiskLevelDescription(result.riskAssessment.level);
-    report += `- **Description**: ${description}\n`;
+    report += `${isJa ? '- **説明**' : '- **Description**'}: ${description}\n`;
   }
 
-  report += `- **Estimated Effort**: ${result.riskAssessment.estimatedEffort}\n`;
-  report += `- **Required Testing Scope**: ${result.riskAssessment.testingScope}\n`;
-  report += `- **Breaking Changes Found**: ${result.breakingChanges.length}\n`;
-  report += `- **API Usages Found**: ${result.apiUsages.length}\n`;
-  report += `- **AI Analysis**: ${result.llmSummary ? 'Completed' : 'Skipped'}\n`;
-  report += `- **Deep Analysis**: ${result.deepAnalysis ? 'Completed' : 'Disabled'}\n\n`;
+  report += `${isJa ? '- **概算工数**' : '- **Estimated Effort**'}: ${result.riskAssessment.estimatedEffort}\n`;
+  report += `${isJa ? '- **必要なテスト範囲**' : '- **Required Testing Scope**'}: ${result.riskAssessment.testingScope}\n`;
+  report += `${isJa ? '- **検出された破壊的変更**' : '- **Breaking Changes Found**'}: ${result.breakingChanges.length}\n`;
+  report += `${isJa ? '- **API利用検出数**' : '- **API Usages Found**'}: ${result.apiUsages.length}\n`;
+  const aiLabel = isJa ? '- **AI解析**' : '- **AI Analysis**';
+  let aiValue;
+  if (result.llmSummary) {
+    aiValue = isJa ? '実施済み' : 'Completed';
+  } else {
+    aiValue = isJa ? 'スキップ' : 'Skipped';
+  }
+  report += `${aiLabel}: ${aiValue}\n`;
+  const deepLabel = isJa ? '- **詳細解析**' : '- **Deep Analysis**';
+  let deepValue;
+  if (result.deepAnalysis) {
+    deepValue = isJa ? '実施済み' : 'Completed';
+  } else {
+    deepValue = isJa ? '無効' : 'Disabled';
+  }
+  report += `${deepLabel}: ${deepValue}\n\n`;
 
-  report += '**Risk Factors:**\n';
-  result.riskAssessment.factors.forEach((factor) => {
+  report += isJa ? '**根拠 (Risk Factors):**\n' : '**Risk Factors:**\n';
+  const factors = result.riskAssessment.factors || [];
+  const factorsJa = isJa ? await translateRecommendations(factors, 'ja') : factors;
+  factorsJa.forEach((factor) => {
     report += `- ${factor}\n`;
   });
 
   report += '\n---\n';
-  report += '*Generated by [renovate-safety](https://github.com/chaspy/renovate-safety) v1.1.0*';
+  report += isJa
+    ? '*[renovate-safety](https://github.com/chaspy/renovate-safety) v1.1.0 により生成*'
+    : '*Generated by [renovate-safety](https://github.com/chaspy/renovate-safety) v1.1.0*';
 
   return report;
 }
@@ -218,16 +398,29 @@ function getRiskEmoji(level: string): string {
   return emojis[level as keyof typeof emojis] || '❓';
 }
 
-function getRiskDescription(level: string): string {
-  const descriptions = {
-    safe: 'This update appears to be safe with no breaking changes detected.',
-    low: 'This update has low risk with minimal changes that should not affect your code.',
-    medium: 'This update requires attention as it may contain changes affecting your code.',
-    high: 'This update has significant changes that will likely require code modifications.',
-    critical: 'This update contains major breaking changes requiring immediate attention.',
-    unknown: 'Unable to determine risk level due to insufficient information.',
+function getRiskDescription(level: string, isJa: boolean): string {
+  if (!isJa) {
+    const descriptions = {
+      safe: 'This update appears to be safe with no breaking changes detected.',
+      low: 'This update has low risk with minimal changes that should not affect your code.',
+      medium: 'This update requires attention as it may contain changes affecting your code.',
+      high: 'This update has significant changes that will likely require code modifications.',
+      critical: 'This update contains major breaking changes requiring immediate attention.',
+      unknown: 'Unable to determine risk level due to insufficient information.',
+    };
+    return (
+      descriptions[level as keyof typeof descriptions] || 'Risk level could not be determined.'
+    );
+  }
+  const ja = {
+    safe: '破壊的変更は検出されておらず、安全に更新できる見込みです。',
+    low: '影響は小さく、既存コードへの影響は限定的と考えられます。',
+    medium: '影響が出る可能性があるため、内容の確認とテストを推奨します。',
+    high: '影響が大きい可能性が高く、コード修正が必要になる見込みです。',
+    critical: '重大な破壊的変更が含まれる可能性が高く、慎重な対応が必要です。',
+    unknown: '情報が不足しているため、リスクレベルを特定できません。',
   };
-  return descriptions[level as keyof typeof descriptions] || 'Risk level could not be determined.';
+  return ja[level as keyof typeof ja] || 'リスクレベルを判定できません。';
 }
 
 function getRiskLevelDescription(level: string): string {
@@ -261,14 +454,29 @@ function calculateVersionJump(from: string, to: string): string | null {
   }
 }
 
-function calculateConfidence(result: AnalysisResult): number {
+// Fallback confidence calculation when enhanced risk assessment is not available
+function calculateFallbackConfidence(result: AnalysisResult): number {
   let confidence = 0;
 
-  if (result.changelogDiff) confidence += 0.3;
+  // Information source quality (matches enhanced-grade.ts logic)
+  if (result.changelogDiff) {
+    if (result.changelogDiff.source === 'github') confidence += 0.4;
+    else if (result.changelogDiff.source === 'github+npm') confidence += 0.5;
+    else confidence += 0.3;
+  }
+
   if (result.codeDiff) confidence += 0.2;
-  if (result.llmSummary) confidence += 0.2;
-  if (result.apiUsages.length > 0) confidence += 0.15;
-  if (result.deepAnalysis) confidence += 0.15;
+
+  // Usage analysis quality
+  if (result.apiUsages.length > 0) {
+    const hasProductionUsage = result.apiUsages.some((u: any) => u.context === 'production');
+    const hasTestUsage = result.apiUsages.some((u: any) => u.context === 'test');
+    if (hasProductionUsage && hasTestUsage) confidence += 0.2;
+    else if (hasProductionUsage || hasTestUsage) confidence += 0.1;
+  }
+
+  // LLM analysis adds minimal confidence (as it's supplementary)
+  if (result.llmSummary) confidence += 0.1;
 
   return Math.min(confidence, 1);
 }
@@ -298,21 +506,30 @@ function groupBreakingChanges(changes: BreakingChange[]): Record<string, Breakin
   return grouped;
 }
 
-function formatBreakingChange(change: string): string {
-  // Clean up and format breaking change text
-  return change
+function formatBreakingChange(change: BreakingChange | string): string {
+  // Handle both string and object formats
+  if (typeof change === 'string') {
+    return change
+      .replace(/^[\s-*]+/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // Format with source if available
+  const text = change.line
     .replace(/^[\s-*]+/, '')
     .replace(/\s+/g, ' ')
     .trim();
+
+  return change.source ? `${text} (Source: ${change.source})` : text;
 }
 
 function groupBy<T>(array: T[], key: keyof T): Record<string, T[]> {
   return array.reduce(
     (result, item) => {
       const value = item[key];
-      const group = typeof value === 'object' && value !== null 
-        ? JSON.stringify(value) 
-        : String(value);
+      const group =
+        typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
       if (!result[group]) result[group] = [];
       result[group].push(item);
       return result;
@@ -400,4 +617,75 @@ function generateDetailedActions(result: AnalysisResult): string[] {
   }
 
   return actions;
+}
+
+async function getLibraryDescription(packageName: string, isJa: boolean): Promise<string | null> {
+  // First, try to fetch from npm registry
+  try {
+    const packageInfo = await getPackageFields(packageName, ['description']);
+    if (packageInfo?.description) {
+      // Return the npm description (usually in English)
+      // For now, use the same description for both languages
+      // In the future, could translate using AI
+      // Ensure description is a string before converting
+      const desc = packageInfo.description;
+      return typeof desc === 'string' ? desc : JSON.stringify(desc);
+    }
+  } catch (error) {
+    // Log error for debugging but fall through to hardcoded descriptions
+    console.debug(`Failed to fetch package description for ${packageName}:`, error);
+  }
+
+  // Fallback to hardcoded descriptions for known packages
+  const descriptions: Record<string, { ja: string; en: string }> = {
+    'p-limit': {
+      ja: 'p-limitは非同期関数の並列実行数を制限するためのライブラリです。Promise.all()で大量の非同期処理を実行する際に、同時実行数を制御してリソースの枯渇を防ぎます。主にAPI呼び出しやファイル処理などの並列処理で使用されます。',
+      en: 'p-limit is a library for limiting the number of concurrent async operations. It prevents resource exhaustion when using Promise.all() with many async operations by controlling concurrency. Commonly used for API calls and file processing.',
+    },
+    react: {
+      ja: 'ReactはFacebookが開発したUIライブラリです。コンポーネントベースのアーキテクチャで、宣言的なUIの構築を可能にします。仮想DOMを使用して効率的な画面更新を実現します。',
+      en: 'React is a UI library developed by Facebook. It enables declarative UI building with component-based architecture. Uses virtual DOM for efficient updates.',
+    },
+    ora: {
+      ja: 'oraはターミナル用のエレガントなスピナー（ローディング表示）を提供するライブラリです。CLIツールで長時間実行されるプロセスの進行状況を視覚的に表現できます。カスタマイズ可能なスピナーパターンと色、テキストメッセージをサポートしています。',
+      en: 'ora provides elegant terminal spinners for Node.js CLI applications. It visually represents the progress of long-running processes with customizable spinner patterns, colors, and text messages.',
+    },
+    lodash: {
+      ja: 'Lodashは汎用的なユーティリティライブラリです。配列、オブジェクト、文字列操作などの便利な関数を提供します。パフォーマンスを重視した実装が特徴です。',
+      en: 'Lodash is a utility library providing helpful functions for arrays, objects, and strings. Known for performance-optimized implementations.',
+    },
+    axios: {
+      ja: 'AxiosはPromiseベースのHTTPクライアントライブラリです。ブラウザとNode.js両方で動作し、リクエスト/レスポンスのインターセプト機能を提供します。',
+      en: 'Axios is a Promise-based HTTP client that works in both browser and Node.js. Provides request/response interceptor functionality.',
+    },
+  };
+
+  const desc = descriptions[packageName];
+  if (!desc) {
+    return null;
+  }
+  return isJa ? desc.ja : desc.en;
+}
+
+function getUsageDescription(filePath: string, packageName: string, isJa: boolean): string | null {
+  // Special descriptions for specific usage patterns
+  if (packageName === 'p-limit' && filePath.includes('parallel-helpers')) {
+    return isJa
+      ? '並列処理のヘルパー関数で同時実行数を制御するために使用。複数の非同期操作を効率的に処理'
+      : 'Used in parallel processing helpers to control concurrency. Manages efficient processing of multiple async operations';
+  }
+
+  if (filePath.includes('test') || filePath.includes('spec')) {
+    return isJa ? 'テストコードでの利用' : 'Used in test code';
+  }
+
+  if (filePath.includes('config')) {
+    return isJa ? '設定ファイルでの定義' : 'Defined in configuration';
+  }
+
+  if (filePath.includes('index')) {
+    return isJa ? 'エントリーポイントでの利用' : 'Used in entry point';
+  }
+
+  return null;
 }

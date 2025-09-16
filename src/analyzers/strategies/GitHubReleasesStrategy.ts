@@ -46,7 +46,7 @@ export class GitHubReleasesStrategy extends AnalysisStrategy {
         .join('\n\n');
 
       // Extract breaking changes
-      const breakingChanges = extractBreakingChanges(combinedContent);
+      const breakingChanges = extractBreakingChanges(combinedContent, undefined, 'github-releases');
 
       return {
         content: combinedContent,

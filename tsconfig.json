@@ -4,6 +4,9 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "paths": {
+      "@mastra/*": ["./src/mastra/*"]
+    },
     "noImplicitAny": true,
     "strictNullChecks": true,
     "strictFunctionTypes": true,
@@ -23,8 +26,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "module": "ESNext",
-    "moduleResolution": "node",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "target": "ES2022"
   },
   "include": ["src/**/*", "src/types/**/*"],
