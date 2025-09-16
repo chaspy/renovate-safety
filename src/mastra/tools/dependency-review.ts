@@ -85,7 +85,8 @@ function parseRemovedDependency(line: string): { name: string; version: string }
     return null;
   }
 
-  const removedMatch = line.match(/-\s*"([^"]+)":\s*"([^"]+)"/);
+  const removedPattern = /-\s*"([^"]+)":\s*"([^"]+)"/;
+  const removedMatch = removedPattern.exec(line);
   if (removedMatch) {
     const [, packageName, fromVersion] = removedMatch;
     return { name: packageName, version: fromVersion };
@@ -105,7 +106,8 @@ function findAddedDependency(
   for (let j = startIndex + 1; j < endIndex; j++) {
     const nextLine = lines[j];
     if (nextLine.startsWith('+') && nextLine.includes(`"${packageName}"`)) {
-      const addedMatch = nextLine.match(/\+\s*"[^"]+":\s*"([^"]+)"/);
+      const addedPattern = /\+\s*"[^"]+":\s*"([^"]+)"/;
+      const addedMatch = addedPattern.exec(nextLine);
       if (addedMatch) {
         return addedMatch[1];
       }

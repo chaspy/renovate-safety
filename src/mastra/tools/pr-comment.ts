@@ -215,13 +215,14 @@ export const prCommentTool = createTool({
         case 'update':
           return await handleUpdateMode(prNumber, body, marker);
 
-        case 'create':
+        case 'create': {
           const createResult = await createComment(prNumber, body);
           return {
             success: createResult.success,
             created: true,
             error: createResult.error,
           };
+        }
 
         default:
           return {

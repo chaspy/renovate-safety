@@ -176,7 +176,7 @@ async function executeNpmDiff(
 ): Promise<{ success: boolean; output: string }> {
   // Validate package specs to prevent command injection
   // Allow scoped packages, versions, and common npm spec formats
-  const validSpecPattern = /^(@?[\w\/-]+)@([\w\.\-~^]+)$/;
+  const validSpecPattern = /^(@?[\w/-]+)@([\w.~^-]+)$/;
   if (!validSpecPattern.test(spec1) || !validSpecPattern.test(spec2)) {
     return { success: false, output: 'Invalid package specification format' };
   }

@@ -423,7 +423,7 @@ function extractTokenUsageFromResult(result: any): TokenUsage | undefined {
     return undefined;
   }
 
-  const resultObj = result as any;
+  const resultObj = result;
 
   // Debug: log the structure
   console.log('DEBUG - Token tracking - response has usage:', !!resultObj.usage, 'totalTokens:', resultObj.usage?.totalTokens);
