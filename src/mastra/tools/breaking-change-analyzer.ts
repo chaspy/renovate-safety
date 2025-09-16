@@ -185,21 +185,6 @@ export class BreakingChangeAnalyzer {
     );
   }
 
-  /**
-   * Detect actual API changes (not just file structure)
-   */
-  private detectApiChanges(_change: any) {
-    // Handled by aggregated logic in analyzeCodeChanges
-    return;
-  }
-
-  /**
-   * Detect function signature changes
-   */
-  private detectSignatureChanges(_content: string): string[] {
-    // Compare signatures via aggregated logic
-    return [];
-  }
 
   /**
    * Analyze documentation for explicit breaking change mentions
