@@ -258,10 +258,10 @@ describe('analyzeRenovatePR Workflow', () => {
     });
 
     // Mock report generation
-    vi.mocked(generateReport).mockReturnValue({
+    vi.mocked(generateReport).mockReturnValue(Promise.resolve({
       markdown: '### renovate-safety Analysis\n\n**Conclusion**: ✅ SAFE\n',
-      format: 'markdown',
-    });
+      format: 'markdown' as const,
+    }));
 
     vi.mocked(getHighestRisk).mockReturnValue('safe');
 
@@ -271,6 +271,7 @@ describe('analyzeRenovatePR Workflow', () => {
       format: 'markdown',
       language: 'en',
       threshold: 1,
+      concurrency: 1,
     });
 
     expect(result.success).toBe(true);
@@ -404,10 +405,10 @@ describe('analyzeRenovatePR Workflow', () => {
 
     // Since workflow uses hardcoded single dependency, it returns 'safe'
     vi.mocked(getHighestRisk).mockReturnValue('safe');
-    vi.mocked(generateReport).mockReturnValue({
+    vi.mocked(generateReport).mockReturnValue(Promise.resolve({
       markdown: '### Analysis\n**Conclusion**: ✅ SAFE\n',
-      format: 'markdown',
-    });
+      format: 'markdown' as const,
+    }));
 
     const result = await analyzeRenovatePR({
       prNumber: 456,
@@ -415,6 +416,7 @@ describe('analyzeRenovatePR Workflow', () => {
       format: 'markdown',
       language: 'en',
       threshold: 1,
+      concurrency: 1,
     });
 
     expect(result.success).toBe(true);
