@@ -623,14 +623,17 @@ async function getLibraryDescription(packageName: string, isJa: boolean): Promis
   // First, try to fetch from npm registry
   try {
     const packageInfo = await getPackageFields(packageName, ['description']);
-    if (packageInfo && packageInfo.description) {
+    if (packageInfo?.description) {
       // Return the npm description (usually in English)
       // For now, use the same description for both languages
       // In the future, could translate using AI
-      return String(packageInfo.description);
+      // Ensure description is a string before converting
+      const desc = packageInfo.description;
+      return typeof desc === 'string' ? desc : JSON.stringify(desc);
     }
   } catch (error) {
-    // Fall through to hardcoded descriptions
+    // Log error for debugging but fall through to hardcoded descriptions
+    console.debug(`Failed to fetch package description for ${packageName}:`, error);
   }
 
   // Fallback to hardcoded descriptions for known packages
