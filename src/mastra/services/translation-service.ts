@@ -41,8 +41,12 @@ export async function translateRecommendation(rec: string): Promise<string> {
       throw new Error(`Translation API failed: ${response.status}`);
     }
     
-    const data = await response.json() as any;
-    const translated = data.choices?.[0]?.message?.content?.trim();
+    const data = await response.json() as Record<string, unknown>;
+    const choices = Array.isArray(data?.choices) ? data.choices : [];
+    const firstChoice = choices[0] as Record<string, unknown> | undefined;
+    const message = firstChoice?.message as Record<string, unknown> | undefined;
+    const content = message?.content;
+    const translated = typeof content === 'string' ? content.trim() : undefined;
     
     return translated || rec; // Fallback to original if translation fails
   } catch (error) {

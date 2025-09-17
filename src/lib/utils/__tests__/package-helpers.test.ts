@@ -127,7 +127,6 @@ describe('Package Helpers', () => {
 
     it('should return empty array for no version', () => {
       expect(parseNodeSupport()).toEqual([]);
-      expect(parseNodeSupport(undefined)).toEqual([]);
     });
   });
 
@@ -139,7 +138,6 @@ describe('Package Helpers', () => {
 
     it('should return empty array for undefined', () => {
       expect(parseBrowserSupport()).toEqual([]);
-      expect(parseBrowserSupport(undefined)).toEqual([]);
     });
   });
 });
