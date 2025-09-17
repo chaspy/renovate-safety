@@ -111,7 +111,14 @@ export async function performEnhancedDependencyAnalysis(
   fromVersion: string,
   toVersion: string
 ): Promise<EnhancedDependencyAnalysis> {
-  const results = await executeInParallel<unknown>(
+  const results = await executeInParallel<
+    | ImpactAnalysis
+    | VersionConstraints[]
+    | BreakingChangeRisk
+    | UsagePattern[]
+    | RelatedPackage[]
+    | UpdateCompatibility
+  >(
     [
       () => analyzeImpact(packageName),
       () => analyzeVersionConstraints(packageName, fromVersion, toVersion),

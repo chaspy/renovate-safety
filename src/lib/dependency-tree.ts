@@ -100,7 +100,7 @@ async function analyzePackageJson(packageName: string): Promise<DependencyUsage 
   try {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     const packageJsonData = await readJsonFile(packageJsonPath);
-    const packageJson = packageJsonData as Record<string, Record<string, string>>;
+    const packageJson = packageJsonData as { name?: string; [key: string]: unknown };
 
     const dependents: DependentInfo[] = [];
     let usageType: DependencyUsage['usageType'] = 'dependencies';
@@ -115,12 +115,13 @@ async function analyzePackageJson(packageName: string): Promise<DependencyUsage 
     ] as const;
 
     for (const depType of depTypes) {
-      if (packageJson[depType]?.[packageName]) {
+      const deps = packageJson[depType] as Record<string, string> | undefined;
+      if (deps?.[packageName]) {
         isDirect = true;
         usageType = depType;
         dependents.push({
           name: packageJson.name || 'root',
-          version: packageJson[depType][packageName],
+          version: deps[packageName],
           path: [packageJson.name || 'root'],
           type: 'direct',
         });

@@ -21,7 +21,7 @@ export interface PackageUpdate {
 
 export interface ChangelogDiff {
   content: string;
-  source: 'npm' | 'github' | 'PyPI';
+  source: 'npm' | 'github' | 'PyPI' | 'github+npm';
   fromVersion?: string;
   toVersion?: string;
 }

@@ -141,7 +141,7 @@ export async function performEnhancedCodeAnalysis(
     };
   }
 
-  const results = await executeInParallel<unknown>(
+  const results = await executeInParallel<SemanticChange[] | ApiChange[] | BreakingPattern[]>(
     [
       () => analyzeSemanticChanges(codeDiff),
       () => analyzeApiChanges(codeDiff),
