@@ -1,7 +1,5 @@
 import type { AnalysisResult } from '../types/index.js';
-import {
-  generateActionableRecommendations,
-} from './recommendations.js';
+import { generateActionableRecommendations } from './recommendations.js';
 import {
   generateReportHeader,
   generatePackageInfoSection,
@@ -16,6 +14,7 @@ import {
   generateSecurityAnalysisSection,
   generateSummaryAndRiskDetailsSection,
   generateReportFooter,
+  groupByApi,
 } from './report-helper-functions.js';
 
 export async function generateReport(

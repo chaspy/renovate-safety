@@ -100,7 +100,9 @@ export async function fetchChangelogAndKnowledge(
   );
   if (knownBreaking.length > 0) {
     knowledgeBasedBreaking = knownBreaking;
-    fetchSpinner.succeed(`Found ${knownBreaking.length} known breaking changes from knowledge base`);
+    fetchSpinner.succeed(
+      `Found ${knownBreaking.length} known breaking changes from knowledge base`
+    );
   }
 
   // If no changelog, use fallback strategies
@@ -187,7 +189,9 @@ export async function extractBreakingChangesStep(
     try {
       const apiDiffSummary = await summarizeApiDiff(codeDiff);
       enginesDiff = apiDiffSummary.enginesDiff;
-    } catch {}
+    } catch {
+      // Silently ignore API diff extraction errors
+    }
   }
 
   let breakingChanges = changelogDiff

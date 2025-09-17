@@ -428,7 +428,7 @@ function groupBySeverity(changes: AnalysisResult['breakingChanges']) {
   };
 }
 
-function groupByApi(usages: AnalysisResult['apiUsages']) {
+export function groupByApi(usages: AnalysisResult['apiUsages']) {
   const grouped: Record<string, typeof usages> = {};
 
   for (const usage of usages) {

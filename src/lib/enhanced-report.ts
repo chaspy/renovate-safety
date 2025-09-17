@@ -674,7 +674,7 @@ function generateConfigUsageSection(configUsages: any[], isJa: boolean): string 
   return report + '\n';
 }
 
-function generateDeepAnalysisSection(result: AnalysisResult, isJa: boolean): string {
+function generateDeepAnalysisSection(result: AnalysisResult, _isJa: boolean): string {
   if (!result.deepAnalysis) return '';
 
   let report = '### 🔬 Deep Analysis Results\n';
