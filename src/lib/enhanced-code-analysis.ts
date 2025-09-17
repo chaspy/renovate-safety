@@ -159,12 +159,13 @@ export async function performEnhancedCodeAnalysis(
   const fileImpactAnalysis: FileImpactAnalysis =
     results[3] instanceof Error
       ? {
-          affectedFiles: [],
-          criticalPaths: [],
-          testCoverage: { covered: [], uncovered: [] },
-          estimatedEffort: 'unknown',
-          categories: {},
-          riskDistribution: {},
+          categories: [],
+          riskDistribution: {
+            critical: 0,
+            high: 0,
+            medium: 0,
+            low: 0,
+          },
           affectedAreas: [],
         }
       : (results[3] as FileImpactAnalysis);

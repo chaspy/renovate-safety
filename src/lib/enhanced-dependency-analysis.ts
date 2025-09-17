@@ -130,9 +130,8 @@ export async function performEnhancedDependencyAnalysis(
           transitiveUsages: [],
           configurationUsages: [],
           runtimeImpact: 'none',
-          buildImpact: 'none',
+          buildTimeImpact: 'none',
           testImpact: 'none',
-          securityImpact: [],
         }
       : (results[0] as ImpactAnalysis);
   const versionConstraints: VersionConstraints[] =
@@ -140,11 +139,9 @@ export async function performEnhancedDependencyAnalysis(
   const breakingChangeRisk: BreakingChangeRisk =
     results[2] instanceof Error
       ? {
-          level: 'low',
-          semverViolation: false,
-          publicApiChanges: [],
-          behaviorChanges: [],
-          removalChanges: [],
+          overallRisk: 'low',
+          factors: [],
+          mitigationSteps: [],
         }
       : (results[2] as BreakingChangeRisk);
   const usagePatterns: UsagePattern[] =
@@ -154,10 +151,11 @@ export async function performEnhancedDependencyAnalysis(
   const updateCompatibility: UpdateCompatibility =
     results[5] instanceof Error
       ? {
-          compatible: true,
-          breakingChanges: [],
-          migrationEffort: 'minimal',
-          alternativeVersions: [],
+          canAutoUpdate: true,
+          requiresManualIntervention: false,
+          estimatedEffort: 'minimal',
+          blockers: [],
+          prerequisites: [],
         }
       : (results[5] as UpdateCompatibility);
 
