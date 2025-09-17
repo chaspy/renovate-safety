@@ -28,7 +28,7 @@ export interface PackageInfo {
  * Consolidates the duplicate pattern across multiple files
  */
 export async function getPackageRepository(packageName: string): Promise<string | null> {
-  return tryWithLogging(
+  const result = await tryWithLogging(
     async () => {
       const result = await secureNpmExec('view', [packageName, 'repository.url', '--json']);
 
@@ -46,7 +46,7 @@ export async function getPackageRepository(packageName: string): Promise<string 
 
       if (typeof data === 'object' && (data as { repository?: unknown }).repository) {
         const repo = (data as { repository?: string | { url?: string } }).repository;
-        return typeof repo === 'string' ? repo : repo.url;
+        return typeof repo === 'string' ? repo : (repo && typeof repo.url === 'string' ? repo.url : null);
       }
 
       return null;
@@ -54,6 +54,8 @@ export async function getPackageRepository(packageName: string): Promise<string 
     'fetch repository',
     packageName
   );
+  
+  return result ?? null;
 }
 
 /**

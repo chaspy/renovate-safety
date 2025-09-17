@@ -239,7 +239,49 @@ async function gatherPackageInfo(packageName: string): Promise<PackageInfo> {
       return getDefaultPackageInfo();
     }
 
-    const extendedData = data as unknown as Record<string, unknown>; // Type extension for additional properties
+    // Safe type checking with proper fallbacks
+    const extendedData = data as unknown as Record<string, unknown>;
+
+    // Helper function for safe property access
+    const safeProp = (obj: unknown, prop: string): unknown => {
+      return obj && typeof obj === 'object' && obj !== null && prop in obj
+        ? (obj as Record<string, unknown>)[prop]
+        : undefined;
+    };
+
+    // Safe author extraction
+    const authorData = safeProp(extendedData, 'author');
+    const author = typeof authorData === 'string'
+      ? authorData
+      : typeof authorData === 'object' && authorData !== null
+      ? String(safeProp(authorData, 'name') || '')
+      : undefined;
+
+    // Safe maintainers extraction
+    const maintainersData = safeProp(extendedData, 'maintainers');
+    const maintainers = Array.isArray(maintainersData)
+      ? maintainersData.map((m: unknown) => {
+          if (typeof m === 'string') return m;
+          if (typeof m === 'object' && m !== null && 'name' in m) {
+            return String((m as { name: unknown }).name || '');
+          }
+          return String(m || '');
+        })
+      : [];
+
+    // Safe time/date extraction
+    const timeData = safeProp(extendedData, 'time');
+    const publishedAt = typeof data.time?.[data.version] === 'string'
+      ? data.time[data.version]
+      : typeof timeData === 'object' && timeData !== null
+      ? String(safeProp(timeData, 'created') || '')
+      : '';
+
+    // Safe dist/size extraction
+    const distData = safeProp(extendedData, 'dist');
+    const unpackedSize = typeof safeProp(distData, 'unpackedSize') === 'number'
+      ? Number(safeProp(distData, 'unpackedSize'))
+      : 0;
 
     return {
       description: data.description || 'No description available',
@@ -247,19 +289,13 @@ async function gatherPackageInfo(packageName: string): Promise<PackageInfo> {
       license: data.license || 'Unknown',
       homepage: data.homepage,
       repository: typeof data.repository === 'object' ? data.repository.url : data.repository,
-      author:
-        extendedData.author && typeof extendedData.author === 'object'
-          ? extendedData.author.name
-          : extendedData.author,
-      maintainers:
-        extendedData.maintainers?.map((m: unknown) =>
-          typeof m === 'object' && m !== null && 'name' in m ? (m as { name: string }).name : m
-        ) || [],
+      author,
+      maintainers,
       latestVersion: data.version,
-      publishedAt: data.time?.[data.version] || extendedData.time?.created,
+      publishedAt,
       size: {
-        unpacked: extendedData.dist?.unpackedSize || 0,
-        gzipped: extendedData.dist?.['npm-signature'] ? undefined : 0,
+        unpacked: unpackedSize,
+        gzipped: undefined, // Size calculation would need additional API
       },
     };
   } catch (error) {
@@ -316,15 +352,21 @@ async function gatherMaintenanceInfo(packageName: string): Promise<MaintenanceIn
 
     if (repoInfo) {
       const repo = repoInfo as Record<string, unknown>;
+      
+      // Safe property extraction with type checking
+      const lastUpdated = typeof repo.updated_at === 'string' ? repo.updated_at : '';
+      const openIssues = typeof repo.open_issues_count === 'number' ? repo.open_issues_count : 0;
+      const hasFunding = typeof repo.has_funding === 'boolean' ? repo.has_funding : false;
+      
       return {
-        lastUpdated: repo.updated_at || '',
+        lastUpdated,
         releaseFrequency: analyzeReleaseFrequency(repoInfo),
         maintainerResponse: 'unknown', // Would need GitHub API analysis
-        openIssues: repo.open_issues_count || 0,
+        openIssues,
         closedIssues: 0, // Would need additional API call
         openPullRequests: 0, // Would need additional API call
         communityHealth: 'average',
-        funding: !!repo.has_funding,
+        funding: hasFunding,
         sponsors: [],
       };
     }
@@ -375,7 +417,15 @@ async function gatherPopularityMetrics(packageName: string): Promise<PopularityM
 
     // Get GitHub stats if repository is available
     const githubStats = await getGitHubStats(packageName);
-    const stats = githubStats as Record<string, unknown>;
+    
+    let githubStars = 0;
+    let githubForks = 0;
+    
+    if (githubStats && typeof githubStats === 'object') {
+      const stats = githubStats as Record<string, unknown>;
+      githubStars = typeof stats.stargazers_count === 'number' ? stats.stargazers_count : 0;
+      githubForks = typeof stats.forks_count === 'number' ? stats.forks_count : 0;
+    }
 
     return {
       downloads: {
@@ -383,8 +433,8 @@ async function gatherPopularityMetrics(packageName: string): Promise<PopularityM
         weekly: 0,
         monthly: 0,
       },
-      githubStars: stats?.stargazers_count || 0,
-      githubForks: stats?.forks_count || 0,
+      githubStars,
+      githubForks,
       dependentRepos: 0, // Would need dependents API
       dependentPackages: 0,
       trendingScore: 0,
@@ -411,22 +461,44 @@ async function gatherTechnicalDetails(
       return getDefaultTechnicalDetails();
     }
 
-    const extendedData = data as Record<string, unknown>;
+    const extendedData = data as unknown as Record<string, unknown>;
+
+    // Safe extraction of dist information
+    const distData = extendedData.dist && typeof extendedData.dist === 'object' 
+      ? extendedData.dist as Record<string, unknown>
+      : {};
+    const unpackedSize = typeof distData.unpackedSize === 'number' ? distData.unpackedSize : undefined;
+
+    // Safe extraction of engines information
+    const enginesData = extendedData.engines && typeof extendedData.engines === 'object'
+      ? extendedData.engines as Record<string, unknown>
+      : {};
+    const nodeVersion = typeof enginesData.node === 'string' ? enginesData.node : undefined;
+
+    // Safe extraction of browserslist
+    const browserslistData = Array.isArray(extendedData.browserslist) 
+      ? extendedData.browserslist as string[]
+      : undefined;
+
+    // Safe extraction of optional dependencies
+    const optionalDeps = extendedData.optionalDependencies && typeof extendedData.optionalDependencies === 'object'
+      ? extendedData.optionalDependencies as Record<string, unknown>
+      : {};
 
     return {
       bundleSize: {
-        minified: extendedData.dist?.unpackedSize,
+        minified: unpackedSize,
         gzipped: undefined, // Would need bundlephobia API
       },
       treeshakeable: hasESModules(extendedData),
       hasTypes: hasTypeDefinitions(packageName, extendedData),
-      nodeSupport: parseNodeSupport(extendedData.engines?.node),
-      browserSupport: parseBrowserSupport(extendedData.browserslist),
+      nodeSupport: parseNodeSupport(nodeVersion),
+      browserSupport: parseBrowserSupport(browserslistData),
       dependencies: {
         production: Object.keys(data.dependencies || {}).length,
         development: Object.keys(data.devDependencies || {}).length,
         peer: Object.keys(data.peerDependencies || {}).length,
-        optional: Object.keys(extendedData.optionalDependencies || {}).length,
+        optional: Object.keys(optionalDeps).length,
       },
       exports: [], // Would need static analysis
       apiSurface: {
