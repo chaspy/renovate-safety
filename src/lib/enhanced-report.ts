@@ -73,8 +73,8 @@ export async function generateEnhancedReport(
     report += `${libraryDescription}\n\n`;
   }
 
-  // Information confidence indicator - use the enhanced risk assessment confidence
-  const confidence = result.riskAssessment.confidence || calculateFallbackConfidence(result);
+  // Information confidence indicator - use fallback calculation
+  const confidence = calculateFallbackConfidence(result);
   report += `- **Analysis Confidence**: ${getConfidenceIndicator(confidence)} (${Math.round(confidence * 100)}%)\n`;
   report += '\n';
 

@@ -278,7 +278,7 @@ function extractTransitiveUsages(
       usages.push({
         parentPackage: path[0] || 'root',
         depth: currentPath.length,
-        versionRange: info.required || 'unknown',
+        versionRange: 'unknown', // version range not available in info
         resolvedVersion: info.version || 'unknown',
         conflicts,
       });

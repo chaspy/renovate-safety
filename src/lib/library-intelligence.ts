@@ -239,7 +239,7 @@ async function gatherPackageInfo(packageName: string): Promise<PackageInfo> {
       return getDefaultPackageInfo();
     }
 
-    const extendedData = data as Record<string, unknown>; // Type extension for additional properties
+    const extendedData = data as unknown as Record<string, unknown>; // Type extension for additional properties
 
     return {
       description: data.description || 'No description available',
