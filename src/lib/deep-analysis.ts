@@ -324,13 +324,28 @@ function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDet
   const line = identifier.getStartLineNumber();
   const apiName = identifier.getText();
 
-  // Function call
-  if (Node.isCallExpression(parent) && parent.getExpression() === identifier) {
-    const args = parent.getArguments().map((arg) => {
-      const text = arg.getText();
-      return text.length > 50 ? text.substring(0, 50) + '...' : text;
-    });
+  // Try different usage patterns
+  return (
+    analyzeFunctionCall(identifier, parent, filePath, line, apiName) ||
+    analyzeConstructorCall(identifier, parent, filePath, line, apiName) ||
+    analyzePropertyAccess(identifier, parent, filePath, line, apiName) ||
+    analyzeTypeReference(identifier, parent, filePath, line, apiName) ||
+    analyzeDecorator(identifier, parent, filePath, line, apiName) ||
+    analyzeJSXComponent(identifier, parent, filePath, line, apiName) ||
+    null
+  );
+}
 
+function analyzeFunctionCall(
+  identifier: Node,
+  parent: Node,
+  filePath: string,
+  line: number,
+  apiName: string
+): APIUsageDetail | null {
+  // Check if the parent is a call expression where this identifier is the function being called
+  if (Node.isCallExpression(parent) && parent.getExpression() === identifier) {
+    const args = parent.getArguments().map((arg) => arg.getText().substring(0, 50));
     return {
       file: filePath,
       line,
@@ -340,14 +355,19 @@ function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDet
       arguments: args,
     };
   }
+  return null;
+}
 
-  // Constructor call
+function analyzeConstructorCall(
+  identifier: Node,
+  parent: Node,
+  filePath: string,
+  line: number,
+  apiName: string
+): APIUsageDetail | null {
+  // Check if it's a 'new' expression
   if (Node.isNewExpression(parent) && parent.getExpression() === identifier) {
-    const args = parent.getArguments().map((arg) => {
-      const text = arg.getText();
-      return text.length > 50 ? text.substring(0, 50) + '...' : text;
-    });
-
+    const args = parent.getArguments().map((arg) => arg.getText().substring(0, 50));
     return {
       file: filePath,
       line,
@@ -357,22 +377,34 @@ function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDet
       arguments: args,
     };
   }
+  return null;
+}
 
-  // Property access
+function analyzePropertyAccess(
+  identifier: Node,
+  parent: Node,
+  filePath: string,
+  line: number,
+  apiName: string
+): APIUsageDetail | null {
+  // Check if it's a property access expression
   if (Node.isPropertyAccessExpression(parent)) {
-    const chainedCalls = [];
+    // Could be either the left side (object) or right side (property)
+    const chainedCalls: string[] = [];
     let current: Node = parent;
 
-    while (
-      Node.isPropertyAccessExpression(current.getParent()) ||
-      Node.isCallExpression(current.getParent())
-    ) {
+    // Build chained calls
+    while (Node.isPropertyAccessExpression(current) || Node.isCallExpression(current)) {
       if (Node.isPropertyAccessExpression(current)) {
-        chainedCalls.push(current.getName());
+        const propertyName = current.getName();
+        chainedCalls.unshift(propertyName);
+        current = current.getExpression();
+      } else if (Node.isCallExpression(current)) {
+        chainedCalls.unshift('()');
+        current = current.getExpression();
+      } else {
+        break;
       }
-      const parent = current.getParent();
-      if (!parent) break;
-      current = parent;
     }
 
     return {
@@ -380,13 +412,22 @@ function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDet
       line,
       apiName,
       usageType: 'property-access',
-      context: getContextSnippet(current),
-      chainedCalls: chainedCalls.length > 0 ? chainedCalls : undefined,
+      context: getContextSnippet(parent),
+      chainedCalls: chainedCalls.slice(0, 10), // Limit to prevent excessive memory usage
     };
   }
+  return null;
+}
 
-  // Type reference
-  if (Node.isTypeReference(parent)) {
+function analyzeTypeReference(
+  identifier: Node,
+  parent: Node,
+  filePath: string,
+  line: number,
+  apiName: string
+): APIUsageDetail | null {
+  // Check if it's used as a type reference
+  if (Node.isTypeReference(parent) && parent.getTypeName() === identifier) {
     return {
       file: filePath,
       line,
@@ -396,28 +437,70 @@ function analyzeIdentifierUsage(identifier: Node, filePath: string): APIUsageDet
     };
   }
 
-  // Decorator
-  if (Node.isDecorator(parent)) {
+  // Check for other type-related contexts
+  if (
+    Node.isVariableDeclaration(parent.getParent()) ||
+    Node.isParameter(parent.getParent()) ||
+    Node.isFunctionDeclaration(parent.getParent()?.getParent())
+  ) {
+    return {
+      file: filePath,
+      line,
+      apiName,
+      usageType: 'type-reference',
+      context: getContextSnippet(parent),
+    };
+  }
+
+  return null;
+}
+
+function analyzeDecorator(
+  identifier: Node,
+  parent: Node,
+  filePath: string,
+  line: number,
+  apiName: string
+): APIUsageDetail | null {
+  // Check if it's used as a decorator
+  if (Node.isDecorator(parent) && parent.getCallExpression()?.getExpression() === identifier) {
+    const callExpr = parent.getCallExpression();
+    const args = callExpr
+      ? callExpr.getArguments().map((arg) => arg.getText().substring(0, 50))
+      : [];
+
     return {
       file: filePath,
       line,
       apiName,
       usageType: 'decorator',
       context: getContextSnippet(parent),
+      arguments: args,
     };
   }
+  return null;
+}
 
-  // JSX Component
+function analyzeJSXComponent(
+  identifier: Node,
+  parent: Node,
+  filePath: string,
+  line: number,
+  apiName: string
+): APIUsageDetail | null {
+  // Check if it's used as a JSX element
   if (Node.isJsxOpeningElement(parent) || Node.isJsxSelfClosingElement(parent)) {
-    return {
-      file: filePath,
-      line,
-      apiName,
-      usageType: 'jsx-component',
-      context: getContextSnippet(parent),
-    };
+    const tagName = parent.getTagNameNode();
+    if (tagName === identifier) {
+      return {
+        file: filePath,
+        line,
+        apiName,
+        usageType: 'jsx-component',
+        context: getContextSnippet(parent),
+      };
+    }
   }
-
   return null;
 }
 

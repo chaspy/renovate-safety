@@ -22,6 +22,22 @@ import { packageKnowledgeBase } from './lib/package-knowledge.js';
 import { getErrorMessage } from './analyzers/utils.js';
 import { loggers } from './lib/logger.js';
 import { logSection, logListItem, logProgress, logWarningMessage, logError, logSeparator } from './lib/logger-extended.js';
+import {
+  extractPackageInformation,
+  checkShouldSkipPatchUpdate,
+  findAppropriateAnalyzer,
+  fetchChangelogAndKnowledge,
+  fetchCodeDifference,
+  analyzeDependencyUsageStep,
+  analyzePackageUsageStep,
+  extractBreakingChangesStep,
+  performLLMAnalysis,
+  convertUsageAnalysisToApiUsages,
+  performDeepAnalysisStep,
+  generateAnalysisResult,
+  generateAndDisplayReport,
+  handlePRPosting,
+} from './lib/analysis-steps.js';
 
 // Import new analyzer system
 import './analyzers/index.js';
@@ -111,30 +127,8 @@ async function analyzeCommand(options: CLIOptions) {
   }
 }
 
-async function isPatchUpdate(fromVersion: string, toVersion: string): Promise<boolean> {
-  const semver = await import('semver');
-  
-  try {
-    // Coerce versions to handle partial versions like "16" -> "16.0.0"
-    const from = semver.coerce(fromVersion);
-    const to = semver.coerce(toVersion);
-    
-    if (!from || !to) {
-      return false;
-    }
-    
-    const fromMajor = semver.major(from);
-    const fromMinor = semver.minor(from);
-    const toMajor = semver.major(to);
-    const toMinor = semver.minor(to);
-    
-    return fromMajor === toMajor && fromMinor === toMinor;
-  } catch {
-    return false;
-  }
-}
 
-function generateRecommendation(riskAssessment: RiskAssessment, breakingCount: number, usageCount: number, language: 'en' | 'ja' = 'en'): string {
+export function generateRecommendation(riskAssessment: RiskAssessment, breakingCount: number, usageCount: number, language: 'en' | 'ja' = 'en'): string {
   const isJa = language === 'ja';
   switch (riskAssessment.level) {
     case 'safe':
@@ -243,272 +237,50 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
   
   try {
     // Step 1: Extract package information
-    spinner.text = 'Extracting package information...';
-    const packageUpdate = await extractPackageInfo(options);
-    
-    if (!packageUpdate) {
-      spinner.fail('Could not determine package information');
-      if (exitOnComplete) process.exit(1);
-      throw new Error('Could not determine package information');
-    }
-    
-    spinner.succeed(`Analyzing ${packageUpdate.name}: ${packageUpdate.fromVersion} → ${packageUpdate.toVersion}`);
+    const packageUpdate = await extractPackageInformation(spinner, options, exitOnComplete);
     
     // Check if we should skip patch updates
-    if (!options.force && await isPatchUpdate(packageUpdate.fromVersion, packageUpdate.toVersion)) {
-      logWarningMessage('Skipping patch update (use --force to analyze)');
-      if (exitOnComplete) process.exit(0);
-      return {
-        package: packageUpdate,
-        changelogDiff: null,
-        codeDiff: null,
-        dependencyUsage: null,
-        breakingChanges: [],
-        llmSummary: null,
-        apiUsages: [],
-        riskAssessment: {
-          level: 'safe',
-          factors: ['Patch update - automatically skipped'],
-          estimatedEffort: 'none',
-          testingScope: 'none'
-        },
-        recommendation: 'Patch update - automatically skipped'
-      };
-    }
+    const skipResult = await checkShouldSkipPatchUpdate(packageUpdate, options, exitOnComplete);
+    if (skipResult) return skipResult;
     
     // Step 2: Find appropriate analyzer
-    spinner = ora('Finding appropriate package analyzer...').start();
-    const analyzer = await analyzerRegistry.findAnalyzer(packageUpdate.name, process.cwd());
-    
-    if (!analyzer) {
-      spinner.warn('No specific analyzer found, using fallback strategies');
-    } else {
-      spinner.succeed(`Using ${analyzer.constructor.name} for analysis`);
-    }
+    const analyzer = await findAppropriateAnalyzer(spinner, packageUpdate);
     
     // Step 3: Fetch changelog/diff using analyzer or fallback
-    spinner = ora('Fetching package information...').start();
-    let changelogDiff = null;
-    let knowledgeBasedBreaking: string[] = [];
-    
-    if (analyzer) {
-      changelogDiff = await analyzer.fetchChangelog(packageUpdate, options.cacheDir);
-    }
-    
-    // Try package knowledge base
-    const knownBreaking = await packageKnowledgeBase.getBreakingChanges(
-      packageUpdate.name,
-      packageUpdate.fromVersion,
-      packageUpdate.toVersion
-    );
-    if (knownBreaking.length > 0) {
-      knowledgeBasedBreaking = knownBreaking;
-      spinner.succeed(`Found ${knownBreaking.length} known breaking changes from knowledge base`);
-    }
-    
-    // If no changelog, use fallback strategies
-    if (!changelogDiff) {
-      spinner.text = 'Using fallback analysis strategies...';
-      const analysisChain = createDefaultAnalysisChain();
-      const strategyResult = await analysisChain.analyze(packageUpdate);
-      
-      if (strategyResult.confidence > 0) {
-        changelogDiff = {
-          content: strategyResult.content,
-          source: strategyResult.source as any,
-          fromVersion: packageUpdate.fromVersion,
-          toVersion: packageUpdate.toVersion
-        };
-        spinner.succeed(`Analysis completed using ${strategyResult.source} (confidence: ${Math.round(strategyResult.confidence * 100)}%)`);
-      } else {
-        spinner.warn('Limited information available from all sources');
-      }
-    } else {
-      spinner.succeed(`Fetched changelog from ${changelogDiff.source}`);
-    }
+    const { changelogDiff, knowledgeBasedBreaking } = await fetchChangelogAndKnowledge(spinner, analyzer, packageUpdate, options);
     
     // Step 4: Fetch code diff from GitHub
-    spinner = ora('Fetching code differences from GitHub...').start();
-    const codeDiff = await fetchCodeDiff(packageUpdate);
-    
-    if (!codeDiff) {
-      spinner.warn('No code diff available');
-    } else {
-      spinner.succeed(`Fetched code diff: ${codeDiff.filesChanged} files changed`);
-    }
+    const codeDiff = await fetchCodeDifference(spinner, packageUpdate);
     
     // Step 5: Analyze dependency usage
-    spinner = ora('Analyzing dependency usage...').start();
-    const dependencyUsage = await analyzeDependencyUsage(packageUpdate.name);
-    
-    if (!dependencyUsage) {
-      spinner.warn('No dependency usage information found');
-    } else {
-      spinner.succeed(`Dependency analysis: ${dependencyUsage.isDirect ? 'Direct' : 'Transitive'} (${dependencyUsage.dependents.length} dependents)`);
-    }
+    const dependencyUsage = await analyzeDependencyUsageStep(spinner, packageUpdate);
     
     // Step 6: Analyze package usage with new analyzer
-    spinner = ora('Analyzing package usage in codebase...').start();
-    let usageAnalysis: UsageAnalysis | null = null;
-    
-    if (analyzer) {
-      usageAnalysis = await analyzer.analyzeUsage(packageUpdate.name, process.cwd());
-      spinner.succeed(`Found ${usageAnalysis.totalUsageCount} usage locations (${usageAnalysis.productionUsageCount} in production)`);
-    } else {
-      spinner.warn('Usage analysis not available for this package type');
-    }
+    const usageAnalysis = await analyzePackageUsageStep(spinner, analyzer, packageUpdate);
     
     // Step 7: Extract breaking changes
-    spinner = ora('Analyzing for breaking changes...').start();
-    
-    // Extract engines diff from code diff if available
-    let enginesDiff: { from: string; to: string } | undefined;
-    if (codeDiff) {
-      try {
-        const apiDiffSummary = await summarizeApiDiff(codeDiff);
-        enginesDiff = apiDiffSummary.enginesDiff;
-      } catch {}
-    }
-    
-    let breakingChanges = changelogDiff ? extractBreakingChanges(changelogDiff.content, enginesDiff, changelogDiff.source) : [];
-    
-    // Add knowledge-based breaking changes
-    knowledgeBasedBreaking.forEach(change => {
-      breakingChanges.push({
-        line: change,
-        severity: 'breaking',
-        source: 'package-knowledge'
-      });
-    });
-    
-    if (breakingChanges.length > 0) {
-      spinner.succeed(`Found ${breakingChanges.length} potential breaking changes`);
-    } else {
-      spinner.succeed('No breaking changes detected');
-    }
+    const breakingChanges = await extractBreakingChangesStep(spinner, changelogDiff, codeDiff, knowledgeBasedBreaking);
     
     // Step 8: Enhanced LLM analysis
-    let llmSummary = null;
-    if (!options.noLlm) {
-      spinner = ora('Generating enhanced AI analysis...').start();
-      
-      llmSummary = await enhancedLLMAnalysis(
-        packageUpdate,
-        changelogDiff,
-        codeDiff,
-        dependencyUsage,
-        breakingChanges,
-        options.llm,
-        options.cacheDir,
-        options.language || 'en'
-      );
-      
-      if (llmSummary) {
-        const analysisTypes = [
-          changelogDiff ? 'changelog' : null,
-          codeDiff ? 'code-diff' : null,
-          dependencyUsage ? 'dependency-tree' : null,
-          knowledgeBasedBreaking.length > 0 ? 'knowledge-base' : null
-        ].filter(Boolean);
-        
-        spinner.succeed(`Generated AI analysis (${analysisTypes.join(', ')})`);
-      } else {
-        spinner.warn('AI analysis generation failed');
-      }
-    }
+    const llmSummary = await performLLMAnalysis(spinner, options, packageUpdate, changelogDiff, codeDiff, dependencyUsage, breakingChanges, knowledgeBasedBreaking);
     
     // Step 9: Convert usage analysis to API usages for compatibility
-    const apiUsages = usageAnalysis ? usageAnalysis.locations.map(loc => ({
-      filePath: loc.file,
-      line: loc.line,
-      column: loc.column,
-      apiName: packageUpdate.name,
-      usageType: loc.type as any,
-      snippet: loc.code,
-      context: loc.context
-    })) : [];
+    const apiUsages = convertUsageAnalysisToApiUsages(usageAnalysis, packageUpdate);
     
     // Step 10: Deep analysis (optional)
-    let deepAnalysis: DeepAnalysisResult | undefined = undefined;
-    if (options.deep) {
-      spinner = ora('Performing deep code analysis...').start();
-      const breakingAPINames = breakingChanges.map(bc => {
-        const matches = bc.line.match(/`([a-zA-Z_$][a-zA-Z0-9_$]*)`/g);
-        return matches ? matches.map(m => m.slice(1, -1)) : [];
-      }).flat();
-      
-      deepAnalysis = await performDeepAnalysis(packageUpdate, breakingAPINames);
-      
-      spinner.succeed(`Deep analysis: ${deepAnalysis.filesUsingPackage}/${deepAnalysis.totalFiles} files use package`);
-    }
+    const deepAnalysis = await performDeepAnalysisStep(spinner, options, packageUpdate, breakingChanges);
     
-    // Step 11: Enhanced risk assessment
-      const riskAssessment = await assessEnhancedRisk(
-        packageUpdate,
-        breakingChanges,
-        usageAnalysis,
-        llmSummary,
-        !!changelogDiff,
-        !!codeDiff
-      );
+    // Step 11: Enhanced risk assessment and result generation
+    const analysisResult = await generateAnalysisResult(packageUpdate, changelogDiff, codeDiff, dependencyUsage, breakingChanges, llmSummary, apiUsages, deepAnalysis, usageAnalysis, options);
     
-    // Get migration steps from knowledge base
-    const migrationSteps = await packageKnowledgeBase.getMigrationSteps(
-      packageUpdate.name,
-      packageUpdate.fromVersion,
-      packageUpdate.toVersion
-    );
+    // Generate and display report
+    await generateAndDisplayReport(analysisResult, options);
     
-    if (migrationSteps.length > 0) {
-      logSection('Known migration steps:', '📚');
-      migrationSteps.forEach(step => logListItem(step));
-    }
-    
-    const analysisResult: AnalysisResult = {
-      package: packageUpdate,
-      changelogDiff,
-      codeDiff,
-      dependencyUsage,
-      breakingChanges,
-      llmSummary,
-      apiUsages,
-      deepAnalysis,
-      riskAssessment,
-      recommendation: generateRecommendation(riskAssessment, breakingChanges.length, apiUsages.length, options.language || 'en')
-    };
-    
-    const report = await generateEnhancedReport(
-      analysisResult,
-      options.json ? 'json' : 'markdown',
-      options.language || 'en'
-    );
-    
-    console.log('\n' + report);
-    
-    // Handle PR posting based on post mode
-    if (options.pr && options.post !== 'never') {
-      const { findExistingComment, updateComment } = await import('./lib/post.js');
-      
-      spinner = ora('Checking for existing comment...').start();
-      const existingCommentId = await findExistingComment(options.pr);
-      
-      if (existingCommentId) {
-        if (options.post === 'update') {
-          spinner.text = 'Updating existing comment...';
-          await updateComment(existingCommentId, report);
-          spinner.succeed('Updated existing comment');
-        } else {
-          spinner.succeed('Comment already exists (use --post update to overwrite)');
-        }
-      } else {
-        spinner.text = 'Posting new comment to PR...';
-        await postToPR(options.pr, report);
-        spinner.succeed('Posted new comment to PR');
-      }
-    }
+    // Handle PR posting
+    await handlePRPosting(spinner, options, analysisResult);
     
     if (exitOnComplete) {
-      process.exit(riskAssessment.level === 'high' || riskAssessment.level === 'critical' ? 1 : 0);
+      process.exit(analysisResult.riskAssessment.level === 'high' || analysisResult.riskAssessment.level === 'critical' ? 1 : 0);
     }
     
     return analysisResult;

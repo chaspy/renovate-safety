@@ -253,144 +253,17 @@ async function getRepoInfo(): Promise<[string, string]> {
 function extractFromRenovatePR(prData: PRData): PackageUpdate | null {
   // Handle monorepo cases first - extract from body table
   if (prData.title.toLowerCase().includes('monorepo')) {
-    // For monorepos, parse the markdown table structure
-    // Handle both direct backticks and markdown-wrapped versions:
-    // | [@types/jest](...) | `^29.5.12` -> `^30.0.0` | ... |
-    // | [jest](...) | [`^29.7.0` -> `^30.0.0`](url) | ... |
-    const patterns = [
-      // Pattern for versions wrapped in markdown links
-      /\|\s*\[([^\]]+)\][^|]*\|\s*\[`([^`]+)`\s*->\s*`([^`]+)`\][^|]*\|/g,
-      // Pattern for direct backtick versions
-      /\|\s*\[?([^|\]]+)\]?(?:\([^)]*\))?\s*\|\s*`([^`]+)`\s*->\s*`([^`]+)`\s*\|/g,
-    ];
-
-    let matches: RegExpMatchArray[] = [];
-
-    // Try both patterns
-    for (const pattern of patterns) {
-      const patternMatches = [...prData.body.matchAll(pattern)];
-      if (patternMatches.length > 0) {
-        matches = patternMatches;
-        break;
-      }
-    }
-
-    for (const match of matches) {
-      if (match?.[1] && match[2] && match[3]) {
-        const packageName = match[1].trim();
-        const fromVersion = match[2].trim();
-        const toVersion = match[3].trim();
-
-        // Skip header rows
-        if (packageName.toLowerCase() === 'package') {
-          continue;
-        }
-
-        // For monorepos, return the first valid package found
-        // Prefer the main package (e.g., 'jest' over '@types/jest')
-        const normalizedFrom = normalizeVersion(fromVersion);
-        const normalizedTo = normalizeVersion(toVersion);
-
-        if (normalizedFrom && normalizedTo) {
-          // If we find the main package, use it; otherwise use the first valid one
-          if (!packageName.startsWith('@types/')) {
-            return {
-              name: packageName,
-              fromVersion: normalizedFrom,
-              toVersion: normalizedTo,
-            };
-          }
-        }
-      }
-    }
-
-    // If we only found @types packages, use the first one
-    if (matches.length > 0 && matches[0][1] && matches[0][2] && matches[0][3]) {
-      const firstMatch = matches[0];
-      const normalizedFrom = normalizeVersion(firstMatch[2].trim());
-      const normalizedTo = normalizeVersion(firstMatch[3].trim());
-
-      if (normalizedFrom && normalizedTo) {
-        return {
-          name: firstMatch[1].trim(),
-          fromVersion: normalizedFrom,
-          toVersion: normalizedTo,
-        };
-      }
-    }
+    const monorepoResult = extractFromMonorepoTable(prData.body);
+    if (monorepoResult) return monorepoResult;
   }
 
-  // Common Renovate patterns
-  const patterns = [
-    // "Update dependency @types/node to v20.11.5"
-    /Update dependency (.+?) to v?(.+)$/,
-    // "Update @types/node from 20.11.4 to 20.11.5"
-    /Update (.+?) from v?(.+?) to v?(.+)$/,
-    // "chore(deps): update dependency @types/node to v20.11.5"
-    /chore\(deps\): update dependency (.+?) to v?(.+)$/,
-    // "fix(deps): update dependency @types/node to v20.11.5"
-    /fix\(deps\): update dependency (.+?) to v?(.+)$/,
-    // Branch name patterns: "renovate/node-20.x"
-    /renovate\/(.+?)-(.+)$/,
-  ];
+  // Try common Renovate patterns from title
+  const titleResult = extractFromRenovateTitle(prData);
+  if (titleResult) return titleResult;
 
-  // Try title first
-  for (const pattern of patterns) {
-    const match = prData.title.match(pattern);
-    if (match) {
-      if (match.length === 4) {
-        // Pattern with from and to versions
-        return {
-          name: match[1],
-          fromVersion: normalizeVersion(match[2]),
-          toVersion: normalizeVersion(match[3]),
-        };
-      } else if (match.length === 3) {
-        // Pattern with only to version - need to extract from version from PR body
-        const packageName = match[1];
-        const toVersionFromTitle = match[2];
-
-        // Extract full versions from body
-        const fromVersion = extractFromVersion(prData.body, packageName);
-        const toVersion = extractToVersion(prData.body, packageName);
-
-        // Use body version if available, otherwise try to use title version
-        if (fromVersion && toVersion) {
-          return {
-            name: packageName,
-            fromVersion: normalizeVersion(fromVersion),
-            toVersion: normalizeVersion(toVersion),
-          };
-        } else if (fromVersion && toVersionFromTitle) {
-          // If we only have from version from body, use title for to version
-          // But only if it looks like a complete version
-          if (/^\d+\.\d+\.\d+/.test(toVersionFromTitle)) {
-            return {
-              name: packageName,
-              fromVersion: normalizeVersion(fromVersion),
-              toVersion: normalizeVersion(toVersionFromTitle),
-            };
-          }
-        }
-      }
-    }
-  }
-
-  // Try branch name
-  const branchMatch = prData.branch.match(/renovate\/(.+?)-(.+)$/);
-  if (branchMatch) {
-    // Extract version info from PR body
-    const fromVersion = extractFromVersion(prData.body, branchMatch[1]);
-    const toVersion = extractToVersion(prData.body, branchMatch[1]);
-
-    if (fromVersion && toVersion) {
-      return {
-        name: branchMatch[1],
-        fromVersion: normalizeVersion(fromVersion),
-        toVersion: normalizeVersion(toVersion),
-      };
-    }
-  }
+  // Try branch name as fallback
+  const branchResult = extractFromBranchName(prData);
+  if (branchResult) return branchResult;
 
   return null;
 }
@@ -484,4 +357,161 @@ function normalizeVersion(version: string): string {
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractFromMonorepoTable(body: string): PackageUpdate | null {
+  // For monorepos, parse the markdown table structure
+  // Handle both direct backticks and markdown-wrapped versions:
+  // | [@types/jest](...) | `^29.5.12` -> `^30.0.0` | ... |
+  // | [jest](...) | [`^29.7.0` -> `^30.0.0`](url) | ... |
+  const patterns = [
+    // Pattern for versions wrapped in markdown links
+    /\|\s*\[([^\]]+)\][^|]*\|\s*\[`([^`]+)`\s*->\s*`([^`]+)`\][^|]*\|/g,
+    // Pattern for direct backtick versions
+    /\|\s*\[?([^|\]]+)\]?(?:\([^)]*\))?\s*\|\s*`([^`]+)`\s*->\s*`([^`]+)`\s*\|/g,
+  ];
+
+  let matches: RegExpMatchArray[] = [];
+
+  // Try both patterns
+  for (const pattern of patterns) {
+    const patternMatches = [...body.matchAll(pattern)];
+    if (patternMatches.length > 0) {
+      matches = patternMatches;
+      break;
+    }
+  }
+
+  for (const match of matches) {
+    if (match?.[1] && match[2] && match[3]) {
+      const packageName = match[1].trim();
+      const fromVersion = match[2].trim();
+      const toVersion = match[3].trim();
+
+      // Skip header rows
+      if (packageName.toLowerCase() === 'package') {
+        continue;
+      }
+
+      // For monorepos, return the first valid package found
+      // Prefer the main package (e.g., 'jest' over '@types/jest')
+      const normalizedFrom = normalizeVersion(fromVersion);
+      const normalizedTo = normalizeVersion(toVersion);
+
+      if (normalizedFrom && normalizedTo) {
+        // If we find the main package, use it; otherwise use the first valid one
+        if (!packageName.startsWith('@types/')) {
+          return {
+            name: packageName,
+            fromVersion: normalizedFrom,
+            toVersion: normalizedTo,
+          };
+        }
+      }
+    }
+  }
+
+  // If we only found @types packages, use the first one
+  if (matches.length > 0 && matches[0][1] && matches[0][2] && matches[0][3]) {
+    const firstMatch = matches[0];
+    const normalizedFrom = normalizeVersion(firstMatch[2].trim());
+    const normalizedTo = normalizeVersion(firstMatch[3].trim());
+
+    if (normalizedFrom && normalizedTo) {
+      return {
+        name: firstMatch[1].trim(),
+        fromVersion: normalizedFrom,
+        toVersion: normalizedTo,
+      };
+    }
+  }
+
+  return null;
+}
+
+function extractFromRenovateTitle(prData: PRData): PackageUpdate | null {
+  // Common Renovate patterns
+  const patterns = [
+    // "Update dependency @types/node to v20.11.5"
+    /Update dependency (.+?) to v?(.+)$/,
+    // "Update @types/node from 20.11.4 to 20.11.5"
+    /Update (.+?) from v?(.+?) to v?(.+)$/,
+    // "chore(deps): update dependency @types/node to v20.11.5"
+    /chore\(deps\): update dependency (.+?) to v?(.+)$/,
+    // "fix(deps): update dependency @types/node to v20.11.5"
+    /fix\(deps\): update dependency (.+?) to v?(.+)$/,
+    // Branch name patterns: "renovate/node-20.x"
+    /renovate\/(.+?)-(.+)$/,
+  ];
+
+  // Try title first
+  for (const pattern of patterns) {
+    const match = prData.title.match(pattern);
+    if (match) {
+      if (match.length === 4) {
+        // Pattern with from and to versions
+        return {
+          name: match[1],
+          fromVersion: normalizeVersion(match[2]),
+          toVersion: normalizeVersion(match[3]),
+        };
+      } else if (match.length === 3) {
+        // Pattern with only to version - need to extract from version from PR body
+        return extractVersionsFromBody(prData, match[1], match[2]);
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractVersionsFromBody(
+  prData: PRData,
+  packageName: string,
+  toVersionFromTitle: string
+): PackageUpdate | null {
+  // Extract full versions from body
+  const fromVersion = extractFromVersion(prData.body, packageName);
+  const toVersion = extractToVersion(prData.body, packageName);
+
+  // Use body version if available, otherwise try to use title version
+  if (fromVersion && toVersion) {
+    return {
+      name: packageName,
+      fromVersion: normalizeVersion(fromVersion),
+      toVersion: normalizeVersion(toVersion),
+    };
+  } else if (fromVersion && toVersionFromTitle) {
+    // If we only have from version from body, use title for to version
+    // But only if it looks like a complete version
+    if (/^\d+\.\d+\.\d+/.test(toVersionFromTitle)) {
+      return {
+        name: packageName,
+        fromVersion: normalizeVersion(fromVersion),
+        toVersion: normalizeVersion(toVersionFromTitle),
+      };
+    }
+  }
+
+  return null;
+}
+
+function extractFromBranchName(prData: PRData): PackageUpdate | null {
+  // Try branch name
+  const branchMatch = prData.branch.match(/renovate\/(.+?)-(.+)$/);
+  if (branchMatch) {
+    // Extract version info from PR body
+    const fromVersion = extractFromVersion(prData.body, branchMatch[1]);
+    const toVersion = extractToVersion(prData.body, branchMatch[1]);
+
+    if (fromVersion && toVersion) {
+      return {
+        name: branchMatch[1],
+        fromVersion: normalizeVersion(fromVersion),
+        toVersion: normalizeVersion(toVersion),
+      };
+    }
+  }
+
+  return null;
 }
