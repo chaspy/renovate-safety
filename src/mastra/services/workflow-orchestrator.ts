@@ -100,7 +100,7 @@ function extractCodeImpactData(codeImpactResult: any): any {
     // Extract affected files with more context
     const affectedFiles: string[] = [];
     const fileMatches = text.match(/src\/[^:\s]+\.(ts|js|tsx|jsx)/g) || [];
-    fileMatches.forEach(file => {
+    fileMatches.forEach((file: string) => {
       if (!affectedFiles.includes(file)) {
         affectedFiles.push(file);
       }
@@ -134,12 +134,12 @@ function extractCodeImpactData(codeImpactResult: any): any {
     
     // Enhanced fallback: Generate context-aware recommendations
     if (recommendations.length === 0) {
-      recommendations.push(...generateContextAwareRecommendations(text, totalUsages, affectedFiles, usageDetails));
+      recommendations.push(...generateContextAwareRecommendations(text, totalUsages, affectedFiles));
     }
     
     return {
       totalUsages,
-      criticalUsages: Array.from({length: criticalUsages}, (_, i) => ({ 
+      criticalUsages: Array.from({length: criticalUsages}, () => ({ 
         file: affectedFiles[0] || 'unknown',
         line: 0,
         reason: 'Usage detected'
@@ -270,8 +270,7 @@ function extractUsageDetails(text: string): Array<{file: string, usage: string, 
 function generateContextAwareRecommendations(
   text: string, 
   totalUsages: number, 
-  affectedFiles: string[], 
-  usageDetails: Array<{file: string, usage: string, context: string}>
+  affectedFiles: string[]
 ): string[] {
   const recommendations: string[] = [];
   
@@ -323,14 +322,6 @@ function generateContextAwareRecommendations(
   return recommendations.slice(0, 4); // Limit to 4 recommendations
 }
 
-// Fallback recommendations generator (legacy - now using generateContextAwareRecommendations)
-function generateFallbackRecommendations(text: string, totalUsages: number, affectedFiles: string[]): string[] {
-  // This function is kept for backwards compatibility but is no longer the primary recommendation generator
-  return [
-    'パッケージ更新の影響を慎重にテストしてください',
-    '関連するテストケースを実行してください'
-  ];
-}
 
 /**
  * Analyze a single dependency with parallel agent execution where possible
@@ -438,9 +429,6 @@ Use the tsUsageScanner and configScanner tools with these exact parameters:
     testCoverage: 0,
     criticalPathUsage: extractCriticalUsages(codeImpactResult) > 0,
     // Enhanced risk factors based on usage impact analysis
-    actualUsageImpact: usageImpact?.isAffected || false,
-    usageImpactRisk: usageImpact?.riskLevel || 'none',
-    usageImpactConfidence: usageImpact?.confidence || 0,
   }) as {
     level: 'safe' | 'low' | 'medium' | 'high' | 'critical';
     score: number;

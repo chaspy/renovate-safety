@@ -41,7 +41,7 @@ export async function translateRecommendation(rec: string): Promise<string> {
       throw new Error(`Translation API failed: ${response.status}`);
     }
     
-    const data = await response.json();
+    const data = await response.json() as any;
     const translated = data.choices?.[0]?.message?.content?.trim();
     
     return translated || rec; // Fallback to original if translation fails
