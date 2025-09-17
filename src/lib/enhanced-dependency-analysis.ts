@@ -111,14 +111,7 @@ export async function performEnhancedDependencyAnalysis(
   fromVersion: string,
   toVersion: string
 ): Promise<EnhancedDependencyAnalysis> {
-  const results = await executeInParallel<
-    | ImpactAnalysis
-    | VersionConstraints[]
-    | BreakingChangeRisk
-    | UsagePattern[]
-    | RelatedPackage[]
-    | UpdateCompatibility
-  >(
+  const results = await executeInParallel<unknown>(
     [
       () => analyzeImpact(packageName),
       () => analyzeVersionConstraints(packageName, fromVersion, toVersion),
@@ -141,8 +134,9 @@ export async function performEnhancedDependencyAnalysis(
           testImpact: 'none',
           securityImpact: [],
         }
-      : results[0];
-  const versionConstraints: VersionConstraints[] = results[1] instanceof Error ? [] : results[1];
+      : (results[0] as ImpactAnalysis);
+  const versionConstraints: VersionConstraints[] =
+    results[1] instanceof Error ? [] : (results[1] as VersionConstraints[]);
   const breakingChangeRisk: BreakingChangeRisk =
     results[2] instanceof Error
       ? {
@@ -152,9 +146,11 @@ export async function performEnhancedDependencyAnalysis(
           behaviorChanges: [],
           removalChanges: [],
         }
-      : results[2];
-  const usagePatterns: UsagePattern[] = results[3] instanceof Error ? [] : results[3];
-  const relatedPackages: RelatedPackage[] = results[4] instanceof Error ? [] : results[4];
+      : (results[2] as BreakingChangeRisk);
+  const usagePatterns: UsagePattern[] =
+    results[3] instanceof Error ? [] : (results[3] as UsagePattern[]);
+  const relatedPackages: RelatedPackage[] =
+    results[4] instanceof Error ? [] : (results[4] as RelatedPackage[]);
   const updateCompatibility: UpdateCompatibility =
     results[5] instanceof Error
       ? {
@@ -163,7 +159,7 @@ export async function performEnhancedDependencyAnalysis(
           migrationEffort: 'minimal',
           alternativeVersions: [],
         }
-      : results[5];
+      : (results[5] as UpdateCompatibility);
 
   return {
     packageName,

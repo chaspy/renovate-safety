@@ -141,7 +141,7 @@ export async function performEnhancedCodeAnalysis(
     };
   }
 
-  const results = await executeInParallel<SemanticChange[] | ApiChange[] | BreakingPattern[]>(
+  const results = await executeInParallel<unknown>(
     [
       () => analyzeSemanticChanges(codeDiff),
       () => analyzeApiChanges(codeDiff),
@@ -151,9 +151,11 @@ export async function performEnhancedCodeAnalysis(
     { concurrency: 4 }
   );
 
-  const semanticChanges: SemanticChange[] = results[0] instanceof Error ? [] : results[0];
-  const apiChanges: ApiChange[] = results[1] instanceof Error ? [] : results[1];
-  const breakingPatterns: BreakingPattern[] = results[2] instanceof Error ? [] : results[2];
+  const semanticChanges: SemanticChange[] =
+    results[0] instanceof Error ? [] : (results[0] as SemanticChange[]);
+  const apiChanges: ApiChange[] = results[1] instanceof Error ? [] : (results[1] as ApiChange[]);
+  const breakingPatterns: BreakingPattern[] =
+    results[2] instanceof Error ? [] : (results[2] as BreakingPattern[]);
   const fileImpactAnalysis: FileImpactAnalysis =
     results[3] instanceof Error
       ? {
@@ -165,7 +167,7 @@ export async function performEnhancedCodeAnalysis(
           riskDistribution: {},
           affectedAreas: [],
         }
-      : results[3];
+      : (results[3] as FileImpactAnalysis);
 
   const migrationComplexity = assessMigrationComplexity(
     semanticChanges,
