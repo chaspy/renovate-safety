@@ -46,7 +46,13 @@ export async function getPackageRepository(packageName: string): Promise<string 
 
       if (typeof data === 'object' && (data as { repository?: unknown }).repository) {
         const repo = (data as { repository?: string | { url?: string } }).repository;
-        return typeof repo === 'string' ? repo : (repo && typeof repo.url === 'string' ? repo.url : null);
+        if (typeof repo === 'string') {
+          return repo;
+        } else if (repo && typeof repo.url === 'string') {
+          return repo.url;
+        } else {
+          return null;
+        }
       }
 
       return null;
@@ -54,7 +60,7 @@ export async function getPackageRepository(packageName: string): Promise<string 
     'fetch repository',
     packageName
   );
-  
+
   return result ?? null;
 }
 

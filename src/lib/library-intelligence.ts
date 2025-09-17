@@ -251,11 +251,14 @@ async function gatherPackageInfo(packageName: string): Promise<PackageInfo> {
 
     // Safe author extraction
     const authorData = safeProp(extendedData, 'author');
-    const author = typeof authorData === 'string'
-      ? authorData
-      : typeof authorData === 'object' && authorData !== null
-      ? String(safeProp(authorData, 'name') || '')
-      : undefined;
+    let author: string | undefined;
+    if (typeof authorData === 'string') {
+      author = authorData;
+    } else if (typeof authorData === 'object' && authorData !== null) {
+      author = String(safeProp(authorData, 'name') || '');
+    } else {
+      author = undefined;
+    }
 
     // Safe maintainers extraction
     const maintainersData = safeProp(extendedData, 'maintainers');
@@ -271,17 +274,21 @@ async function gatherPackageInfo(packageName: string): Promise<PackageInfo> {
 
     // Safe time/date extraction
     const timeData = safeProp(extendedData, 'time');
-    const publishedAt = typeof data.time?.[data.version] === 'string'
-      ? data.time[data.version]
-      : typeof timeData === 'object' && timeData !== null
-      ? String(safeProp(timeData, 'created') || '')
-      : '';
+    let publishedAt: string;
+    if (typeof data.time?.[data.version] === 'string') {
+      publishedAt = data.time[data.version];
+    } else if (typeof timeData === 'object' && timeData !== null) {
+      publishedAt = String(safeProp(timeData, 'created') || '');
+    } else {
+      publishedAt = '';
+    }
 
     // Safe dist/size extraction
     const distData = safeProp(extendedData, 'dist');
-    const unpackedSize = typeof safeProp(distData, 'unpackedSize') === 'number'
-      ? Number(safeProp(distData, 'unpackedSize'))
-      : 0;
+    const unpackedSize =
+      typeof safeProp(distData, 'unpackedSize') === 'number'
+        ? Number(safeProp(distData, 'unpackedSize'))
+        : 0;
 
     return {
       description: data.description || 'No description available',
@@ -352,12 +359,12 @@ async function gatherMaintenanceInfo(packageName: string): Promise<MaintenanceIn
 
     if (repoInfo) {
       const repo = repoInfo as Record<string, unknown>;
-      
+
       // Safe property extraction with type checking
       const lastUpdated = typeof repo.updated_at === 'string' ? repo.updated_at : '';
       const openIssues = typeof repo.open_issues_count === 'number' ? repo.open_issues_count : 0;
       const hasFunding = typeof repo.has_funding === 'boolean' ? repo.has_funding : false;
-      
+
       return {
         lastUpdated,
         releaseFrequency: analyzeReleaseFrequency(repoInfo),
@@ -417,10 +424,10 @@ async function gatherPopularityMetrics(packageName: string): Promise<PopularityM
 
     // Get GitHub stats if repository is available
     const githubStats = await getGitHubStats(packageName);
-    
+
     let githubStars = 0;
     let githubForks = 0;
-    
+
     if (githubStats && typeof githubStats === 'object') {
       const stats = githubStats as Record<string, unknown>;
       githubStars = typeof stats.stargazers_count === 'number' ? stats.stargazers_count : 0;
@@ -464,26 +471,30 @@ async function gatherTechnicalDetails(
     const extendedData = data as unknown as Record<string, unknown>;
 
     // Safe extraction of dist information
-    const distData = extendedData.dist && typeof extendedData.dist === 'object' 
-      ? extendedData.dist as Record<string, unknown>
-      : {};
-    const unpackedSize = typeof distData.unpackedSize === 'number' ? distData.unpackedSize : undefined;
+    const distData =
+      extendedData.dist && typeof extendedData.dist === 'object'
+        ? (extendedData.dist as Record<string, unknown>)
+        : {};
+    const unpackedSize =
+      typeof distData.unpackedSize === 'number' ? distData.unpackedSize : undefined;
 
     // Safe extraction of engines information
-    const enginesData = extendedData.engines && typeof extendedData.engines === 'object'
-      ? extendedData.engines as Record<string, unknown>
-      : {};
+    const enginesData =
+      extendedData.engines && typeof extendedData.engines === 'object'
+        ? (extendedData.engines as Record<string, unknown>)
+        : {};
     const nodeVersion = typeof enginesData.node === 'string' ? enginesData.node : undefined;
 
     // Safe extraction of browserslist
-    const browserslistData = Array.isArray(extendedData.browserslist) 
-      ? extendedData.browserslist as string[]
+    const browserslistData = Array.isArray(extendedData.browserslist)
+      ? (extendedData.browserslist as string[])
       : undefined;
 
     // Safe extraction of optional dependencies
-    const optionalDeps = extendedData.optionalDependencies && typeof extendedData.optionalDependencies === 'object'
-      ? extendedData.optionalDependencies as Record<string, unknown>
-      : {};
+    const optionalDeps =
+      extendedData.optionalDependencies && typeof extendedData.optionalDependencies === 'object'
+        ? (extendedData.optionalDependencies as Record<string, unknown>)
+        : {};
 
     return {
       bundleSize: {
