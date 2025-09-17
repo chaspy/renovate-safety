@@ -91,7 +91,7 @@ export function calculateBaseRiskScore(factors: {
   // Version jump impact (0-40 points)
   score += factors.versionJump.major * 20;
   score += factors.versionJump.minor * 5;
-  score += factors.versionJump.patch * 1;
+  score += Number(factors.versionJump.patch) * 1;
 
   // Usage impact (0-30 points)
   score += Math.min(factors.usage.directUsageCount * 2, 20);

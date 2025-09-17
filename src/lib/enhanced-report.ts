@@ -92,9 +92,12 @@ export async function generateEnhancedReport(
         : `- **npm diff command**: \`npm diff ${result.package.name}@${result.package.fromVersion} ${result.package.name}@${result.package.toVersion}\`\n`;
       report += '\n';
     }
-  } catch {
-    // Error handling - silently ignore
-    // Ignore library description fetch failure
+  } catch (error) {
+    console.warn(
+      `Library intelligence fetch failed for ${result.package.name}:`,
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+    // Continue with fallback behavior - report will proceed without library intelligence section
   }
 
   // Functional-level change summary from code diff (if available)
@@ -108,9 +111,12 @@ export async function generateEnhancedReport(
         bullets.slice(0, 5).forEach((b) => (report += `- ${b}\n`));
         report += '\n';
       }
-    } catch {
-      // Error handling - silently ignore
-      // Ignore library description fetch failure
+    } catch (error) {
+      console.warn(
+        `API diff analysis failed for ${result.package.name}:`,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+      // Continue with fallback behavior - report will proceed without functional changes section
     }
   }
 
@@ -243,9 +249,12 @@ export async function generateEnhancedReport(
       try {
         const repo = await getRepositoryFromGit();
         if (repo) linkOptions = { repository: repo };
-      } catch {
-        // Error handling - silently ignore
-        // Ignore library description fetch failure
+      } catch (error) {
+        console.warn(
+          'Failed to get git repository info:',
+          error instanceof Error ? error.message : 'Unknown error'
+        );
+        // Continue without repository context - report will use package repository info instead
       }
 
       const byFile = groupBy(codeUsages, 'filePath');
@@ -343,9 +352,12 @@ export async function generateEnhancedReport(
   if (isJa) {
     try {
       actions = await translateRecommendations(actions, 'ja');
-    } catch {
-      // Error handling - silently ignore
-      // Ignore library description fetch failure
+    } catch (error) {
+      console.warn(
+        'Translation service failed, using original actions:',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+      // Continue with original English actions instead of translated ones
     }
   }
   actions.forEach((action: string) => {
@@ -467,9 +479,12 @@ function calculateVersionJump(from: string, to: string): string | null {
     if (patchJump > 0) return `Patch version jump (+${patchJump})`;
 
     return null;
-  } catch {
-    // Error handling - silently ignore
-    return null;
+  } catch (error) {
+    console.warn(
+      'Version comparison failed:',
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+    return null; // Unable to determine version jump due to parsing error
   }
 }
 

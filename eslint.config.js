@@ -53,16 +53,16 @@ export default [
       '@typescript-eslint/prefer-string-starts-ends-with': 'error', // Use String#startsWith/endsWith
       'no-useless-escape': 'error', // No unnecessary escape characters
       '@typescript-eslint/no-unnecessary-type-assertion': 'error', // No unnecessary type assertions
-      '@typescript-eslint/restrict-template-expressions': ['warn', { 
+      '@typescript-eslint/restrict-template-expressions': ['error', { 
         allowNumber: true, 
         allowBoolean: false, 
         allowAny: false,
         allowNullish: true,
         allowRegExp: false 
       }], // Prevent object stringification in templates
-      '@typescript-eslint/no-confusing-void-expression': 'warn', // Avoid confusing void expressions
-      'no-implicit-coercion': 'warn', // Prefer explicit type conversion
-      '@typescript-eslint/prefer-readonly': 'warn', // Re-enabled with warning level for gradual adoption
+      '@typescript-eslint/no-confusing-void-expression': 'error', // Avoid confusing void expressions
+      'no-implicit-coercion': 'error', // Prefer explicit type conversion
+      '@typescript-eslint/prefer-readonly': 'error', // Re-enabled for enhanced immutability
       'no-warning-comments': ['warn', { terms: ['TODO', 'FIXME'], location: 'start' }], // Warn on task markers
     },
   },

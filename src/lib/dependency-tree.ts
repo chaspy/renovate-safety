@@ -156,13 +156,20 @@ function parseNpmLsOutput(data: unknown, packageName: string): DependencyUsage |
   let isDirect = false;
   let usageType: DependencyUsage['usageType'] = 'dependencies';
 
-  function traverse(node: unknown, path: string[]): void {
-    const nodeWithDeps = node as { dependencies?: Record<string, unknown> };
-    if (!nodeWithDeps?.dependencies) return;
+  // Type guard for npm dependency node structure
+  function isNodeWithDependencies(
+    node: unknown
+  ): node is { dependencies?: Record<string, { version?: string; [key: string]: unknown }> } {
+    return typeof node === 'object' && node !== null && 'dependencies' in node;
+  }
 
-    for (const [depName, depInfo] of Object.entries(nodeWithDeps.dependencies)) {
+  function traverse(node: unknown, path: string[]): void {
+    if (!isNodeWithDependencies(node) || !node.dependencies) return;
+
+    for (const [depName, depInfo] of Object.entries(node.dependencies)) {
       if (depName === packageName) {
-        const info = depInfo as { version?: string };
+        // Type is now safely known from the type guard
+        const info = depInfo;
         dependents.push({
           name: depName,
           version: info.version || 'unknown',

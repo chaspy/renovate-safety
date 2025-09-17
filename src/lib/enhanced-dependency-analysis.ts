@@ -261,18 +261,25 @@ function extractTransitiveUsages(
   usages: TransitiveUsage[],
   visited = new Set<string>()
 ): void {
-  const nodeWithDeps = node as { dependencies?: Record<string, unknown> };
-  if (!nodeWithDeps?.dependencies) return;
+  // Type guard for npm dependency node structure
+  function isNodeWithDependencies(
+    node: unknown
+  ): node is { dependencies?: Record<string, { version?: string; [key: string]: unknown }> } {
+    return typeof node === 'object' && node !== null && 'dependencies' in node;
+  }
+
+  if (!isNodeWithDependencies(node) || !node.dependencies) return;
 
   const nodeKey = `${path.join('>')}-${targetPackage}`;
   if (visited.has(nodeKey)) return;
   visited.add(nodeKey);
 
-  for (const [depName, depInfo] of Object.entries(nodeWithDeps.dependencies)) {
+  for (const [depName, depInfo] of Object.entries(node.dependencies)) {
     const currentPath = [...path, depName];
 
     if (depName === targetPackage && path.length > 0) {
-      const info = depInfo as { version?: string };
+      // Type is now safely known from the type guard
+      const info = depInfo;
       const conflicts = detectVersionConflicts(info, currentPath);
 
       usages.push({
