@@ -400,7 +400,9 @@ async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDif
 
     // Try to extract from package description or release notes
     // const fromRelease = data.releases?.[packageUpdate.fromVersion]?.[0];
-    const toRelease = (data as any).releases?.[packageUpdate.toVersion]?.[0];
+    const toRelease = (
+      data as unknown as { releases?: Record<string, Array<{ description?: string }>> }
+    ).releases?.[packageUpdate.toVersion]?.[0];
 
     if (toRelease?.description) {
       // PyPI descriptions often contain changelog info

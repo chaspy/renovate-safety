@@ -100,7 +100,7 @@ async function analyzePackageJson(packageName: string): Promise<DependencyUsage 
   try {
     const packageJsonPath = path.join(process.cwd(), 'package.json');
     const packageJsonData = await readJsonFile(packageJsonPath);
-    const packageJson = packageJsonData as any;
+    const packageJson = packageJsonData as { name?: string; [key: string]: unknown };
 
     const dependents: DependentInfo[] = [];
     let usageType: DependencyUsage['usageType'] = 'dependencies';
@@ -115,12 +115,13 @@ async function analyzePackageJson(packageName: string): Promise<DependencyUsage 
     ] as const;
 
     for (const depType of depTypes) {
-      if (packageJson[depType]?.[packageName]) {
+      const deps = packageJson[depType] as Record<string, string> | undefined;
+      if (deps?.[packageName]) {
         isDirect = true;
         usageType = depType;
         dependents.push({
           name: packageJson.name || 'root',
-          version: packageJson[depType][packageName],
+          version: deps[packageName],
           path: [packageJson.name || 'root'],
           type: 'direct',
         });
@@ -155,13 +156,20 @@ function parseNpmLsOutput(data: unknown, packageName: string): DependencyUsage |
   let isDirect = false;
   let usageType: DependencyUsage['usageType'] = 'dependencies';
 
-  function traverse(node: unknown, path: string[]): void {
-    const nodeWithDeps = node as any;
-    if (!nodeWithDeps?.dependencies) return;
+  // Type guard for npm dependency node structure
+  function isNodeWithDependencies(
+    node: unknown
+  ): node is { dependencies?: Record<string, { version?: string; [key: string]: unknown }> } {
+    return typeof node === 'object' && node !== null && 'dependencies' in node;
+  }
 
-    for (const [depName, depInfo] of Object.entries(nodeWithDeps.dependencies)) {
+  function traverse(node: unknown, path: string[]): void {
+    if (!isNodeWithDependencies(node) || !node.dependencies) return;
+
+    for (const [depName, depInfo] of Object.entries(node.dependencies)) {
       if (depName === packageName) {
-        const info = depInfo as any;
+        // Type is now safely known from the type guard
+        const info = depInfo;
         dependents.push({
           name: depName,
           version: info.version || 'unknown',
@@ -199,7 +207,7 @@ function parseYarnWhyOutput(jsonData: unknown[], packageName: string): Dependenc
   let usageType: DependencyUsage['usageType'] = 'dependencies';
 
   for (const item of jsonData) {
-    const typedItem = item as any;
+    const typedItem = item as { type?: string; data?: unknown };
     if (typedItem.type === 'info' && typedItem.data) {
       const data = typedItem.data;
       if (typeof data === 'string' && data.includes(packageName)) {

@@ -28,7 +28,7 @@ export interface PackageInfo {
  * Consolidates the duplicate pattern across multiple files
  */
 export async function getPackageRepository(packageName: string): Promise<string | null> {
-  return tryWithLogging(
+  const result = await tryWithLogging(
     async () => {
       const result = await secureNpmExec('view', [packageName, 'repository.url', '--json']);
 
@@ -44,9 +44,15 @@ export async function getPackageRepository(packageName: string): Promise<string 
         return data;
       }
 
-      if (typeof data === 'object' && (data as any).repository) {
-        const repo = (data as any).repository;
-        return typeof repo === 'string' ? repo : repo.url;
+      if (typeof data === 'object' && (data as { repository?: unknown }).repository) {
+        const repo = (data as { repository?: string | { url?: string } }).repository;
+        if (typeof repo === 'string') {
+          return repo;
+        } else if (repo && typeof repo.url === 'string') {
+          return repo.url;
+        } else {
+          return null;
+        }
       }
 
       return null;
@@ -54,6 +60,8 @@ export async function getPackageRepository(packageName: string): Promise<string 
     'fetch repository',
     packageName
   );
+
+  return result ?? null;
 }
 
 /**
@@ -73,6 +81,28 @@ export async function getPackageMetadata(packageSpec: string): Promise<PackageIn
       return data;
     },
     'fetch metadata',
+    packageSpec
+  );
+}
+
+/**
+ * Get raw package metadata for processing
+ */
+export async function getPackageRawData(
+  packageSpec: string
+): Promise<Record<string, unknown> | null> {
+  return tryWithLogging(
+    async () => {
+      const result = await secureNpmExec('view', [packageSpec, '--json']);
+
+      if (!isSuccessful(result)) {
+        return null;
+      }
+
+      const data = parseJsonOutput<Record<string, unknown>>(result.stdout);
+      return data;
+    },
+    'fetch raw metadata',
     packageSpec
   );
 }

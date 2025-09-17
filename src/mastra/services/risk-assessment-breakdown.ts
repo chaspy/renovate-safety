@@ -2,6 +2,7 @@
  * Risk Assessment Breakdown Helpers
  * Extracted from report-generator.ts to reduce cognitive complexity
  */
+import type { UsageImpact } from '../tools/usage-impact-analyzer.js';
 
 // Helper function to get repository URL from package name
 function getRepositoryUrl(packageName: string): string | null {
@@ -242,7 +243,7 @@ function formatBreakingChangesList(dependency: any, releaseNotes: any, isJapanes
     markdown += `  ${index + 1}. **${changeText}** (+${pointsContribution}${isJapanese ? '点' : ' points'})\n`;
     markdown += `     - ${isJapanese ? '重要度' : 'Severity'}: ${severity.toUpperCase()}\n`;
     markdown += `     - ${isJapanese ? 'ソース' : 'Source'}: ${source}\n`;
-    markdown += formatChangeSourceLinks(change, dependency, releaseNotes, source, isJapanese);
+    markdown += formatChangeSourceLinks(dependency, releaseNotes, source, isJapanese);
     markdown += formatChangeImpactNote(changeText, isJapanese);
     markdown += '\n';
   });
@@ -251,7 +252,6 @@ function formatBreakingChangesList(dependency: any, releaseNotes: any, isJapanes
 }
 
 function formatChangeSourceLinks(
-  change: any,
   dependency: any,
   releaseNotes: any,
   source: string,
@@ -362,13 +362,14 @@ function generateActualImpactSection(assessment: any, isJapanese: boolean): stri
   return markdown + '\n';
 }
 
-function formatAffectedCodeImpact(usageImpact: any, isJapanese: boolean): string {
-  const riskEmoji = {
+function formatAffectedCodeImpact(usageImpact: UsageImpact, isJapanese: boolean): string {
+  const riskEmojiMap: Record<UsageImpact['riskLevel'], string> = {
     'high': '🔴',
     'medium': '🟡',
     'low': '🟢',
     'none': '⚪'
-  }[usageImpact.riskLevel] || '⚪';
+  };
+  const riskEmoji = riskEmojiMap[usageImpact.riskLevel] || '⚪';
 
   let markdown = isJapanese
     ? `- **実際に影響を受けるコードが検出されました** ${riskEmoji} **${usageImpact.riskLevel.toUpperCase()}リスク**\n`

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { spawn } from 'child_process';
+import { RuntimeContext } from '@mastra/core/runtime-context';
 import { npmDiffTool, parseDiff } from '../npm-diff.js';
 
 // Mockの設定
@@ -57,7 +58,7 @@ describe('npm diff Tool', () => {
           fromVersion: '24.0.6',
           toVersion: '24.0.10',
         },
-        runtimeContext: undefined as any,
+        runtimeContext: new RuntimeContext(),
       });
 
       expect(spawn).toHaveBeenCalledWith('npm', [
@@ -139,7 +140,7 @@ describe('npm diff Tool', () => {
           fromVersion: '1.0.0',
           toVersion: '2.0.0',
         },
-        runtimeContext: undefined as any,
+        runtimeContext: new RuntimeContext(),
       });
 
       expect(result.success).toBe(false);
@@ -179,7 +180,7 @@ describe('npm diff Tool', () => {
           fromVersion: '1.0.0',
           toVersion: '2.0.0',
         },
-        runtimeContext: undefined as any,
+        runtimeContext: new RuntimeContext(),
       });
 
       expect(result.success).toBe(false);

@@ -1,6 +1,5 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import type { Endpoints } from '@octokit/types';
 import { getEnvironmentConfig } from '../../lib/env-config.js';
 import { secureSystemExec } from '../../lib/secure-exec.js';
 import {
@@ -8,8 +7,6 @@ import {
   fetchPRWithOctokit,
   createErrorResponse,
 } from './get-pr-info-helpers.js';
-
-type PullRequestResponse = Endpoints['GET /repos/{owner}/{repo}/pulls/{pull_number}']['response'];
 
 // Helper function to get repo info
 async function getRepoInfo(): Promise<[string, string]> {

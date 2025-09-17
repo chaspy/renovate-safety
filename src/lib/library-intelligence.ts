@@ -1,8 +1,36 @@
 import { secureNpmExec } from './secure-exec.js';
-import { getPackageMetadata } from './npm-registry.js';
+import { getPackageRawData } from './npm-registry.js';
 import { validatePackageName } from './validation.js';
 import { safeJsonParse } from './safe-json.js';
 import { loggers } from './logger.js';
+import {
+  FALLBACK_VALUES,
+  RELEASE_FREQUENCIES,
+  MAINTAINER_RESPONSES,
+  COMMUNITY_HEALTH_LEVELS,
+  AUDIT_STATUSES,
+  COMPLEXITY_LEVELS,
+  MIGRATION_COMPLEXITY,
+} from './constants.js';
+import {
+  createSafeExtractor,
+  extractAuthorInfo,
+  extractMaintainers,
+  extractPublishedDate,
+  extractSizeInfo,
+  isRecord,
+} from './utils/safe-property-access.js';
+import {
+  categorizePackage,
+  detectFramework,
+  detectRuntime,
+  findAlternatives,
+  findComplementaryPackages,
+  hasESModules,
+  hasTypeDefinitions,
+  parseNodeSupport,
+  parseBrowserSupport,
+} from './utils/package-helpers.js';
 
 export interface LibraryIntelligence {
   packageName: string;
@@ -229,57 +257,69 @@ export async function gatherLibraryIntelligence(
 
 async function gatherPackageInfo(packageName: string): Promise<PackageInfo> {
   try {
-    // Validate package name first
     const safeName = validatePackageName(packageName);
-
-    // Get package info from npm registry using centralized utility
-    const data = await getPackageMetadata(safeName);
+    const data = await getPackageRawData(safeName);
 
     if (!data) {
       return getDefaultPackageInfo();
     }
 
-    const extendedData = data as any; // Type extension for additional properties
-
-    return {
-      description: data.description || 'No description available',
-      keywords: data.keywords || [],
-      license: data.license || 'Unknown',
-      homepage: data.homepage,
-      repository: typeof data.repository === 'object' ? data.repository.url : data.repository,
-      author:
-        extendedData.author && typeof extendedData.author === 'object'
-          ? extendedData.author.name
-          : extendedData.author,
-      maintainers:
-        extendedData.maintainers?.map((m: unknown) =>
-          typeof m === 'object' && m !== null && 'name' in m ? (m as { name: string }).name : m
-        ) || [],
-      latestVersion: data.version,
-      publishedAt: data.time?.[data.version] || extendedData.time?.created,
-      size: {
-        unpacked: extendedData.dist?.unpackedSize || 0,
-        gzipped: extendedData.dist?.['npm-signature'] ? undefined : 0,
-      },
-    };
+    return buildPackageInfo(data);
   } catch (error) {
     console.debug('Failed to gather package info:', error);
     return getDefaultPackageInfo();
   }
 }
 
+/**
+ * Build PackageInfo from npm metadata
+ */
+function buildPackageInfo(data: Record<string, unknown>): PackageInfo {
+  const extractor = createSafeExtractor(data);
+  const author = extractAuthorInfo(data);
+  const maintainers = extractMaintainers(data);
+  const publishedAt = extractPublishedDate(data, extractor.getString('version'));
+  const sizeInfo = extractSizeInfo(data);
+
+  return {
+    description: extractor.getString('description', FALLBACK_VALUES.DESCRIPTION),
+    keywords: extractor.getArray('keywords'),
+    license: extractor.getString('license', FALLBACK_VALUES.LICENSE),
+    homepage: extractor.getOptionalString('homepage'),
+    repository: extractRepositoryUrl(extractor.getObject('repository')),
+    author,
+    maintainers,
+    latestVersion: extractor.getString('version', FALLBACK_VALUES.VERSION),
+    publishedAt,
+    size: {
+      unpacked: sizeInfo.unpacked,
+      gzipped: sizeInfo.gzipped,
+    },
+  };
+}
+
+/**
+ * Extract repository URL from repository field
+ */
+function extractRepositoryUrl(repository: unknown): string | undefined {
+  if (typeof repository === 'string') {
+    return repository;
+  }
+
+  if (isRecord(repository) && 'url' in repository) {
+    return typeof repository.url === 'string' ? repository.url : undefined;
+  }
+
+  return undefined;
+}
+
 async function gatherEcosystemInfo(packageName: string): Promise<EcosystemInfo> {
   try {
-    // Validate package name first
     const safeName = validatePackageName(packageName);
-
-    // Analyze package ecosystem using secure execution
     const result = await secureNpmExec(
       'view',
       [safeName, 'keywords', 'peerDependencies', '--json'],
-      {
-        timeout: 10000,
-      }
+      { timeout: FALLBACK_VALUES.TIMEOUT_DEFAULT }
     );
 
     if (!result.success) {
@@ -287,46 +327,40 @@ async function gatherEcosystemInfo(packageName: string): Promise<EcosystemInfo> 
       return getDefaultEcosystemInfo();
     }
 
-    const data = safeJsonParse(result.stdout, {}) as { keywords?: string[] };
-    const keywords = data.keywords || [];
-
-    // Determine category based on keywords and package name
-    const category = categorizePackage(packageName, keywords);
-    const framework = detectFramework(packageName, keywords);
-    const runtime = detectRuntime(packageName, keywords);
-
-    return {
-      packageManager: 'npm',
-      runtime,
-      framework,
-      category,
-      alternatives: await findAlternatives(packageName, category),
-      complementaryPackages: findComplementaryPackages(packageName),
-    };
+    return await buildEcosystemInfo(packageName, result.stdout);
   } catch (error) {
     console.debug('Failed to gather ecosystem info:', error);
     return getDefaultEcosystemInfo();
   }
 }
 
+/**
+ * Build EcosystemInfo from npm data
+ */
+async function buildEcosystemInfo(packageName: string, stdout: string): Promise<EcosystemInfo> {
+  const data = safeJsonParse(stdout, {}) as { keywords?: string[] };
+  const keywords = data.keywords || [];
+
+  const category = categorizePackage(packageName, keywords);
+  const framework = detectFramework(packageName, keywords);
+  const runtime = detectRuntime(packageName, keywords);
+
+  return {
+    packageManager: 'npm',
+    runtime,
+    framework,
+    category,
+    alternatives: await findAlternatives(packageName, category),
+    complementaryPackages: findComplementaryPackages(packageName),
+  };
+}
+
 async function gatherMaintenanceInfo(packageName: string): Promise<MaintenanceInfo> {
   try {
-    // Get maintenance metrics from GitHub API if available
     const repoInfo = await getGitHubRepoInfo(packageName);
 
     if (repoInfo) {
-      const repo = repoInfo as any;
-      return {
-        lastUpdated: repo.updated_at || '',
-        releaseFrequency: analyzeReleaseFrequency(repoInfo),
-        maintainerResponse: 'unknown', // Would need GitHub API analysis
-        openIssues: repo.open_issues_count || 0,
-        closedIssues: 0, // Would need additional API call
-        openPullRequests: 0, // Would need additional API call
-        communityHealth: 'average',
-        funding: !!repo.has_funding,
-        sponsors: [],
-      };
+      return buildMaintenanceInfo(repoInfo);
     }
 
     return getDefaultMaintenanceInfo();
@@ -334,6 +368,25 @@ async function gatherMaintenanceInfo(packageName: string): Promise<MaintenanceIn
     console.debug('Failed to gather maintenance info:', error);
     return getDefaultMaintenanceInfo();
   }
+}
+
+/**
+ * Build MaintenanceInfo from GitHub repository data
+ */
+function buildMaintenanceInfo(repoInfo: unknown): MaintenanceInfo {
+  const extractor = createSafeExtractor(repoInfo);
+
+  return {
+    lastUpdated: extractor.getString('updated_at', FALLBACK_VALUES.EMPTY_STRING),
+    releaseFrequency: analyzeReleaseFrequency(repoInfo),
+    maintainerResponse: MAINTAINER_RESPONSES.UNKNOWN,
+    openIssues: extractor.getNumber('open_issues_count', 0),
+    closedIssues: 0, // Would need additional API call
+    openPullRequests: 0, // Would need additional API call
+    communityHealth: COMMUNITY_HEALTH_LEVELS.AVERAGE,
+    funding: extractor.getBoolean('has_funding', false),
+    sponsors: [],
+  };
 }
 
 async function gatherSecurityInfo(packageName: string): Promise<SecurityInfo> {
@@ -367,7 +420,7 @@ async function gatherPopularityMetrics(packageName: string): Promise<PopularityM
     const safeName = validatePackageName(packageName);
 
     // Get package data using centralized utility
-    const packageData = await getPackageMetadata(safeName);
+    const packageData = await getPackageRawData(safeName);
 
     if (!packageData) {
       return getDefaultPopularityMetrics();
@@ -375,7 +428,15 @@ async function gatherPopularityMetrics(packageName: string): Promise<PopularityM
 
     // Get GitHub stats if repository is available
     const githubStats = await getGitHubStats(packageName);
-    const stats = githubStats as any;
+
+    let githubStars = 0;
+    let githubForks = 0;
+
+    if (githubStats && typeof githubStats === 'object') {
+      const stats = githubStats as Record<string, unknown>;
+      githubStars = typeof stats.stargazers_count === 'number' ? stats.stargazers_count : 0;
+      githubForks = typeof stats.forks_count === 'number' ? stats.forks_count : 0;
+    }
 
     return {
       downloads: {
@@ -383,8 +444,8 @@ async function gatherPopularityMetrics(packageName: string): Promise<PopularityM
         weekly: 0,
         monthly: 0,
       },
-      githubStars: stats?.stargazers_count || 0,
-      githubForks: stats?.forks_count || 0,
+      githubStars,
+      githubForks,
       dependentRepos: 0, // Would need dependents API
       dependentPackages: 0,
       trendingScore: 0,
@@ -405,28 +466,54 @@ async function gatherTechnicalDetails(
     const safeVersion = version; // Version is already validated in the package string
 
     // Get package.json to analyze technical details
-    const data = await getPackageMetadata(`${safeName}@${safeVersion}`);
+    const data = await getPackageRawData(`${safeName}@${safeVersion}`);
 
     if (!data) {
       return getDefaultTechnicalDetails();
     }
 
-    const extendedData = data as any;
+    const extendedData = data;
+
+    // Safe extraction of dist information
+    const distData =
+      extendedData.dist && typeof extendedData.dist === 'object'
+        ? (extendedData.dist as Record<string, unknown>)
+        : {};
+    const unpackedSize =
+      typeof distData.unpackedSize === 'number' ? distData.unpackedSize : undefined;
+
+    // Safe extraction of engines information
+    const enginesData =
+      extendedData.engines && typeof extendedData.engines === 'object'
+        ? (extendedData.engines as Record<string, unknown>)
+        : {};
+    const nodeVersion = typeof enginesData.node === 'string' ? enginesData.node : undefined;
+
+    // Safe extraction of browserslist
+    const browserslistData = Array.isArray(extendedData.browserslist)
+      ? (extendedData.browserslist as string[])
+      : undefined;
+
+    // Safe extraction of optional dependencies
+    const optionalDeps =
+      extendedData.optionalDependencies && typeof extendedData.optionalDependencies === 'object'
+        ? (extendedData.optionalDependencies as Record<string, unknown>)
+        : {};
 
     return {
       bundleSize: {
-        minified: extendedData.dist?.unpackedSize,
+        minified: unpackedSize,
         gzipped: undefined, // Would need bundlephobia API
       },
       treeshakeable: hasESModules(extendedData),
       hasTypes: hasTypeDefinitions(packageName, extendedData),
-      nodeSupport: parseNodeSupport(extendedData.engines?.node),
-      browserSupport: parseBrowserSupport(extendedData.browserslist),
+      nodeSupport: parseNodeSupport(nodeVersion),
+      browserSupport: parseBrowserSupport(browserslistData),
       dependencies: {
         production: Object.keys(data.dependencies || {}).length,
         development: Object.keys(data.devDependencies || {}).length,
         peer: Object.keys(data.peerDependencies || {}).length,
-        optional: Object.keys(extendedData.optionalDependencies || {}).length,
+        optional: Object.keys(optionalDeps).length,
       },
       exports: [], // Would need static analysis
       apiSurface: {
@@ -469,111 +556,18 @@ async function gatherMigrationIntelligence(
   }
 }
 
-// Helper functions for data processing
-function categorizePackage(packageName: string, keywords: string[]): string[] {
-  const categories: string[] = [];
-
-  // UI/Frontend
-  if (
-    keywords.some((k) => ['ui', 'component', 'react', 'vue', 'angular'].includes(k.toLowerCase()))
-  ) {
-    categories.push('frontend');
-  }
-
-  // Build tools
-  if (keywords.some((k) => ['build', 'bundler', 'webpack', 'rollup'].includes(k.toLowerCase()))) {
-    categories.push('build-tool');
-  }
-
-  // Testing
-  if (
-    keywords.some((k) => ['test', 'testing', 'jest', 'mocha'].includes(k.toLowerCase())) ||
-    packageName.includes('test')
-  ) {
-    categories.push('testing');
-  }
-
-  // Utility
-  if (keywords.some((k) => ['utility', 'util', 'helper', 'lodash'].includes(k.toLowerCase()))) {
-    categories.push('utility');
-  }
-
-  return categories.length > 0 ? categories : ['unknown'];
-}
-
-function detectFramework(packageName: string, keywords: string[]): string[] {
-  const frameworks: string[] = [];
-
-  if (packageName.includes('react') || keywords.includes('react')) frameworks.push('React');
-  if (packageName.includes('vue') || keywords.includes('vue')) frameworks.push('Vue');
-  if (packageName.includes('angular') || keywords.includes('angular')) frameworks.push('Angular');
-  if (packageName.includes('svelte') || keywords.includes('svelte')) frameworks.push('Svelte');
-  if (packageName.includes('next') || keywords.includes('nextjs')) frameworks.push('Next.js');
-
-  return frameworks;
-}
-
-function detectRuntime(_packageName: string, keywords: string[]): string[] {
-  const runtimes: string[] = [];
-
-  if (keywords.includes('node') || keywords.includes('nodejs')) runtimes.push('Node.js');
-  if (keywords.includes('browser') || keywords.includes('client')) runtimes.push('Browser');
-  if (keywords.includes('deno')) runtimes.push('Deno');
-  if (keywords.includes('bun')) runtimes.push('Bun');
-
-  return runtimes.length > 0 ? runtimes : ['Node.js']; // Default assumption
-}
-
-async function findAlternatives(
-  packageName: string,
-  _categories: string[]
-): Promise<AlternativePackage[]> {
-  // This would be a curated database of package alternatives
-  const alternatives: Record<string, AlternativePackage[]> = {
-    lodash: [
-      {
-        name: 'ramda',
-        reason: 'Functional programming approach',
-        pros: ['Immutable', 'Curried functions', 'Better tree-shaking'],
-        cons: ['Steeper learning curve', 'Different API'],
-        migrationEffort: 'high',
-      },
-    ],
-    moment: [
-      {
-        name: 'date-fns',
-        reason: 'Modern, modular date library',
-        pros: ['Tree-shakeable', 'Immutable', 'Smaller bundle size'],
-        cons: ['Different API', 'No global state'],
-        migrationEffort: 'medium',
-      },
-    ],
-  };
-
-  return alternatives[packageName] || [];
-}
-
-function findComplementaryPackages(packageName: string): string[] {
-  // This would be a curated database of commonly used packages together
-  const complements: Record<string, string[]> = {
-    react: ['react-dom', 'react-router', 'styled-components'],
-    jest: ['@testing-library/jest-dom', '@testing-library/react'],
-    webpack: ['webpack-cli', 'webpack-dev-server'],
-  };
-
-  return complements[packageName] || [];
-}
+// Helper functions are now imported from utils/package-helpers.ts
 
 // Default value functions
 function getDefaultPackageInfo(): PackageInfo {
   return {
-    description: 'Information not available',
+    description: FALLBACK_VALUES.DESCRIPTION,
     keywords: [],
-    license: 'Unknown',
+    license: FALLBACK_VALUES.LICENSE,
     maintainers: [],
-    latestVersion: 'Unknown',
-    publishedAt: '',
-    size: { unpacked: 0 },
+    latestVersion: FALLBACK_VALUES.VERSION,
+    publishedAt: FALLBACK_VALUES.EMPTY_STRING,
+    size: { unpacked: FALLBACK_VALUES.UNPACKED_SIZE },
   };
 }
 
@@ -590,13 +584,13 @@ function getDefaultEcosystemInfo(): EcosystemInfo {
 
 function getDefaultMaintenanceInfo(): MaintenanceInfo {
   return {
-    lastUpdated: '',
-    releaseFrequency: 'inactive',
-    maintainerResponse: 'unknown',
+    lastUpdated: FALLBACK_VALUES.EMPTY_STRING,
+    releaseFrequency: RELEASE_FREQUENCIES.INACTIVE,
+    maintainerResponse: MAINTAINER_RESPONSES.UNKNOWN,
     openIssues: 0,
     closedIssues: 0,
     openPullRequests: 0,
-    communityHealth: 'average',
+    communityHealth: COMMUNITY_HEALTH_LEVELS.AVERAGE,
     funding: false,
     sponsors: [],
   };
@@ -606,8 +600,8 @@ function getDefaultSecurityInfo(): SecurityInfo {
   return {
     vulnerabilities: [],
     securityScore: 0,
-    auditStatus: 'unknown',
-    lastAudit: '',
+    auditStatus: AUDIT_STATUSES.UNKNOWN,
+    lastAudit: FALLBACK_VALUES.EMPTY_STRING,
     securityPolicy: false,
     codeOfConduct: false,
   };
@@ -631,7 +625,12 @@ function getDefaultTechnicalDetails(): TechnicalDetails {
     browserSupport: [],
     dependencies: { production: 0, development: 0, peer: 0, optional: 0 },
     exports: [],
-    apiSurface: { publicMethods: 0, publicClasses: 0, publicConstants: 0, complexity: 'moderate' },
+    apiSurface: {
+      publicMethods: 0,
+      publicClasses: 0,
+      publicConstants: 0,
+      complexity: COMPLEXITY_LEVELS.MODERATE,
+    },
   };
 }
 
@@ -646,7 +645,11 @@ function getDefaultMigrationIntelligence(
     breakingChanges: [],
     apiChanges: [],
     configChanges: [],
-    estimatedEffort: { timeInHours: 0, complexity: 'simple', automatable: 0 },
+    estimatedEffort: {
+      timeInHours: 0,
+      complexity: MIGRATION_COMPLEXITY.SIMPLE,
+      automatable: 0,
+    },
   };
 }
 
@@ -657,7 +660,7 @@ async function getGitHubRepoInfo(_packageName: string): Promise<unknown> {
 }
 
 function analyzeReleaseFrequency(_repoInfo: unknown): MaintenanceInfo['releaseFrequency'] {
-  return 'moderate';
+  return RELEASE_FREQUENCIES.MODERATE;
 }
 
 function extractVulnerabilities(
@@ -683,26 +686,7 @@ async function getGitHubStats(_packageName: string): Promise<unknown> {
   return null;
 }
 
-function hasESModules(packageData: unknown): boolean {
-  if (typeof packageData !== 'object' || packageData === null) return false;
-  const data = packageData as Record<string, unknown>;
-  return !!data.module || !!data.exports;
-}
-
-function hasTypeDefinitions(_packageName: string, packageData: unknown): boolean {
-  if (typeof packageData !== 'object' || packageData === null) return false;
-  const data = packageData as Record<string, unknown>;
-  return !!data.types || !!data.typings || _packageName.startsWith('@types/');
-}
-
-function parseNodeSupport(nodeVersion?: string): string[] {
-  if (!nodeVersion) return [];
-  return [nodeVersion];
-}
-
-function parseBrowserSupport(browserslist?: string[]): string[] {
-  return browserslist || [];
-}
+// Helper functions are now imported from package-helpers.ts
 
 async function findMigrationGuide(
   _packageName: string,

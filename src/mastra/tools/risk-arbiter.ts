@@ -1,4 +1,5 @@
 import { createTool } from '@mastra/core/tools';
+import { RuntimeContext } from '@mastra/core/runtime-context';
 import { z } from 'zod';
 import {
   analyzeVersionJump,
@@ -284,7 +285,7 @@ export class RiskArbiter {
   static async assess(input: z.infer<typeof inputSchema>) {
     return await riskArbiterTool.execute({
       context: input,
-      runtimeContext: undefined as any,
+      runtimeContext: new RuntimeContext(),
     });
   }
 }

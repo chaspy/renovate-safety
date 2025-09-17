@@ -111,7 +111,7 @@ export async function performEnhancedDependencyAnalysis(
   fromVersion: string,
   toVersion: string
 ): Promise<EnhancedDependencyAnalysis> {
-  const results = await executeInParallel<any>(
+  const results = await executeInParallel<unknown>(
     [
       () => analyzeImpact(packageName),
       () => analyzeVersionConstraints(packageName, fromVersion, toVersion),
@@ -130,33 +130,34 @@ export async function performEnhancedDependencyAnalysis(
           transitiveUsages: [],
           configurationUsages: [],
           runtimeImpact: 'none',
-          buildImpact: 'none',
+          buildTimeImpact: 'none',
           testImpact: 'none',
-          securityImpact: [],
         }
-      : results[0];
-  const versionConstraints: VersionConstraints[] = results[1] instanceof Error ? [] : results[1];
+      : (results[0] as ImpactAnalysis);
+  const versionConstraints: VersionConstraints[] =
+    results[1] instanceof Error ? [] : (results[1] as VersionConstraints[]);
   const breakingChangeRisk: BreakingChangeRisk =
     results[2] instanceof Error
       ? {
-          level: 'low',
-          semverViolation: false,
-          publicApiChanges: [],
-          behaviorChanges: [],
-          removalChanges: [],
+          overallRisk: 'low',
+          factors: [],
+          mitigationSteps: [],
         }
-      : results[2];
-  const usagePatterns: UsagePattern[] = results[3] instanceof Error ? [] : results[3];
-  const relatedPackages: RelatedPackage[] = results[4] instanceof Error ? [] : results[4];
+      : (results[2] as BreakingChangeRisk);
+  const usagePatterns: UsagePattern[] =
+    results[3] instanceof Error ? [] : (results[3] as UsagePattern[]);
+  const relatedPackages: RelatedPackage[] =
+    results[4] instanceof Error ? [] : (results[4] as RelatedPackage[]);
   const updateCompatibility: UpdateCompatibility =
     results[5] instanceof Error
       ? {
-          compatible: true,
-          breakingChanges: [],
-          migrationEffort: 'minimal',
-          alternativeVersions: [],
+          canAutoUpdate: true,
+          requiresManualIntervention: false,
+          estimatedEffort: 'minimal',
+          blockers: [],
+          prerequisites: [],
         }
-      : results[5];
+      : (results[5] as UpdateCompatibility);
 
   return {
     packageName,
@@ -198,7 +199,7 @@ async function findDirectUsages(packageName: string): Promise<DirectUsage[]> {
 
     for (const packageJsonPath of packageJsonFiles) {
       const packageJsonData = await readJsonFile(packageJsonPath);
-      const packageJson = packageJsonData as any;
+      const packageJson = packageJsonData as Record<string, Record<string, string>>;
 
       const depTypes = [
         'dependencies',
@@ -208,7 +209,7 @@ async function findDirectUsages(packageName: string): Promise<DirectUsage[]> {
       ] as const;
 
       for (const depType of depTypes) {
-        if (packageJson[depType] && packageJson[depType][packageName]) {
+        if (packageJson[depType]?.[packageName]) {
           const workspacePath = path.dirname(packageJsonPath);
           const purpose = determinePurpose(packageName, depType);
 
@@ -260,24 +261,31 @@ function extractTransitiveUsages(
   usages: TransitiveUsage[],
   visited = new Set<string>()
 ): void {
-  const nodeWithDeps = node as any;
-  if (!nodeWithDeps?.dependencies) return;
+  // Type guard for npm dependency node structure
+  function isNodeWithDependencies(
+    node: unknown
+  ): node is { dependencies?: Record<string, { version?: string; [key: string]: unknown }> } {
+    return typeof node === 'object' && node !== null && 'dependencies' in node;
+  }
+
+  if (!isNodeWithDependencies(node) || !node.dependencies) return;
 
   const nodeKey = `${path.join('>')}-${targetPackage}`;
   if (visited.has(nodeKey)) return;
   visited.add(nodeKey);
 
-  for (const [depName, depInfo] of Object.entries(nodeWithDeps.dependencies)) {
+  for (const [depName, depInfo] of Object.entries(node.dependencies)) {
     const currentPath = [...path, depName];
 
     if (depName === targetPackage && path.length > 0) {
-      const info = depInfo as any;
+      // Type is now safely known from the type guard
+      const info = depInfo;
       const conflicts = detectVersionConflicts(info, currentPath);
 
       usages.push({
         parentPackage: path[0] || 'root',
         depth: currentPath.length,
-        versionRange: info.required || 'unknown',
+        versionRange: 'unknown', // version range not available in info
         resolvedVersion: info.version || 'unknown',
         conflicts,
       });

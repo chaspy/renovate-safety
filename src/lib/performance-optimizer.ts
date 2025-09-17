@@ -69,7 +69,7 @@ export function createPerformanceOptimizer(cacheDir: string): PerformanceOptimiz
 }
 
 class FileBasedCache implements SmartCache {
-  private cacheDir: string;
+  private readonly cacheDir: string;
   private readonly memoryCache = new Map<string, CacheEntry<unknown>>();
 
   constructor(cacheDir: string) {

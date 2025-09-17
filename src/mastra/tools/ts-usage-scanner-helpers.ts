@@ -56,7 +56,7 @@ export async function setupProject(projectPath: string): Promise<{ project: Proj
 export function processImport(
   imp: any,
   filePath: string,
-  packageName: string,
+  _packageName: string,
   sourceFile: SourceFile
 ): UsageItem[] {
   const usages: UsageItem[] = [];

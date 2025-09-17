@@ -1,4 +1,5 @@
 // Helper functions for report generation to reduce complexity
+import type { UsageImpact } from '../tools/usage-impact-analyzer.js';
 
 // Generate version change analysis section
 export function generateVersionChangeAnalysis(dependency: any, isJapanese: boolean): string {
@@ -213,18 +214,19 @@ function formatImpactExplanation(
 }
 
 // Generate code impact analysis section
-export function generateCodeImpactAnalysisSection(usageImpact: any, isJapanese: boolean): string {
+export function generateCodeImpactAnalysisSection(usageImpact: UsageImpact | null, isJapanese: boolean): string {
   if (!usageImpact) return '';
 
   let markdown = `\n**${isJapanese ? '実際のコード影響分析' : 'Actual Code Impact Analysis'}**:\n`;
 
   if (usageImpact.isAffected) {
-    const riskEmoji = {
+    const riskEmojiMap: Record<UsageImpact['riskLevel'], string> = {
       'high': '🔴',
       'medium': '🟡',
       'low': '🟢',
       'none': '⚪'
-    }[usageImpact.riskLevel] || '⚪';
+    };
+    const riskEmoji = riskEmojiMap[usageImpact.riskLevel] || '⚪';
 
     markdown += isJapanese ?
       `- **実際に影響を受けるコードが検出されました** ${riskEmoji} **${usageImpact.riskLevel.toUpperCase()}リスク**\n` :

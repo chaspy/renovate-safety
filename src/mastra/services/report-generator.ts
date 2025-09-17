@@ -107,13 +107,13 @@ export async function generateUnifiedReport(assessments: any[], options: {
   markdown += `**${isJapanese ? '結論' : 'Conclusion'}**: ${riskEmoji} ${overallRisk.toUpperCase()}\n\n`;
   
   // Summary section
-  markdown += await generateSummarySection(assessments, isJapanese, linkOptions);
+  markdown += await generateSummarySection(assessments, isJapanese);
   
   // Individual assessments
   markdown += await generateAssessmentsSection(assessments, isJapanese, linkOptions);
   
   // Recommendations section
-  markdown += await generateRecommendationsSection(assessments, overallRisk, isJapanese);
+  markdown += await generateRecommendationsSection(overallRisk, isJapanese);
   
   // Execution statistics (using finalized stats)
   if (includeExecutionStats && executionStats) {
@@ -127,7 +127,7 @@ export async function generateUnifiedReport(assessments: any[], options: {
 }
 
 // Generate summary section with proper GitHub links
-async function generateSummarySection(assessments: any[], isJapanese: boolean, linkOptions?: GitHubLinkOptions): Promise<string> {
+async function generateSummarySection(assessments: any[], isJapanese: boolean): Promise<string> {
   let markdown = `#### ${isJapanese ? '📊 概要' : '📊 Summary'}\n\n`;
   
   const riskCounts = assessments.reduce((acc, a) => {
@@ -472,7 +472,7 @@ function getMajorJump(from?: string, to?: string): number {
 }
 
 // Generate recommendations section with translation
-async function generateRecommendationsSection(assessments: any[], overallRisk: string, isJapanese: boolean): Promise<string> {
+async function generateRecommendationsSection(overallRisk: string, isJapanese: boolean): Promise<string> {
   let markdown = `#### ${isJapanese ? '📌 全体的な推奨アクション' : '📌 Overall Recommendations'}\n\n`;
   
   // Generate general recommendations based on overall risk

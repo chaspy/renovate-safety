@@ -159,7 +159,11 @@ async function getPRData(prNumber: number): Promise<PRData | null> {
         throw new Error(`gh CLI failed: ${result.error}`);
       }
 
-      const data = safeJsonParse(result.stdout, {}) as any;
+      const data = safeJsonParse(result.stdout, {}) as {
+        title?: string;
+        headRefName?: string;
+        body?: string;
+      };
       return {
         title: data.title || '',
         branch: data.headRefName || '',
@@ -207,7 +211,7 @@ async function getPRDataFromCurrentBranch(): Promise<PRData | null> {
         throw new Error('No PR found for current branch');
       }
 
-      const data = safeJsonParse(prResult.stdout, {}) as any;
+      const data = safeJsonParse(prResult.stdout, {}) as { title?: string; body?: string };
       return {
         title: data.title || branch,
         branch,
@@ -272,7 +276,7 @@ function extractFromRenovatePR(prData: PRData): PackageUpdate | null {
     }
 
     for (const match of matches) {
-      if (match && match[1] && match[2] && match[3]) {
+      if (match?.[1] && match[2] && match[3]) {
         const packageName = match[1].trim();
         const fromVersion = match[2].trim();
         const toVersion = match[3].trim();

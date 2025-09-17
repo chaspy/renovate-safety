@@ -235,7 +235,7 @@ function isFromPackage(identifier: Node, packageName: string): boolean {
         return false;
       });
 
-      return !!importDecl;
+      return Boolean(importDecl);
     }
   }
 
@@ -257,7 +257,7 @@ function isFromPackage(identifier: Node, packageName: string): boolean {
     return false;
   });
 
-  return !!importDecl;
+  return Boolean(importDecl);
 }
 
 function getContextSnippet(node: Node): string {

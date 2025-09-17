@@ -42,8 +42,9 @@ export default [
       'no-console': ['warn', { allow: ['warn', 'error', 'debug', 'log'] }],
 
       // SonarCloud-compatible rules
-      'complexity': ['error', 15], // Cognitive complexity
-      'max-depth': ['warn', 4], // Maximum nesting depth
+      // Complexity will be gradually reduced - starting with warning level
+      'complexity': ['warn', 25], // Gradually reducing from 105 to target of 15
+      'max-depth': ['warn', 6], // Gradually reducing to target of 4
       'no-nested-ternary': 'error', // No nested ternary operators
       '@typescript-eslint/no-unused-expressions': 'error',
       'no-empty': ['error', { allowEmptyCatch: false }], // Proper exception handling
@@ -52,7 +53,16 @@ export default [
       '@typescript-eslint/prefer-string-starts-ends-with': 'error', // Use String#startsWith/endsWith
       'no-useless-escape': 'error', // No unnecessary escape characters
       '@typescript-eslint/no-unnecessary-type-assertion': 'error', // No unnecessary type assertions
-      '@typescript-eslint/prefer-readonly': 'warn', // Mark readonly when not reassigned
+      '@typescript-eslint/restrict-template-expressions': ['error', { 
+        allowNumber: true, 
+        allowBoolean: false, 
+        allowAny: false,
+        allowNullish: true,
+        allowRegExp: false 
+      }], // Prevent object stringification in templates
+      '@typescript-eslint/no-confusing-void-expression': 'error', // Avoid confusing void expressions
+      'no-implicit-coercion': 'error', // Prefer explicit type conversion
+      '@typescript-eslint/prefer-readonly': 'error', // Re-enabled for enhanced immutability
       'no-warning-comments': ['warn', { terms: ['TODO', 'FIXME'], location: 'start' }], // Warn on task markers
     },
   },

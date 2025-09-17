@@ -573,10 +573,19 @@ async function analyzeConfigFiles(
             'peerDependencies',
             'optionalDependencies',
           ];
-          const jsonContent = parsedContent as any;
+          const jsonContent = parsedContent as Record<string, Record<string, unknown>>;
           for (const section of sections) {
-            if (jsonContent[section]?.[packageName]) {
-              usage = `Version ${jsonContent[section][packageName]} in ${section}`;
+            const versionValue = jsonContent[section]?.[packageName];
+            if (versionValue) {
+              let versionString: string;
+              if (typeof versionValue === 'string') {
+                versionString = versionValue;
+              } else if (typeof versionValue === 'number') {
+                versionString = String(versionValue);
+              } else {
+                versionString = JSON.stringify(versionValue);
+              }
+              usage = `Version ${versionString} in ${section}`;
               break;
             }
           }
