@@ -86,6 +86,28 @@ export async function getPackageMetadata(packageSpec: string): Promise<PackageIn
 }
 
 /**
+ * Get raw package metadata for processing
+ */
+export async function getPackageRawData(
+  packageSpec: string
+): Promise<Record<string, unknown> | null> {
+  return tryWithLogging(
+    async () => {
+      const result = await secureNpmExec('view', [packageSpec, '--json']);
+
+      if (!isSuccessful(result)) {
+        return null;
+      }
+
+      const data = parseJsonOutput<Record<string, unknown>>(result.stdout);
+      return data;
+    },
+    'fetch raw metadata',
+    packageSpec
+  );
+}
+
+/**
  * Get specific package fields
  */
 export async function getPackageFields(
