@@ -106,10 +106,22 @@ export function extractMaintainers(data: unknown): string[] {
       
       if (isRecord(m) && 'name' in m) {
         const name = safeProp(m, 'name');
-        return typeof name === 'string' ? name : (typeof name === 'number' ? String(name) : '');
+        if (typeof name === 'string') {
+          return name;
+        }
+        if (typeof name === 'number') {
+          return String(name);
+        }
+        return '';
       }
       
-      return typeof m === 'string' ? m : (typeof m === 'number' ? String(m) : '');
+      if (typeof m === 'string') {
+        return m;
+      }
+      if (typeof m === 'number') {
+        return String(m);
+      }
+      return '';
     })
     .filter(Boolean);
 }
