@@ -4,21 +4,10 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { resolve } from 'path';
 import { homedir } from 'os';
-import { CLIOptions, AnalysisResult, RiskAssessment, DeepAnalysisResult } from './types/index.js';
-import { extractPackageInfo } from './lib/pr.js';
-import { extractBreakingChanges } from './lib/breaking.js';
-import { summarizeApiDiff } from './lib/api-diff-summary.js';
-import { enhancedLLMAnalysis } from './lib/llm.js';
-import { fetchCodeDiff } from './lib/github-diff.js';
-import { analyzeDependencyUsage } from './lib/dependency-tree.js';
-import { performDeepAnalysis } from './lib/deep-analysis.js';
-import { assessEnhancedRisk } from './lib/enhanced-grade.js';
-import { generateEnhancedReport } from './lib/enhanced-report.js';
-import { postToPR } from './lib/post.js';
+import { CLIOptions, AnalysisResult, RiskAssessment } from './types/index.js';
 import { runDoctorCheck } from './lib/doctor.js';
 import { loadConfig } from './lib/config.js';
 import { getEnvironmentConfig } from './lib/env-config.js';
-import { packageKnowledgeBase } from './lib/package-knowledge.js';
 import { getErrorMessage } from './analyzers/utils.js';
 import { loggers } from './lib/logger.js';
 import { logSection, logListItem, logProgress, logWarningMessage, logError, logSeparator } from './lib/logger-extended.js';
@@ -41,8 +30,6 @@ import {
 
 // Import new analyzer system
 import './analyzers/index.js';
-import { analyzerRegistry, UsageAnalysis } from './analyzers/base.js';
-import { createDefaultAnalysisChain } from './analyzers/strategies/index.js';
 
 const program = new Command();
 
@@ -262,7 +249,14 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
     const breakingChanges = await extractBreakingChangesStep(spinner, changelogDiff, codeDiff, knowledgeBasedBreaking);
     
     // Step 8: Enhanced LLM analysis
-    const llmSummary = await performLLMAnalysis(spinner, options, packageUpdate, changelogDiff, codeDiff, dependencyUsage, breakingChanges, knowledgeBasedBreaking);
+    const llmSummary = await performLLMAnalysis(spinner, options, {
+      packageUpdate,
+      changelogDiff,
+      codeDiff,
+      dependencyUsage,
+      breakingChanges,
+      knowledgeBasedBreaking,
+    });
     
     // Step 9: Convert usage analysis to API usages for compatibility
     const apiUsages = convertUsageAnalysisToApiUsages(usageAnalysis, packageUpdate);
@@ -271,7 +265,17 @@ async function analyzeSinglePR(options: CLIOptions, exitOnComplete: boolean = tr
     const deepAnalysis = await performDeepAnalysisStep(spinner, options, packageUpdate, breakingChanges);
     
     // Step 11: Enhanced risk assessment and result generation
-    const analysisResult = await generateAnalysisResult(packageUpdate, changelogDiff, codeDiff, dependencyUsage, breakingChanges, llmSummary, apiUsages, deepAnalysis, usageAnalysis, options);
+    const analysisResult = await generateAnalysisResult({
+      packageUpdate,
+      changelogDiff,
+      codeDiff,
+      dependencyUsage,
+      breakingChanges,
+      llmSummary,
+      apiUsages,
+      deepAnalysis,
+      usageAnalysis,
+    }, options);
     
     // Generate and display report
     await generateAndDisplayReport(analysisResult, options);

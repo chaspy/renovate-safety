@@ -400,13 +400,12 @@ function generateDependencyTypeInfo(result: AnalysisResult, isJa: boolean): stri
   const depTypeLabel = isJa ? '- **依存関係の種類**' : '- **Dependency Type**';
   const depTypeValue = (() => {
     if (!result.dependencyUsage) return 'dependencies';
-    const directText = result.dependencyUsage.isDirect
-      ? isJa
-        ? '直接'
-        : 'Direct'
-      : isJa
-        ? '間接'
-        : 'Transitive';
+    let directText: string;
+    if (result.dependencyUsage.isDirect) {
+      directText = isJa ? '直接' : 'Direct';
+    } else {
+      directText = isJa ? '間接' : 'Transitive';
+    }
     return `${directText} ${result.dependencyUsage.usageType || 'dependencies'}`;
   })();
   return `${depTypeLabel}: ${depTypeValue}\n`;
@@ -515,13 +514,12 @@ function generateDependencyUsageSection(result: AnalysisResult, isJa: boolean): 
 
   let report = isJa ? '### 🌳 依存関係の利用状況\n' : '### 🌳 Dependency Usage\n';
   const typeLabel = isJa ? '- **種類**' : '- **Type**';
-  const typeValue = result.dependencyUsage.isDirect
-    ? isJa
-      ? '直接依存'
-      : 'Direct'
-    : isJa
-      ? '間接依存'
-      : 'Transitive';
+  let typeValue: string;
+  if (result.dependencyUsage.isDirect) {
+    typeValue = isJa ? '直接依存' : 'Direct';
+  } else {
+    typeValue = isJa ? '間接依存' : 'Transitive';
+  }
   report += `${typeLabel}: ${typeValue}\n`;
   report += `${isJa ? '- **カテゴリ**' : '- **Category**'}: ${result.dependencyUsage.usageType}\n`;
   const impactLabel = isJa ? '- **影響範囲**' : '- **Impact**';
@@ -764,23 +762,21 @@ function generateRiskDetailsInfo(result: AnalysisResult, isJa: boolean): string 
   report += `${isJa ? '- **API利用検出数**' : '- **API Usages Found**'}: ${result.apiUsages.length}\n`;
 
   const aiLabel = isJa ? '- **AI解析**' : '- **AI Analysis**';
-  const aiValue = result.llmSummary
-    ? isJa
-      ? '実施済み'
-      : 'Completed'
-    : isJa
-      ? 'スキップ'
-      : 'Skipped';
+  let aiValue: string;
+  if (result.llmSummary) {
+    aiValue = isJa ? '実施済み' : 'Completed';
+  } else {
+    aiValue = isJa ? 'スキップ' : 'Skipped';
+  }
   report += `${aiLabel}: ${aiValue}\n`;
 
   const deepLabel = isJa ? '- **詳細解析**' : '- **Deep Analysis**';
-  const deepValue = result.deepAnalysis
-    ? isJa
-      ? '実施済み'
-      : 'Completed'
-    : isJa
-      ? '無効'
-      : 'Disabled';
+  let deepValue: string;
+  if (result.deepAnalysis) {
+    deepValue = isJa ? '実施済み' : 'Completed';
+  } else {
+    deepValue = isJa ? '無効' : 'Disabled';
+  }
   report += `${deepLabel}: ${deepValue}\n\n`;
 
   return report;

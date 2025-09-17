@@ -1,10 +1,7 @@
 import type { AnalysisResult } from '../types/index.js';
-import { getRiskEmoji, getRiskDescription } from './grade.js';
 import {
   generateActionableRecommendations,
-  generateMigrationChecklist,
 } from './recommendations.js';
-import { analyzeSecurityImplications, generateSecurityChecklist } from './security-analysis.js';
 import {
   generateReportHeader,
   generatePackageInfoSection,

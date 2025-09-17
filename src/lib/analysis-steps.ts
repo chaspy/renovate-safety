@@ -66,13 +66,13 @@ export async function checkShouldSkipPatchUpdate(
 }
 
 export async function findAppropriateAnalyzer(spinner: any, packageUpdate: any) {
-  spinner = ora('Finding appropriate package analyzer...').start();
+  const analyzeSpinner = ora('Finding appropriate package analyzer...').start();
   const analyzer = await analyzerRegistry.findAnalyzer(packageUpdate.name, process.cwd());
 
   if (!analyzer) {
-    spinner.warn('No specific analyzer found, using fallback strategies');
+    analyzeSpinner.warn('No specific analyzer found, using fallback strategies');
   } else {
-    spinner.succeed(`Using ${analyzer.constructor.name} for analysis`);
+    analyzeSpinner.succeed(`Using ${analyzer.constructor.name} for analysis`);
   }
 
   return analyzer;
@@ -84,7 +84,7 @@ export async function fetchChangelogAndKnowledge(
   packageUpdate: any,
   options: CLIOptions
 ) {
-  spinner = ora('Fetching package information...').start();
+  const fetchSpinner = ora('Fetching package information...').start();
   let changelogDiff = null;
   let knowledgeBasedBreaking: string[] = [];
 
@@ -100,12 +100,12 @@ export async function fetchChangelogAndKnowledge(
   );
   if (knownBreaking.length > 0) {
     knowledgeBasedBreaking = knownBreaking;
-    spinner.succeed(`Found ${knownBreaking.length} known breaking changes from knowledge base`);
+    fetchSpinner.succeed(`Found ${knownBreaking.length} known breaking changes from knowledge base`);
   }
 
   // If no changelog, use fallback strategies
   if (!changelogDiff) {
-    spinner.text = 'Using fallback analysis strategies...';
+    fetchSpinner.text = 'Using fallback analysis strategies...';
     const analysisChain = createDefaultAnalysisChain();
     const strategyResult = await analysisChain.analyze(packageUpdate);
 
@@ -116,40 +116,40 @@ export async function fetchChangelogAndKnowledge(
         fromVersion: packageUpdate.fromVersion,
         toVersion: packageUpdate.toVersion,
       };
-      spinner.succeed(
+      fetchSpinner.succeed(
         `Analysis completed using ${strategyResult.source} (confidence: ${Math.round(strategyResult.confidence * 100)}%)`
       );
     } else {
-      spinner.warn('Limited information available from all sources');
+      fetchSpinner.warn('Limited information available from all sources');
     }
   } else {
-    spinner.succeed(`Fetched changelog from ${changelogDiff.source}`);
+    fetchSpinner.succeed(`Fetched changelog from ${changelogDiff.source}`);
   }
 
   return { changelogDiff, knowledgeBasedBreaking };
 }
 
 export async function fetchCodeDifference(spinner: any, packageUpdate: any) {
-  spinner = ora('Fetching code differences from GitHub...').start();
+  const codeDiffSpinner = ora('Fetching code differences from GitHub...').start();
   const codeDiff = await fetchCodeDiff(packageUpdate);
 
   if (!codeDiff) {
-    spinner.warn('No code diff available');
+    codeDiffSpinner.warn('No code diff available');
   } else {
-    spinner.succeed(`Fetched code diff: ${codeDiff.filesChanged} files changed`);
+    codeDiffSpinner.succeed(`Fetched code diff: ${codeDiff.filesChanged} files changed`);
   }
 
   return codeDiff;
 }
 
 export async function analyzeDependencyUsageStep(spinner: any, packageUpdate: any) {
-  spinner = ora('Analyzing dependency usage...').start();
+  const dependencySpinner = ora('Analyzing dependency usage...').start();
   const dependencyUsage = await analyzeDependencyUsage(packageUpdate.name);
 
   if (!dependencyUsage) {
-    spinner.warn('No dependency usage information found');
+    dependencySpinner.warn('No dependency usage information found');
   } else {
-    spinner.succeed(
+    dependencySpinner.succeed(
       `Dependency analysis: ${dependencyUsage.isDirect ? 'Direct' : 'Transitive'} (${dependencyUsage.dependents.length} dependents)`
     );
   }
@@ -158,16 +158,16 @@ export async function analyzeDependencyUsageStep(spinner: any, packageUpdate: an
 }
 
 export async function analyzePackageUsageStep(spinner: any, analyzer: any, packageUpdate: any) {
-  spinner = ora('Analyzing package usage in codebase...').start();
+  const usageSpinner = ora('Analyzing package usage in codebase...').start();
   let usageAnalysis: UsageAnalysis | null = null;
 
   if (analyzer) {
     usageAnalysis = await analyzer.analyzeUsage(packageUpdate.name, process.cwd());
-    spinner.succeed(
+    usageSpinner.succeed(
       `Found ${usageAnalysis.totalUsageCount} usage locations (${usageAnalysis.productionUsageCount} in production)`
     );
   } else {
-    spinner.warn('Usage analysis not available for this package type');
+    usageSpinner.warn('Usage analysis not available for this package type');
   }
 
   return usageAnalysis;
@@ -179,7 +179,7 @@ export async function extractBreakingChangesStep(
   codeDiff: any,
   knowledgeBasedBreaking: string[]
 ) {
-  spinner = ora('Analyzing for breaking changes...').start();
+  const breakingSpinner = ora('Analyzing for breaking changes...').start();
 
   // Extract engines diff from code diff if available
   let enginesDiff: { from: string; to: string } | undefined;
@@ -204,34 +204,38 @@ export async function extractBreakingChangesStep(
   });
 
   if (breakingChanges.length > 0) {
-    spinner.succeed(`Found ${breakingChanges.length} potential breaking changes`);
+    breakingSpinner.succeed(`Found ${breakingChanges.length} potential breaking changes`);
   } else {
-    spinner.succeed('No breaking changes detected');
+    breakingSpinner.succeed('No breaking changes detected');
   }
 
   return breakingChanges;
 }
 
+interface LLMAnalysisParams {
+  packageUpdate: any;
+  changelogDiff: any;
+  codeDiff: any;
+  dependencyUsage: any;
+  breakingChanges: any[];
+  knowledgeBasedBreaking: string[];
+}
+
 export async function performLLMAnalysis(
   spinner: any,
   options: CLIOptions,
-  packageUpdate: any,
-  changelogDiff: any,
-  codeDiff: any,
-  dependencyUsage: any,
-  breakingChanges: any[],
-  knowledgeBasedBreaking: string[]
+  params: LLMAnalysisParams
 ) {
   let llmSummary = null;
   if (!options.noLlm) {
-    spinner = ora('Generating enhanced AI analysis...').start();
+    const llmSpinner = ora('Generating enhanced AI analysis...').start();
 
     llmSummary = await enhancedLLMAnalysis(
-      packageUpdate,
-      changelogDiff,
-      codeDiff,
-      dependencyUsage,
-      breakingChanges,
+      params.packageUpdate,
+      params.changelogDiff,
+      params.codeDiff,
+      params.dependencyUsage,
+      params.breakingChanges,
       options.llm,
       options.cacheDir,
       options.language || 'en'
@@ -239,15 +243,15 @@ export async function performLLMAnalysis(
 
     if (llmSummary) {
       const analysisTypes = [
-        changelogDiff ? 'changelog' : null,
-        codeDiff ? 'code-diff' : null,
-        dependencyUsage ? 'dependency-tree' : null,
-        knowledgeBasedBreaking.length > 0 ? 'knowledge-base' : null,
+        params.changelogDiff ? 'changelog' : null,
+        params.codeDiff ? 'code-diff' : null,
+        params.dependencyUsage ? 'dependency-tree' : null,
+        params.knowledgeBasedBreaking.length > 0 ? 'knowledge-base' : null,
       ].filter(Boolean);
 
-      spinner.succeed(`Generated AI analysis (${analysisTypes.join(', ')})`);
+      llmSpinner.succeed(`Generated AI analysis (${analysisTypes.join(', ')})`);
     } else {
-      spinner.warn('AI analysis generation failed');
+      llmSpinner.warn('AI analysis generation failed');
     }
   }
 
@@ -297,33 +301,37 @@ export async function performDeepAnalysisStep(
   return deepAnalysis;
 }
 
+interface AnalysisResultParams {
+  packageUpdate: any;
+  changelogDiff: any;
+  codeDiff: any;
+  dependencyUsage: any;
+  breakingChanges: any[];
+  llmSummary: any;
+  apiUsages: any[];
+  deepAnalysis: any;
+  usageAnalysis: any;
+}
+
 export async function generateAnalysisResult(
-  packageUpdate: any,
-  changelogDiff: any,
-  codeDiff: any,
-  dependencyUsage: any,
-  breakingChanges: any[],
-  llmSummary: any,
-  apiUsages: any[],
-  deepAnalysis: any,
-  usageAnalysis: any,
+  params: AnalysisResultParams,
   options: CLIOptions
 ): Promise<AnalysisResult> {
   // Enhanced risk assessment
   const riskAssessment = await assessEnhancedRisk(
-    packageUpdate,
-    breakingChanges,
-    usageAnalysis,
-    llmSummary,
-    Boolean(changelogDiff),
-    Boolean(codeDiff)
+    params.packageUpdate,
+    params.breakingChanges,
+    params.usageAnalysis,
+    params.llmSummary,
+    Boolean(params.changelogDiff),
+    Boolean(params.codeDiff)
   );
 
   // Get migration steps from knowledge base
   const migrationSteps = await packageKnowledgeBase.getMigrationSteps(
-    packageUpdate.name,
-    packageUpdate.fromVersion,
-    packageUpdate.toVersion
+    params.packageUpdate.name,
+    params.packageUpdate.fromVersion,
+    params.packageUpdate.toVersion
   );
 
   if (migrationSteps.length > 0) {
@@ -336,19 +344,19 @@ export async function generateAnalysisResult(
   const { generateRecommendation } = await import('../index.js');
 
   return {
-    package: packageUpdate,
-    changelogDiff,
-    codeDiff,
-    dependencyUsage,
-    breakingChanges,
-    llmSummary,
-    apiUsages,
-    deepAnalysis,
+    package: params.packageUpdate,
+    changelogDiff: params.changelogDiff,
+    codeDiff: params.codeDiff,
+    dependencyUsage: params.dependencyUsage,
+    breakingChanges: params.breakingChanges,
+    llmSummary: params.llmSummary,
+    apiUsages: params.apiUsages,
+    deepAnalysis: params.deepAnalysis,
     riskAssessment,
     recommendation: generateRecommendation(
       riskAssessment,
-      breakingChanges.length,
-      apiUsages.length,
+      params.breakingChanges.length,
+      params.apiUsages.length,
       options.language || 'en'
     ),
   };
