@@ -516,7 +516,6 @@ function assessMigrationComplexity(
   } else if (semanticChanges.length > 0 || apiChanges.length > 0) {
     complexity = 'simple';
     estimatedHours = 2;
-    automationPossible = 80;
   }
 
   const riskFactors = [

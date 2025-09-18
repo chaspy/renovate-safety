@@ -101,20 +101,25 @@ async function findSourceFiles(): Promise<string[]> {
 function extractAPIPatterns(_packageName: string, breakingChanges: BreakingChange[]): string[] {
   const patterns = new Set<string>();
 
+  // Common identifier patterns for JavaScript/TypeScript
+  const identifierStart = '[a-zA-Z_$]';
+  const identifierPart = '[a-zA-Z0-9_$]';
+  const fullIdentifier = `${identifierStart}${identifierPart}*`;
+
   for (const change of breakingChanges) {
     // Extract method/function names
-    const methodMatches = change.line.matchAll(/`([a-zA-Z_$][a-zA-Z0-9_$]*)`/g);
+    const methodMatches = change.line.matchAll(new RegExp(`\`(${fullIdentifier})\``, 'g'));
     for (const match of methodMatches) {
       patterns.add(match[1]);
     }
 
     // Extract from common patterns
     const commonPatterns = [
-      /removed\s+(?:method|function|property|class|interface|type|export)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/i,
-      /renamed\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s+to\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/i,
-      /deprecated\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/i,
-      /([a-zA-Z_$][a-zA-Z0-9_$]*)\s+is\s+(?:removed|deprecated|renamed)/i,
-      /([a-zA-Z_$][a-zA-Z0-9_$]*)\s+has\s+been\s+(?:removed|deprecated|renamed)/i,
+      new RegExp(`removed\\s+(?:method|function|property|class|interface|type|export)\\s+(${fullIdentifier})`, 'i'),
+      new RegExp(`renamed\\s+(${fullIdentifier})\\s+to\\s+(${fullIdentifier})`, 'i'),
+      new RegExp(`deprecated\\s+(${fullIdentifier})`, 'i'),
+      new RegExp(`(${fullIdentifier})\\s+is\\s+(?:removed|deprecated|renamed)`, 'i'),
+      new RegExp(`(${fullIdentifier})\\s+has\\s+been\\s+(?:removed|deprecated|renamed)`, 'i'),
     ];
 
     for (const pattern of commonPatterns) {

@@ -267,9 +267,11 @@ export async function performLLMAnalysis(
       params.codeDiff,
       params.dependencyUsage,
       params.breakingChanges,
-      options.llm,
-      options.cacheDir,
-      options.language || 'en'
+      {
+        provider: options.llm,
+        cacheDir: options.cacheDir,
+        language: options.language || 'en'
+      }
     );
 
     if (llmSummary) {

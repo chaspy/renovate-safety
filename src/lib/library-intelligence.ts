@@ -726,7 +726,6 @@ function estimateMigrationEffort(
 
   if (changeCount === 0) {
     timeInHours = 0.5;
-    complexity = 'trivial';
   } else if (changeCount <= 2) {
     timeInHours = 2;
     complexity = 'simple';

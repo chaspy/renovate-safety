@@ -316,7 +316,7 @@ class ConcurrentExecutor implements ParallelExecutor {
         })
         .catch((error) => {
           clearTimeout(timer);
-          reject(error);
+          reject(error instanceof Error ? error : new Error(String(error)));
         });
     });
   }
