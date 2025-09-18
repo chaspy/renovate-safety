@@ -88,7 +88,7 @@ export interface FileImpactAnalysis {
 export interface FileCategory {
   category: 'api' | 'config' | 'types' | 'implementation' | 'documentation' | 'tests';
   files: FileImpact[];
-  overallImpact: 'critical' | 'high' | 'medium' | 'low';
+  overallImpact: Severity;
 }
 
 export interface FileImpact {
@@ -105,12 +105,12 @@ export interface AffectedArea {
   area: string;
   description: string;
   files: string[];
-  impact: 'critical' | 'high' | 'medium' | 'low';
+  impact: Severity;
   userFacing: boolean;
 }
 
 export interface CodeRiskAssessment {
-  overallRisk: 'critical' | 'high' | 'medium' | 'low';
+  overallRisk: Severity;
   riskFactors: RiskFactor[];
   confidence: number; // 0-100
   recommendations: string[];
@@ -118,7 +118,7 @@ export interface CodeRiskAssessment {
 
 export interface RiskFactor {
   factor: string;
-  impact: 'critical' | 'high' | 'medium' | 'low';
+  impact: Severity;
   likelihood: 'certain' | 'likely' | 'possible' | 'unlikely';
   explanation: string;
   mitigation?: string;

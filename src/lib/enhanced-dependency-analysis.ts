@@ -73,14 +73,14 @@ export interface VersionConstraints {
 }
 
 export interface BreakingChangeRisk {
-  overallRisk: 'critical' | 'high' | 'medium' | 'low';
+  overallRisk: Severity;
   factors: RiskFactor[];
   mitigationSteps: string[];
 }
 
 export interface RiskFactor {
   type: 'major-version' | 'api-changes' | 'peer-dependency' | 'config-changes' | 'ecosystem-impact';
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  severity: Severity;
   description: string;
   evidenceSource: 'changelog' | 'github-diff' | 'dependency-analysis' | 'community-reports';
 }

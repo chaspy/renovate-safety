@@ -76,11 +76,18 @@ export function logError(message: string, error?: unknown): void {
   const errorMark = chalk.red('✗');
   console.log(`${errorMark} ${message}`);
   if (error) {
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : typeof error === 'object' && error !== null 
-        ? JSON.stringify(error)
-        : String(error);
+    let errorMessage: string;
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'object' && error !== null) {
+      try {
+        errorMessage = JSON.stringify(error);
+      } catch {
+        errorMessage = '[Object]';
+      }
+    } else {
+      errorMessage = String(error);
+    }
     console.log(`   ${chalk.red(errorMessage)}`);
   }
 }

@@ -3,6 +3,7 @@ import { getPackageRawData } from './npm-registry.js';
 import { validatePackageName } from './validation.js';
 import { safeJsonParse } from './safe-json.js';
 import { loggers } from './logger.js';
+import { Severity } from './enhanced-code-analysis.js';
 import {
   FALLBACK_VALUES,
   RELEASE_FREQUENCIES,
@@ -176,7 +177,7 @@ export interface Codemod {
 
 export interface DetailedBreakingChange {
   type: 'api-removal' | 'api-change' | 'behavior-change' | 'config-change' | 'dependency-change';
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  severity: Severity;
   title: string;
   description: string;
   affectedApis: string[];
