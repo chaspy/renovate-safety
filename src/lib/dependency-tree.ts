@@ -18,11 +18,11 @@ export type DependentInfo = {
   type: 'direct' | 'transitive';
 };
 
-export interface DependencyImpact {
+export type DependencyImpact = {
   usage: DependencyUsage;
   riskLevel: 'high' | 'medium' | 'low';
   reason: string;
-}
+};
 
 export async function analyzeDependencyUsage(packageName: string): Promise<DependencyUsage | null> {
   try {

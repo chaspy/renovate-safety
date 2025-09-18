@@ -5,7 +5,7 @@ import { executeInParallel } from './parallel-helpers.js';
 
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
 
-export interface EnhancedCodeAnalysis {
+export type EnhancedCodeAnalysis = {
   packageName: string;
   codeDiff: CodeDiff | null;
   semanticChanges: SemanticChange[];
@@ -14,9 +14,9 @@ export interface EnhancedCodeAnalysis {
   migrationComplexity: MigrationComplexity;
   fileImpactAnalysis: FileImpactAnalysis;
   riskAssessment: CodeRiskAssessment;
-}
+};
 
-export interface SemanticChange {
+export type SemanticChange = {
   type:
     | 'api-addition'
     | 'api-removal'
@@ -32,9 +32,9 @@ export interface SemanticChange {
     after?: string;
   };
   impact: string;
-}
+};
 
-export interface ApiChange {
+export type ApiChange = {
   api: string;
   changeType: 'added' | 'removed' | 'modified' | 'deprecated';
   file: string;
@@ -45,9 +45,9 @@ export interface ApiChange {
   };
   documentation?: string;
   compatibility: 'breaking' | 'backward-compatible' | 'enhancement';
-}
+};
 
-export interface BreakingPattern {
+export type BreakingPattern = {
   pattern: string;
   description: string;
   files: string[];
@@ -55,26 +55,26 @@ export interface BreakingPattern {
   migrationRequired: boolean;
   autoFixable: boolean;
   suggestedFix?: string;
-}
+};
 
-export interface MigrationComplexity {
+export type MigrationComplexity = {
   overallComplexity: 'trivial' | 'simple' | 'moderate' | 'complex' | 'major';
   estimatedHours: number;
   automationPossible: number; // percentage
   riskFactors: string[];
   migrationSteps: MigrationStep[];
-}
+};
 
-export interface MigrationStep {
+export type MigrationStep = {
   order: number;
   description: string;
   category: 'preparation' | 'code-change' | 'testing' | 'validation' | 'cleanup';
   effort: 'low' | 'medium' | 'high';
   automatable: boolean;
   dependencies: number[]; // step numbers this depends on
-}
+};
 
-export interface FileImpactAnalysis {
+export type FileImpactAnalysis = {
   categories: FileCategory[];
   riskDistribution: {
     critical: number;
@@ -83,15 +83,15 @@ export interface FileImpactAnalysis {
     low: number;
   };
   affectedAreas: AffectedArea[];
-}
+};
 
-export interface FileCategory {
+export type FileCategory = {
   category: 'api' | 'config' | 'types' | 'implementation' | 'documentation' | 'tests';
   files: FileImpact[];
   overallImpact: Severity;
-}
+};
 
-export interface FileImpact {
+export type FileImpact = {
   filename: string;
   changeType: 'added' | 'removed' | 'modified';
   linesChanged: number;
@@ -99,30 +99,30 @@ export interface FileImpact {
   publicApi: boolean;
   testCoverage: boolean;
   backwards_compatible: boolean;
-}
+};
 
-export interface AffectedArea {
+export type AffectedArea = {
   area: string;
   description: string;
   files: string[];
   impact: Severity;
   userFacing: boolean;
-}
+};
 
-export interface CodeRiskAssessment {
+export type CodeRiskAssessment = {
   overallRisk: Severity;
   riskFactors: RiskFactor[];
   confidence: number; // 0-100
   recommendations: string[];
-}
+};
 
-export interface RiskFactor {
+export type RiskFactor = {
   factor: string;
   impact: Severity;
   likelihood: 'certain' | 'likely' | 'possible' | 'unlikely';
   explanation: string;
   mitigation?: string;
-}
+};
 
 export async function performEnhancedCodeAnalysis(
   packageUpdate: PackageUpdate,

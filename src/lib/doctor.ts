@@ -12,12 +12,12 @@ import {
   logSuccess,
 } from './logger-extended.js';
 
-interface HealthCheck {
+type HealthCheck = {
   name: string;
   status: 'ok' | 'warning' | 'error';
   message: string;
   suggestion?: string;
-}
+};
 
 export async function runDoctorCheck(): Promise<void> {
   logSection('Renovate Safety Doctor', '🏥');
