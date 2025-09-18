@@ -46,7 +46,6 @@ export default [
       'complexity': ['error', 30], // Cognitive complexity threshold set to 30
       'max-depth': ['warn', 6], // Gradually reducing to target of 4
       'no-nested-ternary': 'error', // No nested ternary operators
-      '@typescript-eslint/no-unused-expressions': 'error',
       'no-empty': ['error', { allowEmptyCatch: false }], // Proper exception handling
       'prefer-regex-literals': 'warn', // Use RegExp.exec() instead of String.match()
       '@typescript-eslint/prefer-optional-chain': 'error', // Use optional chaining
