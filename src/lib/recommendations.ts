@@ -6,7 +6,7 @@ import type {
   APIUsage,
 } from '../types/index.js';
 
-interface ActionableRecommendation {
+type ActionableRecommendation {
   title: string;
   priority: 'immediate' | 'high' | 'medium' | 'low';
   actions: string[];

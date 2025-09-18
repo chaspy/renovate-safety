@@ -6,7 +6,7 @@
 import { getErrorMessage } from '../analyzers/utils.js';
 import { getEnvironmentConfig } from './env-config.js';
 
-export interface LogContext {
+export type LogContext {
   operation: string;
   target?: string;
   error?: unknown;

@@ -4,7 +4,7 @@
 
 import { glob } from 'glob';
 
-export interface GlobOptions {
+export type GlobOptions {
   ecosystem?: 'node' | 'python' | 'general';
   includeTests?: boolean;
   absolute?: boolean;

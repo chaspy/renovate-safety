@@ -20,11 +20,11 @@ import { logError } from './logger-extended.js';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 
-interface LLMAnalysisOptions {
+type LLMAnalysisOptions = {
   provider?: 'claude-cli' | 'anthropic' | 'openai';
   cacheDir?: string;
   language?: 'en' | 'ja';
-}
+};
 
 export async function summarizeWithLLM(
   packageUpdate: PackageUpdate,

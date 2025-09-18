@@ -5,7 +5,7 @@
 
 import { getEnvVar, getEnvVarEnum } from './env-validator.js';
 
-export interface EnvironmentConfig {
+export type EnvironmentConfig {
   // API Keys (sensitive)
   anthropicApiKey?: string;
   openaiApiKey?: string;

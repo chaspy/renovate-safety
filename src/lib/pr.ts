@@ -129,18 +129,18 @@ export async function getRenovatePRs(): Promise<PRInfo[]> {
   }
 }
 
-interface PRInfo {
+type PRInfo = {
   number: number;
   title: string;
   branch: string;
   body: string;
-}
+};
 
-interface PRData {
+type PRData = {
   title: string;
   branch: string;
   body: string;
-}
+};
 
 async function getPRData(prNumber: number): Promise<PRData | null> {
   try {
@@ -446,7 +446,7 @@ function extractFromRenovateTitle(prData: PRData): PackageUpdate | null {
 
   // Try title first
   for (const pattern of patterns) {
-    const match = prData.title.match(pattern);
+    const match = pattern.exec(prData.title);
     if (match) {
       if (match.length === 4) {
         // Pattern with from and to versions

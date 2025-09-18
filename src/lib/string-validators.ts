@@ -98,8 +98,13 @@ export function isAlphanumeric(str: string): boolean {
  * Extract numbers from string
  */
 export function extractNumbers(str: string): number[] {
-  const matches = str.match(/\d+/g);
-  return matches ? matches.map(Number) : [];
+  const regex = /\d+/g;
+  const matches: string[] = [];
+  let match;
+  while ((match = regex.exec(str)) !== null) {
+    matches.push(match[0]);
+  }
+  return matches.map(Number);
 }
 
 /**

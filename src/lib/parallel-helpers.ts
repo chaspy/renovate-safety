@@ -4,7 +4,7 @@
 
 import pLimit from 'p-limit';
 
-export interface ParallelOptions {
+export type ParallelOptions {
   concurrency?: number;
   continueOnError?: boolean;
   timeout?: number;

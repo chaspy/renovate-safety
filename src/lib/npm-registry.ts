@@ -7,7 +7,7 @@ import { secureNpmExec, parseJsonOutput, isSuccessful } from './secure-exec.js';
 import { loggers } from './logger.js';
 import { tryWithLogging } from './error-handlers.js';
 
-export interface PackageInfo {
+export type PackageInfo {
   name: string;
   version: string;
   description?: string;

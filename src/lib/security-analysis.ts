@@ -1,11 +1,11 @@
 import type { PackageUpdate, CodeDiff, ChangelogDiff } from '../types/index.js';
 
-interface SecurityIssue {
+type SecurityIssue = {
   type: 'vulnerability' | 'suspicious-pattern' | 'permission-change' | 'dependency-injection';
   severity: 'low' | 'medium' | 'high' | 'critical';
   description: string;
   recommendation: string;
-}
+};
 
 export async function analyzeSecurityImplications(
   packageUpdate: PackageUpdate,

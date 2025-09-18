@@ -5,7 +5,7 @@ import { readJsonFile } from './file-helpers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export interface PackageMigration {
+export type PackageMigration {
   summary: string;
   breakingChanges: string[];
   migrationSteps: string[];
@@ -13,7 +13,7 @@ export interface PackageMigration {
   releaseDate?: string;
 }
 
-export interface PackageKnowledge {
+export type PackageKnowledge {
   description?: string;
   repository?: string;
   migrations: Record<string, PackageMigration>;

@@ -6,7 +6,7 @@ import type { APIUsage, BreakingChange } from '../types/index.js';
 
 const CONCURRENT_FILE_LIMIT = 10;
 
-interface APIPattern {
+type APIPattern {
   name: string;
   regex: RegExp;
 }

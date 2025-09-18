@@ -7,14 +7,14 @@ import { execa, ExecaError } from 'execa';
 import { validatePackageName, validateVersion } from './validation.js';
 import { tmpdir } from 'os';
 
-export interface SecureExecOptions {
+export type SecureExecOptions {
   cwd?: string;
   timeout?: number;
   throwOnError?: boolean;
   env?: Record<string, string>;
 }
 
-export interface ExecResult {
+export type ExecResult {
   stdout: string;
   stderr: string;
   failed: boolean;

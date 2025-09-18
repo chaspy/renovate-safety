@@ -7,7 +7,7 @@ import type {
   PackageUpdate,
 } from '../types/index.js';
 
-interface RiskFactors {
+type RiskFactors {
   hasBreakingChanges: boolean;
   breakingChangeCount: number;
   hasHighSeverityChanges: boolean;

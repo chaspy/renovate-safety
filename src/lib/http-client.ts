@@ -6,12 +6,12 @@
 import { validateUrl, escapeForUrl } from './validation.js';
 import { getErrorMessage } from '../analyzers/utils.js';
 
-export interface HttpRequestOptions {
+export type HttpRequestOptions {
   headers?: Record<string, string>;
   timeout?: number;
 }
 
-export interface HttpResponse<T = unknown> {
+export type HttpResponse<T = unknown> {
   data: T | null;
   ok: boolean;
   status?: number;

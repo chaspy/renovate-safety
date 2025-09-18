@@ -5,7 +5,7 @@
 
 import semver from 'semver';
 
-export interface VersionJump {
+export type VersionJump {
   major: number;
   minor: number;
   patch: number;

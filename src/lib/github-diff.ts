@@ -4,7 +4,7 @@ import { getEnvironmentConfig } from './env-config.js';
 import { loggers } from './logger.js';
 import { getPackageRepository, extractGitHubRepo } from './npm-registry.js';
 
-export interface CodeDiff {
+export type CodeDiff {
   content: string;
   source: 'github-compare';
   filesChanged: number;
@@ -240,7 +240,7 @@ function isRelevantFile(filename: string): boolean {
   return importantFiles.some((file) => filename.endsWith(file));
 }
 
-interface GitHubFile {
+type GitHubFile = {
   filename: string;
   additions?: number;
   deletions?: number;
