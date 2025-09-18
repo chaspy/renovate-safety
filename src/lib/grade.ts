@@ -7,7 +7,7 @@ import type {
   PackageUpdate,
 } from '../types/index.js';
 
-type RiskFactors {
+type RiskFactors = {
   hasBreakingChanges: boolean;
   breakingChangeCount: number;
   hasHighSeverityChanges: boolean;
@@ -17,7 +17,7 @@ type RiskFactors {
   llmBreakingCount: number;
   isMajorVersionUpdate: boolean;
   hasChangelogData: boolean;
-}
+};
 
 export async function assessRisk(
   breakingChanges: BreakingChange[],

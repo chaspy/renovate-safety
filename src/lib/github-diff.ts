@@ -4,7 +4,7 @@ import { getEnvironmentConfig } from './env-config.js';
 import { loggers } from './logger.js';
 import { getPackageRepository, extractGitHubRepo } from './npm-registry.js';
 
-export type CodeDiff {
+export type CodeDiff = {
   content: string;
   source: 'github-compare';
   filesChanged: number;
@@ -12,7 +12,7 @@ export type CodeDiff {
   deletions: number;
   fromTag: string;
   toTag: string;
-}
+};
 
 export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeDiff | null> {
   try {
@@ -246,7 +246,7 @@ type GitHubFile = {
   deletions?: number;
   status: string;
   patch?: string;
-}
+};
 
 function formatDiffContent(files: GitHubFile[], packageUpdate: PackageUpdate): string {
   const header = `# Code Changes Analysis\nPackage: ${packageUpdate.name}\nVersion: ${packageUpdate.fromVersion} → ${packageUpdate.toVersion}\n\n`;

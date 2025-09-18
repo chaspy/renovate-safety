@@ -5,11 +5,11 @@
 
 import semver from 'semver';
 
-export type VersionJump {
+export type VersionJump = {
   major: number;
   minor: number;
   patch: number;
-}
+};
 
 /**
  * Analyze version jump between two versions

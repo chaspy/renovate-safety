@@ -5,15 +5,15 @@ import { readJsonFile } from './file-helpers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export type PackageMigration {
+export type PackageMigration = {
   summary: string;
   breakingChanges: string[];
   migrationSteps: string[];
   affectedPackages?: string[];
   releaseDate?: string;
-}
+};
 
-export type PackageKnowledge {
+export type PackageKnowledge = {
   description?: string;
   repository?: string;
   migrations: Record<string, PackageMigration>;
@@ -23,7 +23,7 @@ export type PackageKnowledge {
     solution: string;
   }>;
   versionCompatibility?: Record<string, Record<string, string>>;
-}
+};
 
 export class PackageKnowledgeBase {
   private readonly knowledge: Map<string, PackageKnowledge> = new Map();

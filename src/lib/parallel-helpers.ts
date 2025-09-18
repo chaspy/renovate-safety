@@ -4,11 +4,11 @@
 
 import pLimit from 'p-limit';
 
-export type ParallelOptions {
+export type ParallelOptions = {
   concurrency?: number;
   continueOnError?: boolean;
   timeout?: number;
-}
+};
 
 /**
  * Process an array of items in parallel with concurrency control

@@ -6,14 +6,14 @@ import type {
   APIUsage,
 } from '../types/index.js';
 
-type ActionableRecommendation {
+type ActionableRecommendation = {
   title: string;
   priority: 'immediate' | 'high' | 'medium' | 'low';
   actions: string[];
   estimatedTime: string;
   automatable: boolean;
   resources?: string[];
-}
+};
 
 export function generateActionableRecommendations(
   result: AnalysisResult,

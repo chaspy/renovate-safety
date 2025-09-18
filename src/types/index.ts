@@ -1,4 +1,4 @@
-export type CLIOptions {
+export type CLIOptions = {
   pr?: number;
   from?: string;
   to?: string;
@@ -13,20 +13,20 @@ export type CLIOptions {
   deep: boolean;
 }
 
-export type PackageUpdate {
+export type PackageUpdate = {
   name: string;
   fromVersion: string;
   toVersion: string;
 }
 
-export type ChangelogDiff {
+export type ChangelogDiff = {
   content: string;
   source: 'npm' | 'github' | 'PyPI' | 'github+npm';
   fromVersion?: string;
   toVersion?: string;
 }
 
-export type CodeDiff {
+export type CodeDiff = {
   content: string;
   source: 'github-compare';
   filesChanged: number;
@@ -36,33 +36,33 @@ export type CodeDiff {
   toTag: string;
 }
 
-export type DependencyUsage {
+export type DependencyUsage = {
   packageName: string;
   dependents: DependentInfo[];
   isDirect: boolean;
   usageType: 'dependencies' | 'devDependencies' | 'peerDependencies' | 'optionalDependencies';
 }
 
-export type DependentInfo {
+export type DependentInfo = {
   name: string;
   version: string;
   path: string[];
   type: 'direct' | 'transitive';
 }
 
-export type BreakingChange {
+export type BreakingChange = {
   line: string;
   severity: 'breaking' | 'warning' | 'removal';
   source?: string; // e.g., 'changelog', 'release-notes', 'code-diff'
 }
 
-export type LLMSummary {
+export type LLMSummary = {
   summary: string;
   language: 'en' | 'ja';
   breakingChanges: string[];
 }
 
-export type APIUsage {
+export type APIUsage = {
   file?: string;
   filePath?: string;
   line: number;
@@ -75,7 +75,7 @@ export type APIUsage {
 
 export type RiskLevel = 'safe' | 'low' | 'medium' | 'high' | 'critical' | 'unknown';
 
-export type RiskAssessment {
+export type RiskAssessment = {
   level: RiskLevel;
   factors: string[];
   estimatedEffort: 'none' | 'minimal' | 'moderate' | 'significant' | 'unknown';
@@ -88,7 +88,7 @@ export type RiskAssessment {
     | 'full regression recommended';
 }
 
-export type AnalysisResult {
+export type AnalysisResult = {
   package: PackageUpdate;
   changelogDiff: ChangelogDiff | null;
   codeDiff: CodeDiff | null;
@@ -101,13 +101,13 @@ export type AnalysisResult {
   recommendation: string;
 }
 
-export type Report {
+export type Report = {
   analysisResult: AnalysisResult;
   format: 'markdown' | 'json';
 }
 
 // Deep Analysis Types
-export type PackageUsageDetail {
+export type PackageUsageDetail = {
   file: string;
   line: number;
   type: 'import' | 'require' | 'dynamic-import';
@@ -118,7 +118,7 @@ export type PackageUsageDetail {
   isTypeOnly?: boolean;
 }
 
-export type APIUsageDetail {
+export type APIUsageDetail = {
   file: string;
   line: number;
   apiName: string;
@@ -134,14 +134,14 @@ export type APIUsageDetail {
   chainedCalls?: string[];
 }
 
-export type FileClassification {
+export type FileClassification = {
   file: string;
   category: 'test' | 'production' | 'config' | 'build' | 'documentation';
   confidence: number;
   indicators: string[];
 }
 
-export type ConfigFileUsage {
+export type ConfigFileUsage = {
   file: string;
   configType:
     | 'package.json'
@@ -157,7 +157,7 @@ export type ConfigFileUsage {
   content: unknown;
 }
 
-export type DeepAnalysisResult {
+export type DeepAnalysisResult = {
   packageName: string;
   totalFiles: number;
   filesUsingPackage: number;

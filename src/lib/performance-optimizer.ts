@@ -6,31 +6,31 @@ import { clearTimeout } from 'node:timers';
 import { readJsonFile, ensureDirectory } from './file-helpers.js';
 import { processInParallel, executeInParallel } from './parallel-helpers.js';
 
-export type PerformanceOptimizer {
+export type PerformanceOptimizer = {
   cache: SmartCache;
   parallelExecutor: ParallelExecutor;
   progressTracker: ProgressTracker;
 }
 
-export type SmartCache {
+export type SmartCache = {
   get<T>(key: string): Promise<T | null>;
   set<T>(key: string, value: T, ttl?: number): Promise<void>;
   invalidate(pattern: string): Promise<void>;
   clear(): Promise<void>;
 }
 
-export type ParallelExecutor {
+export type ParallelExecutor = {
   execute<T>(tasks: Task<T>[], options?: ExecutionOptions): Promise<T[]>;
   executeWithDependencies<T>(tasks: DependentTask<T>[]): Promise<T[]>;
 }
 
-export type ProgressTracker {
+export type ProgressTracker = {
   start(total: number, description: string): void;
   update(completed: number, currentTask?: string): void;
   finish(): void;
 }
 
-export type Task<T> {
+export type Task<T> = {
   id: string;
   name: string;
   priority: 'high' | 'medium' | 'low';
@@ -39,18 +39,18 @@ export type Task<T> {
   retries?: number;
 }
 
-export type DependentTask<T> extends Task<T> {
+export type DependentTask<T> = Task<T> & {
   dependencies: string[];
 }
 
-export type ExecutionOptions {
+export type ExecutionOptions = {
   maxConcurrency?: number;
   timeout?: number;
   failFast?: boolean;
   retryFailedTasks?: boolean;
 }
 
-export type CacheEntry<T> {
+export type CacheEntry<T> = {
   value: T;
   timestamp: number;
   ttl: number;

@@ -7,21 +7,21 @@ import { execa, ExecaError } from 'execa';
 import { validatePackageName, validateVersion } from './validation.js';
 import { tmpdir } from 'os';
 
-export type SecureExecOptions {
+export type SecureExecOptions = {
   cwd?: string;
   timeout?: number;
   throwOnError?: boolean;
   env?: Record<string, string>;
-}
+};
 
-export type ExecResult {
+export type ExecResult = {
   stdout: string;
   stderr: string;
   failed: boolean;
   exitCode?: number;
   success: boolean;
   error?: string;
-}
+};
 
 /**
  * Common error handler for execa errors

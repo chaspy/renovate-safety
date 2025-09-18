@@ -9,7 +9,7 @@ import type { EnhancedDependencyAnalysis } from './enhanced-dependency-analysis.
 import type { LibraryIntelligence } from './library-intelligence.js';
 import type { EnhancedCodeAnalysis } from './enhanced-code-analysis.js';
 
-export type EnhancedPromptContext {
+export type EnhancedPromptContext = {
   packageUpdate: PackageUpdate;
   changelogDiff: ChangelogDiff | null;
   codeDiff: CodeDiff | null;
@@ -19,7 +19,7 @@ export type EnhancedPromptContext {
   libraryIntelligence?: LibraryIntelligence;
   enhancedCodeAnalysis?: EnhancedCodeAnalysis;
   language: 'en' | 'ja';
-}
+};
 
 export function buildSuperEnhancedPrompt(context: EnhancedPromptContext): string {
   const {

@@ -7,7 +7,7 @@ import { secureNpmExec, parseJsonOutput, isSuccessful } from './secure-exec.js';
 import { loggers } from './logger.js';
 import { tryWithLogging } from './error-handlers.js';
 
-export type PackageInfo {
+export type PackageInfo = {
   name: string;
   version: string;
   description?: string;
@@ -21,7 +21,7 @@ export type PackageInfo {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
-}
+};
 
 /**
  * Get repository URL from package metadata

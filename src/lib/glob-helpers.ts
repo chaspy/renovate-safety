@@ -4,12 +4,12 @@
 
 import { glob } from 'glob';
 
-export type GlobOptions {
+export type GlobOptions = {
   ecosystem?: 'node' | 'python' | 'general';
   includeTests?: boolean;
   absolute?: boolean;
   additionalIgnore?: string[];
-}
+};
 
 /**
  * Common ignore patterns for different ecosystems

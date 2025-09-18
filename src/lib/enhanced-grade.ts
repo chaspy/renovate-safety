@@ -9,7 +9,7 @@ import {
   VersionJump,
 } from './risk-assessment-utils.js';
 
-export type RiskFactors {
+export type RiskFactors = {
   versionJump: VersionJump;
   usage: {
     directUsageCount: number;
@@ -31,7 +31,7 @@ export type RiskFactors {
   };
 }
 
-export type EnhancedRiskAssessment extends RiskAssessment {
+export type EnhancedRiskAssessment = RiskAssessment & {
   confidence: number;
   detailedFactors: RiskFactors;
   mitigationSteps?: string[];

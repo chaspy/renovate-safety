@@ -33,7 +33,7 @@ import {
   parseBrowserSupport,
 } from './utils/package-helpers.js';
 
-export type LibraryIntelligence {
+export type LibraryIntelligence = {
   packageName: string;
   packageInfo: PackageInfo;
   ecosystemInfo: EcosystemInfo;
@@ -44,7 +44,7 @@ export type LibraryIntelligence {
   migrationIntelligence: MigrationIntelligence;
 }
 
-export type PackageInfo {
+export type PackageInfo = {
   description: string;
   keywords: string[];
   license: string;
@@ -60,7 +60,7 @@ export type PackageInfo {
   };
 }
 
-export type EcosystemInfo {
+export type EcosystemInfo = {
   packageManager: 'npm' | 'pypi' | 'gem' | 'cargo' | 'go' | 'other';
   runtime: string[];
   framework: string[];
@@ -69,7 +69,7 @@ export type EcosystemInfo {
   complementaryPackages: string[];
 }
 
-export type AlternativePackage {
+export type AlternativePackage = {
   name: string;
   reason: string;
   pros: string[];
@@ -77,7 +77,7 @@ export type AlternativePackage {
   migrationEffort: 'low' | 'medium' | 'high';
 }
 
-export type MaintenanceInfo {
+export type MaintenanceInfo = {
   lastUpdated: string;
   releaseFrequency: 'very-active' | 'active' | 'moderate' | 'slow' | 'inactive';
   maintainerResponse: 'excellent' | 'good' | 'average' | 'poor' | 'unknown';
@@ -89,7 +89,7 @@ export type MaintenanceInfo {
   sponsors: string[];
 }
 
-export type SecurityInfo {
+export type SecurityInfo = {
   vulnerabilities: SecurityVulnerability[];
   securityScore: number; // 0-100
   auditStatus: 'clean' | 'warnings' | 'vulnerabilities' | 'unknown';
@@ -98,7 +98,7 @@ export type SecurityInfo {
   codeOfConduct: boolean;
 }
 
-export type SecurityVulnerability {
+export type SecurityVulnerability = {
   id: string;
   severity: 'critical' | 'high' | 'moderate' | 'low';
   title: string;
@@ -108,7 +108,7 @@ export type SecurityVulnerability {
   cwe?: string[];
 }
 
-export type PopularityMetrics {
+export type PopularityMetrics = {
   downloads: {
     daily: number;
     weekly: number;
@@ -121,7 +121,7 @@ export type PopularityMetrics {
   trendingScore: number; // -100 to 100
 }
 
-export type TechnicalDetails {
+export type TechnicalDetails = {
   bundleSize: {
     minified?: number;
     gzipped?: number;
@@ -140,20 +140,20 @@ export type TechnicalDetails {
   apiSurface: ApiSurface;
 }
 
-export type ModuleExport {
+export type ModuleExport = {
   name: string;
   type: 'function' | 'class' | 'constant' | 'type' | 'namespace';
   stability: 'stable' | 'experimental' | 'deprecated';
 }
 
-export type ApiSurface {
+export type ApiSurface = {
   publicMethods: number;
   publicClasses: number;
   publicConstants: number;
   complexity: 'simple' | 'moderate' | 'complex' | 'very-complex';
 }
 
-export type MigrationIntelligence {
+export type MigrationIntelligence = {
   fromVersion: string;
   toVersion: string;
   migrationGuide?: string;
@@ -168,14 +168,14 @@ export type MigrationIntelligence {
   };
 }
 
-export type Codemod {
+export type Codemod = {
   name: string;
   description: string;
   command: string;
   coverage: number; // percentage of changes it can handle
 }
 
-export type DetailedBreakingChange {
+export type DetailedBreakingChange = {
   type: 'api-removal' | 'api-change' | 'behavior-change' | 'config-change' | 'dependency-change';
   severity: Severity;
   title: string;
@@ -189,7 +189,7 @@ export type DetailedBreakingChange {
   automationAvailable: boolean;
 }
 
-export type ApiChange {
+export type ApiChange = {
   api: string;
   changeType: 'removed' | 'renamed' | 'signature-changed' | 'deprecated';
   oldSignature?: string;
@@ -198,7 +198,7 @@ export type ApiChange {
   removalDate?: string;
 }
 
-export type ConfigChange {
+export type ConfigChange = {
   configFile: string;
   property: string;
   changeType: 'removed' | 'renamed' | 'default-changed' | 'validation-changed';
