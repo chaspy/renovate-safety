@@ -20,6 +20,12 @@ import { logError } from './logger-extended.js';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 
+interface LLMAnalysisOptions {
+  provider?: 'claude-cli' | 'anthropic' | 'openai';
+  cacheDir?: string;
+  language?: 'en' | 'ja';
+}
+
 export async function summarizeWithLLM(
   packageUpdate: PackageUpdate,
   changelogDiff: ChangelogDiff,
@@ -336,13 +342,14 @@ export async function enhancedLLMAnalysis(
   codeDiff: CodeDiff | null,
   dependencyUsage: DependencyUsage | null,
   breakingChanges: BreakingChange[],
-  provider?: 'claude-cli' | 'anthropic' | 'openai',
-  cacheDir?: string,
-  language: 'en' | 'ja' = 'en'
+  options: LLMAnalysisOptions = {}
 ): Promise<LLMSummary | null> {
+  const { provider, cacheDir, language = 'en' } = options;
+
   // Fix invalid provider parameter (likely from CLI parsing issue)
+  let validProvider = provider;
   if (typeof provider !== 'string' || !['claude-cli', 'anthropic', 'openai'].includes(provider)) {
-    provider = undefined;
+    validProvider = undefined;
   }
 
   // Check cache first
@@ -352,7 +359,7 @@ export async function enhancedLLMAnalysis(
   }
 
   // Determine provider
-  const llmProvider = provider || (await detectProvider());
+  const llmProvider = validProvider || (await detectProvider());
 
   if (!llmProvider) {
     loggers.warn(

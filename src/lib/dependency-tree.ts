@@ -241,7 +241,6 @@ export function assessDependencyImpact(usage: DependencyUsage): DependencyImpact
       riskLevel = 'high';
       reason = 'Peer dependency - requires careful version compatibility';
     } else if (usage.usageType === 'optionalDependencies') {
-      riskLevel = 'low';
       reason = 'Optional dependency - graceful degradation expected';
     }
   } else {
