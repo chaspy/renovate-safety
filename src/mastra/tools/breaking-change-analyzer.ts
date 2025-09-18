@@ -13,7 +13,7 @@ import {
   shouldSkipFile,
 } from './breaking-change-analyzer-helpers.js';
 
-export type AnalyzedAnalyzedBreakingChange = {
+export type AnalyzedBreakingChange = {
   text: string;
   severity: 'critical' | 'breaking' | 'warning';
   source: string;
@@ -21,7 +21,7 @@ export type AnalyzedAnalyzedBreakingChange = {
   confidence: number; // 0.0 to 1.0
 };
 
-export class AnalyzedBreakingChangeAnalyzer {
+export class BreakingChangeAnalyzer {
   private readonly detectedChanges = new Set<string>();
   private breakingChanges: AnalyzedBreakingChange[] = [];
   private publicEntryHints: string[] = [];
@@ -278,7 +278,7 @@ export class AnalyzedBreakingChangeAnalyzer {
       })
       .sort((a, b) => {
         // Sort by severity, then confidence
-        const severityOrder = { 'critical': 0, 'breaking': 1, 'warning': 2 };
+        const severityOrder = { 'critical': 0, 'breaking': 1, 'warning': 2, 'removal': 1 };
         const severityDiff = (severityOrder[a.severity] || 3) - (severityOrder[b.severity] || 3);
         if (severityDiff !== 0) return severityDiff;
         
@@ -399,4 +399,4 @@ export class AnalyzedBreakingChangeAnalyzer {
 }
 
 // Export singleton instance
-export const breakingChangeAnalyzer = new AnalyzedBreakingChangeAnalyzer();
+export const breakingChangeAnalyzer = new BreakingChangeAnalyzer();

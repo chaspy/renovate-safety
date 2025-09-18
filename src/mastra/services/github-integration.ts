@@ -12,7 +12,7 @@ import {
 } from '../tools/index.js';
 import { RuntimeContext } from '@mastra/core/runtime-context';
 
-export type GitHubGitHubPRInfo = {
+export type GitHubPRInfo = {
   number: number;
   title: string;
   base: string;

@@ -3,7 +3,7 @@ import { Octokit } from '@octokit/rest';
 import { secureSystemExec } from '../../lib/secure-exec.js';
 import { safeJsonParse } from '../../lib/safe-json.js';
 
-export type DetailedDetailedPRInfo = {
+export type DetailedPRInfo = {
   number: number;
   title: string;
   body: string;
