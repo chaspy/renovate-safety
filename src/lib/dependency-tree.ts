@@ -204,34 +204,14 @@ function parseNpmLsOutput(data: unknown, packageName: string): DependencyUsage |
 function parseYarnWhyOutput(jsonData: unknown[], packageName: string): DependencyUsage | null {
   const dependents: DependentInfo[] = [];
   let isDirect = false;
-  let usageType: DependencyUsage['usageType'] = 'dependencies';
+  const usageType: DependencyUsage['usageType'] = 'dependencies';
 
   for (const item of jsonData) {
-    const typedItem = item as { type?: string; data?: unknown };
-    if (typedItem.type === 'info' && typedItem.data) {
-      const data = typedItem.data;
-      if (typeof data === 'string' && data.includes(packageName)) {
-        // Parse yarn why output format
-        const lines = data.split('\n').filter((line) => line.trim());
-
-        for (const line of lines) {
-          if (line.includes('=>')) {
-            const parts = line.split('=>').map((s) => s.trim());
-            if (parts.length >= 2) {
-              const dependencyChain = parts[0].split('#');
-              dependents.push({
-                name: dependencyChain[0] || packageName,
-                version: parts[1] || 'unknown',
-                path: dependencyChain,
-                type: dependencyChain.length <= 2 ? 'direct' : 'transitive',
-              });
-
-              if (dependencyChain.length <= 2) {
-                isDirect = true;
-              }
-            }
-          }
-        }
+    const result = processYarnWhatItem(item, packageName);
+    if (result) {
+      dependents.push(...result.dependents);
+      if (result.hasDirectDependency) {
+        isDirect = true;
       }
     }
   }
@@ -330,4 +310,61 @@ export function formatDependencyUsage(usage: DependencyUsage): string {
   }
 
   return lines.join('\n');
+}
+
+function processYarnWhatItem(
+  item: unknown,
+  packageName: string
+): { dependents: DependentInfo[]; hasDirectDependency: boolean } | null {
+  const typedItem = item as { type?: string; data?: unknown };
+  if (typedItem.type !== 'info' || !typedItem.data) {
+    return null;
+  }
+
+  const data = typedItem.data;
+  if (typeof data !== 'string' || !data.includes(packageName)) {
+    return null;
+  }
+
+  return parseYarnDependencyLines(data, packageName);
+}
+
+function parseYarnDependencyLines(
+  data: string,
+  packageName: string
+): { dependents: DependentInfo[]; hasDirectDependency: boolean } {
+  const dependents: DependentInfo[] = [];
+  let hasDirectDependency = false;
+
+  // Parse yarn why output format
+  const lines = data.split('\n').filter((line) => line.trim());
+
+  for (const line of lines) {
+    if (line.includes('=>')) {
+      const dependentInfo = parseYarnDependencyLine(line, packageName);
+      if (dependentInfo) {
+        dependents.push(dependentInfo);
+        if (dependentInfo.type === 'direct') {
+          hasDirectDependency = true;
+        }
+      }
+    }
+  }
+
+  return { dependents, hasDirectDependency };
+}
+
+function parseYarnDependencyLine(line: string, packageName: string): DependentInfo | null {
+  const parts = line.split('=>').map((s) => s.trim());
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const dependencyChain = parts[0].split('#');
+  return {
+    name: dependencyChain[0] || packageName,
+    version: parts[1] || 'unknown',
+    path: dependencyChain,
+    type: dependencyChain.length <= 2 ? 'direct' : 'transitive',
+  };
 }

@@ -43,7 +43,7 @@ export default [
 
       // SonarCloud-compatible rules
       // Complexity will be gradually reduced - starting with warning level
-      'complexity': ['warn', 25], // Gradually reducing from 105 to target of 15
+      'complexity': ['error', 30], // Cognitive complexity threshold set to 30
       'max-depth': ['warn', 6], // Gradually reducing to target of 4
       'no-nested-ternary': 'error', // No nested ternary operators
       '@typescript-eslint/no-unused-expressions': 'error',
