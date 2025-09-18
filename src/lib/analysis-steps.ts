@@ -9,6 +9,7 @@ import {
   DependencyUsage,
   BreakingChange,
   LLMSummary,
+  APIUsage,
 } from '../types/index.js';
 import { extractPackageInfo } from './pr.js';
 import { extractBreakingChanges } from './breaking.js';
@@ -75,7 +76,7 @@ export async function checkShouldSkipPatchUpdate(
   return null;
 }
 
-export async function findAppropriateAnalyzer(spinner: Ora, packageUpdate: PackageUpdate) {
+export async function findAppropriateAnalyzer(_spinner: Ora, packageUpdate: PackageUpdate) {
   const analyzeSpinner = ora('Finding appropriate package analyzer...').start();
   const analyzer = await analyzerRegistry.findAnalyzer(packageUpdate.name, process.cwd());
 
@@ -89,7 +90,7 @@ export async function findAppropriateAnalyzer(spinner: Ora, packageUpdate: Packa
 }
 
 export async function fetchChangelogAndKnowledge(
-  spinner: Ora,
+  _spinner: Ora,
   analyzer: unknown,
   packageUpdate: PackageUpdate,
   options: CLIOptions
@@ -98,8 +99,16 @@ export async function fetchChangelogAndKnowledge(
   let changelogDiff = null;
   let knowledgeBasedBreaking: string[] = [];
 
-  if (analyzer) {
-    changelogDiff = await analyzer.fetchChangelog(packageUpdate, options.cacheDir);
+  if (
+    analyzer &&
+    typeof analyzer === 'object' &&
+    analyzer !== null &&
+    'fetchChangelog' in analyzer
+  ) {
+    const analyzerWithFetch = analyzer as {
+      fetchChangelog: (pkg: PackageUpdate, cacheDir: string) => Promise<ChangelogDiff | null>;
+    };
+    changelogDiff = await analyzerWithFetch.fetchChangelog(packageUpdate, options.cacheDir);
   }
 
   // Try package knowledge base
@@ -142,7 +151,7 @@ export async function fetchChangelogAndKnowledge(
   return { changelogDiff, knowledgeBasedBreaking };
 }
 
-export async function fetchCodeDifference(spinner: Ora, packageUpdate: PackageUpdate) {
+export async function fetchCodeDifference(_spinner: Ora, packageUpdate: PackageUpdate) {
   const codeDiffSpinner = ora('Fetching code differences from GitHub...').start();
   const codeDiff = await fetchCodeDiff(packageUpdate);
 
@@ -155,7 +164,7 @@ export async function fetchCodeDifference(spinner: Ora, packageUpdate: PackageUp
   return codeDiff;
 }
 
-export async function analyzeDependencyUsageStep(spinner: Ora, packageUpdate: PackageUpdate) {
+export async function analyzeDependencyUsageStep(_spinner: Ora, packageUpdate: PackageUpdate) {
   const dependencySpinner = ora('Analyzing dependency usage...').start();
   const dependencyUsage = await analyzeDependencyUsage(packageUpdate.name);
 
@@ -171,15 +180,18 @@ export async function analyzeDependencyUsageStep(spinner: Ora, packageUpdate: Pa
 }
 
 export async function analyzePackageUsageStep(
-  spinner: Ora,
+  _spinner: Ora,
   analyzer: unknown,
   packageUpdate: PackageUpdate
 ) {
   const usageSpinner = ora('Analyzing package usage in codebase...').start();
   let usageAnalysis: UsageAnalysis | null = null;
 
-  if (analyzer) {
-    usageAnalysis = await analyzer.analyzeUsage(packageUpdate.name, process.cwd());
+  if (analyzer && typeof analyzer === 'object' && analyzer !== null && 'analyzeUsage' in analyzer) {
+    const analyzerWithUsage = analyzer as {
+      analyzeUsage: (name: string, cwd: string) => Promise<UsageAnalysis>;
+    };
+    usageAnalysis = await analyzerWithUsage.analyzeUsage(packageUpdate.name, process.cwd());
     usageSpinner.succeed(
       `Found ${usageAnalysis.totalUsageCount} usage locations (${usageAnalysis.productionUsageCount} in production)`
     );
@@ -191,7 +203,7 @@ export async function analyzePackageUsageStep(
 }
 
 export async function extractBreakingChangesStep(
-  spinner: Ora,
+  _spinner: Ora,
   changelogDiff: ChangelogDiff | null,
   codeDiff: CodeDiff | null,
   knowledgeBasedBreaking: string[]
@@ -241,7 +253,7 @@ interface LLMAnalysisParams {
 }
 
 export async function performLLMAnalysis(
-  spinner: Ora,
+  _spinner: Ora,
   options: CLIOptions,
   params: LLMAnalysisParams
 ) {
@@ -327,7 +339,7 @@ interface AnalysisResultParams {
   dependencyUsage: DependencyUsage | null;
   breakingChanges: BreakingChange[];
   llmSummary: LLMSummary | null;
-  apiUsages: unknown[];
+  apiUsages: APIUsage[];
   deepAnalysis: DeepAnalysisResult | undefined;
   usageAnalysis: UsageAnalysis | null;
 }

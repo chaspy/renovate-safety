@@ -4,7 +4,6 @@ import type {
   DependencyUsage,
   DependentInfo,
   APIUsage,
-  ConfigFileUsage,
 } from '../types/index.js';
 import { packageKnowledgeBase } from './package-knowledge.js';
 import {
@@ -662,12 +661,12 @@ async function generateCodeUsageSection(
   return report;
 }
 
-function generateConfigUsageSection(configUsages: ConfigFileUsage[], isJa: boolean): string {
+function generateConfigUsageSection(configUsages: APIUsage[], isJa: boolean): string {
   let report = isJa
     ? `#### ⚙️ 設定/メタデータ参照 (${configUsages.length} 箇所)\n`
     : `#### ⚙️ Config/Metadata References (${configUsages.length} locations)\n`;
 
-  const configFiles = [...new Set(configUsages.map((u) => u.file))];
+  const configFiles = [...new Set(configUsages.map((u) => u.file || u.filePath || 'unknown'))];
   configFiles.slice(0, 5).forEach((file) => {
     report += `- ${file}\n`;
   });

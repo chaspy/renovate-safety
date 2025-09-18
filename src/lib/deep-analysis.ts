@@ -381,7 +381,7 @@ function analyzeConstructorCall(
 }
 
 function analyzePropertyAccess(
-  identifier: Node,
+  _identifier: Node,
   parent: Node,
   filePath: string,
   line: number,
@@ -440,7 +440,7 @@ function analyzeTypeReference(
   // Check for other type-related contexts
   if (
     Node.isVariableDeclaration(parent.getParent()) ||
-    Node.isParameter(parent.getParent()) ||
+    Node.isParameterDeclaration(parent.getParent()) ||
     Node.isFunctionDeclaration(parent.getParent()?.getParent())
   ) {
     return {
