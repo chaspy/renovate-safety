@@ -12,13 +12,13 @@ import {
   shouldSkipFile,
 } from './breaking-change-analyzer-helpers.js';
 
-export interface BreakingChange {
+export type BreakingChange = {
   text: string;
   severity: 'critical' | 'breaking' | 'warning';
   source: string;
   category: 'runtime-requirement' | 'api-change' | 'removal' | 'deprecation' | 'documented-change';
   confidence: number; // 0.0 to 1.0
-}
+};
 
 export class BreakingChangeAnalyzer {
   private readonly detectedChanges = new Set<string>();

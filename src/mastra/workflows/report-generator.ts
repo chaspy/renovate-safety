@@ -60,13 +60,13 @@ interface Assessment {
   risk: RiskAssessment;
 }
 
-export interface ReportOptions {
+export type ReportOptions = {
   format: 'markdown' | 'json';
   language: 'en' | 'ja';
   prInfo: PRInfo;
   executionStats?: ExecutionStats;
   includeExecutionStats?: boolean;
-}
+};
 
 export async function generateReport(assessments: Assessment[], options: ReportOptions) {
   if (options.format === 'json') {

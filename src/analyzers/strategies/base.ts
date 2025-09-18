@@ -3,13 +3,13 @@ import type { PackageUpdate } from '../../types/index.js';
 /**
  * Analysis result with confidence score
  */
-export interface StrategyAnalysisResult {
+export type StrategyAnalysisResult = {
   content: string;
   breakingChanges: string[];
   confidence: number; // 0-1
   source: string;
   metadata?: Record<string, any>;
-}
+};
 
 /**
  * Base strategy for fallback analysis

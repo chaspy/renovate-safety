@@ -1,5 +1,5 @@
 declare module 'pacote' {
-  interface ManifestResult {
+  type ManifestResult = {
     name: string;
     version: string;
     repository?: {

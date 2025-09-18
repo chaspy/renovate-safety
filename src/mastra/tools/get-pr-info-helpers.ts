@@ -3,7 +3,7 @@ import { Octokit } from '@octokit/rest';
 import { secureSystemExec } from '../../lib/secure-exec.js';
 import { safeJsonParse } from '../../lib/safe-json.js';
 
-export interface PRInfo {
+export type PRInfo = {
   number: number;
   title: string;
   body: string;
@@ -19,7 +19,7 @@ export interface PRInfo {
     owner: string;
     name: string;
   };
-}
+};
 
 export async function fetchPRWithGHCLI(
   prNumber: number,

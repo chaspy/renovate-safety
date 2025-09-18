@@ -3,7 +3,7 @@
  * Tracks agent executions, tool calls, and performance statistics
  */
 
-export interface AgentExecution {
+export type AgentExecution = {
   agentName: string;
   startTime: Date;
   endTime?: Date;
@@ -15,9 +15,9 @@ export interface AgentExecution {
   totalTokens?: number;
   model?: string;
   toolCalls?: ToolExecution[];
-}
+};
 
-export interface ToolExecution {
+export type ToolExecution = {
   toolName: string;
   startTime: Date;
   endTime?: Date;
@@ -26,9 +26,9 @@ export interface ToolExecution {
   error?: string;
   inputParams?: Record<string, any>;
   outputData?: any;
-}
+};
 
-export interface ExecutionStats {
+export type ExecutionStats = {
   analysisId: string;
   prNumber: number;
   startTime: Date;
@@ -51,7 +51,7 @@ export interface ExecutionStats {
   dataSourcesUsed: string[];
   cacheHits?: number;
   cacheMisses?: number;
-}
+};
 
 class ExecutionTracker {
   private readonly stats: ExecutionStats;

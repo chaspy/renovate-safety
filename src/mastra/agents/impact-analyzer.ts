@@ -1,7 +1,7 @@
 import type { TsUsage } from '../tools/ts-usage-scanner.js';
 import type { ConfigUsage } from '../tools/config-scanner.js';
 
-export interface ImpactAnalysis {
+export type ImpactAnalysis = {
   level: 'minimal' | 'low' | 'medium' | 'high';
   score: number;
   criticalPaths: CriticalPath[];
@@ -9,19 +9,19 @@ export interface ImpactAnalysis {
   totalCount: number;
   byType: Record<string, number>;
   files: string[];
-}
+};
 
-export interface CriticalPath {
+export type CriticalPath = {
   file: string;
   line: number;
   reason: string;
-}
+};
 
-export interface AnalyzeImpactInput {
+export type AnalyzeImpactInput = {
   codeUsage: TsUsage[];
   configUsage: ConfigUsage[];
   breakingChanges: string[];
-}
+};
 
 export function analyzeImpact(
   usages: Array<TsUsage | ConfigUsage>,

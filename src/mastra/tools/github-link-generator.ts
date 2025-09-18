@@ -15,11 +15,11 @@ interface CodeUsage {
   context?: string;
 }
 
-export interface GitHubLinkOptions {
+export type GitHubLinkOptions = {
   repository: Repository;
   branch?: string;
   baseUrl?: string;
-}
+};
 
 /**
  * Normalize file path to be relative to git repository root

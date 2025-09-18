@@ -18,12 +18,12 @@ export const BREAKING_CHANGE_PATTERNS = [
   /\[MOVED\]/i,
 ];
 
-export interface BreakingChangeInfo {
+export type BreakingChangeInfo = {
   text: string;
   pattern: RegExp;
   lineNumber?: number;
   severity: 'breaking' | 'warning' | 'removal';
-}
+};
 
 export function detectBreakingChangesFromText(text: string): BreakingChangeInfo[] {
   const lines = text.split('\n');

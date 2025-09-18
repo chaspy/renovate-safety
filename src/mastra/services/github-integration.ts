@@ -12,7 +12,7 @@ import {
 } from '../tools/index.js';
 import { RuntimeContext } from '@mastra/core/runtime-context';
 
-export interface PRInfo {
+export type PRInfo = {
   number: number;
   title: string;
   base: string;
@@ -21,7 +21,7 @@ export interface PRInfo {
     owner: string;
     name: string;
   };
-}
+};
 
 /**
  * Fetch PR information directly using tools (no Agent wrapper)
