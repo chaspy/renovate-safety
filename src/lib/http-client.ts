@@ -9,14 +9,14 @@ import { getErrorMessage } from '../analyzers/utils.js';
 export type HttpRequestOptions = {
   headers?: Record<string, string>;
   timeout?: number;
-}
+};
 
 export type HttpResponse<T = unknown> = {
   data: T | null;
   ok: boolean;
   status?: number;
   error?: string;
-}
+};
 
 /**
  * Centralized HTTP GET request with validation and error handling

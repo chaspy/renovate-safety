@@ -8,7 +8,7 @@ declare module 'pacote' {
     };
     homepage?: string;
     [key: string]: unknown;
-  }
+  };
 
   export function manifest(spec: string): Promise<ManifestResult>;
   export function extract(spec: string, destination: string): Promise<void>;

@@ -29,13 +29,13 @@ export type RiskFactors = {
     isDevDependency?: boolean;
     isLockfileOnly?: boolean;
   };
-}
+};
 
 export type EnhancedRiskAssessment = RiskAssessment & {
   confidence: number;
   detailedFactors: RiskFactors;
   mitigationSteps?: string[];
-}
+};
 
 export async function assessEnhancedRisk(
   packageUpdate: PackageUpdate,

@@ -42,7 +42,7 @@ export type LibraryIntelligence = {
   popularityMetrics: PopularityMetrics;
   technicalDetails: TechnicalDetails;
   migrationIntelligence: MigrationIntelligence;
-}
+};
 
 export type PackageInfo = {
   description: string;
@@ -58,7 +58,7 @@ export type PackageInfo = {
     unpacked: number;
     gzipped?: number;
   };
-}
+};
 
 export type EcosystemInfo = {
   packageManager: 'npm' | 'pypi' | 'gem' | 'cargo' | 'go' | 'other';
@@ -67,7 +67,7 @@ export type EcosystemInfo = {
   category: string[];
   alternatives: AlternativePackage[];
   complementaryPackages: string[];
-}
+};
 
 export type AlternativePackage = {
   name: string;
@@ -75,7 +75,7 @@ export type AlternativePackage = {
   pros: string[];
   cons: string[];
   migrationEffort: 'low' | 'medium' | 'high';
-}
+};
 
 export type MaintenanceInfo = {
   lastUpdated: string;
@@ -87,7 +87,7 @@ export type MaintenanceInfo = {
   communityHealth: 'excellent' | 'good' | 'average' | 'poor';
   funding: boolean;
   sponsors: string[];
-}
+};
 
 export type SecurityInfo = {
   vulnerabilities: SecurityVulnerability[];
@@ -96,7 +96,7 @@ export type SecurityInfo = {
   lastAudit: string;
   securityPolicy: boolean;
   codeOfConduct: boolean;
-}
+};
 
 export type SecurityVulnerability = {
   id: string;
@@ -106,7 +106,7 @@ export type SecurityVulnerability = {
   affectedVersions: string;
   patchedIn?: string;
   cwe?: string[];
-}
+};
 
 export type PopularityMetrics = {
   downloads: {
@@ -119,7 +119,7 @@ export type PopularityMetrics = {
   dependentRepos: number;
   dependentPackages: number;
   trendingScore: number; // -100 to 100
-}
+};
 
 export type TechnicalDetails = {
   bundleSize: {
@@ -138,20 +138,20 @@ export type TechnicalDetails = {
   };
   exports: ModuleExport[];
   apiSurface: ApiSurface;
-}
+};
 
 export type ModuleExport = {
   name: string;
   type: 'function' | 'class' | 'constant' | 'type' | 'namespace';
   stability: 'stable' | 'experimental' | 'deprecated';
-}
+};
 
 export type ApiSurface = {
   publicMethods: number;
   publicClasses: number;
   publicConstants: number;
   complexity: 'simple' | 'moderate' | 'complex' | 'very-complex';
-}
+};
 
 export type MigrationIntelligence = {
   fromVersion: string;
@@ -166,14 +166,14 @@ export type MigrationIntelligence = {
     complexity: 'trivial' | 'simple' | 'moderate' | 'complex' | 'major';
     automatable: number; // percentage
   };
-}
+};
 
 export type Codemod = {
   name: string;
   description: string;
   command: string;
   coverage: number; // percentage of changes it can handle
-}
+};
 
 export type DetailedBreakingChange = {
   type: 'api-removal' | 'api-change' | 'behavior-change' | 'config-change' | 'dependency-change';
@@ -187,7 +187,7 @@ export type DetailedBreakingChange = {
     after: string;
   };
   automationAvailable: boolean;
-}
+};
 
 export type ApiChange = {
   api: string;
@@ -196,7 +196,7 @@ export type ApiChange = {
   newSignature?: string;
   deprecationDate?: string;
   removalDate?: string;
-}
+};
 
 export type ConfigChange = {
   configFile: string;
@@ -205,7 +205,7 @@ export type ConfigChange = {
   oldValue?: string;
   newValue?: string;
   migrationInstructions: string;
-}
+};
 
 export async function gatherLibraryIntelligence(
   packageName: string,

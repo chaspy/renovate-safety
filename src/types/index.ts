@@ -11,20 +11,20 @@ export type CLIOptions = {
   force: boolean;
   language?: 'en' | 'ja';
   deep: boolean;
-}
+};
 
 export type PackageUpdate = {
   name: string;
   fromVersion: string;
   toVersion: string;
-}
+};
 
 export type ChangelogDiff = {
   content: string;
   source: 'npm' | 'github' | 'PyPI' | 'github+npm';
   fromVersion?: string;
   toVersion?: string;
-}
+};
 
 export type CodeDiff = {
   content: string;
@@ -34,33 +34,33 @@ export type CodeDiff = {
   deletions: number;
   fromTag: string;
   toTag: string;
-}
+};
 
 export type DependencyUsage = {
   packageName: string;
   dependents: DependentInfo[];
   isDirect: boolean;
   usageType: 'dependencies' | 'devDependencies' | 'peerDependencies' | 'optionalDependencies';
-}
+};
 
 export type DependentInfo = {
   name: string;
   version: string;
   path: string[];
   type: 'direct' | 'transitive';
-}
+};
 
 export type BreakingChange = {
   line: string;
   severity: 'breaking' | 'warning' | 'removal';
   source?: string; // e.g., 'changelog', 'release-notes', 'code-diff'
-}
+};
 
 export type LLMSummary = {
   summary: string;
   language: 'en' | 'ja';
   breakingChanges: string[];
-}
+};
 
 export type APIUsage = {
   file?: string;
@@ -71,7 +71,7 @@ export type APIUsage = {
   context?: string;
   apiName: string;
   usageType?: 'import' | 'call' | 'reference';
-}
+};
 
 export type RiskLevel = 'safe' | 'low' | 'medium' | 'high' | 'critical' | 'unknown';
 
@@ -86,7 +86,7 @@ export type RiskAssessment = {
     | 'full'
     | 'full regression'
     | 'full regression recommended';
-}
+};
 
 export type AnalysisResult = {
   package: PackageUpdate;
@@ -99,12 +99,12 @@ export type AnalysisResult = {
   deepAnalysis?: DeepAnalysisResult;
   riskAssessment: RiskAssessment;
   recommendation: string;
-}
+};
 
 export type Report = {
   analysisResult: AnalysisResult;
   format: 'markdown' | 'json';
-}
+};
 
 // Deep Analysis Types
 export type PackageUsageDetail = {
@@ -116,7 +116,7 @@ export type PackageUsageDetail = {
   defaultImport?: string;
   namespaceImport?: string;
   isTypeOnly?: boolean;
-}
+};
 
 export type APIUsageDetail = {
   file: string;
@@ -132,14 +132,14 @@ export type APIUsageDetail = {
   context: string;
   arguments?: string[];
   chainedCalls?: string[];
-}
+};
 
 export type FileClassification = {
   file: string;
   category: 'test' | 'production' | 'config' | 'build' | 'documentation';
   confidence: number;
   indicators: string[];
-}
+};
 
 export type ConfigFileUsage = {
   file: string;
@@ -155,7 +155,7 @@ export type ConfigFileUsage = {
     | 'other';
   usage: string;
   content: unknown;
-}
+};
 
 export type DeepAnalysisResult = {
   packageName: string;
@@ -172,4 +172,4 @@ export type DeepAnalysisResult = {
     testVsProduction: { test: number; production: number };
   };
   recommendations: string[];
-}
+};

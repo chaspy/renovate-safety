@@ -10,25 +10,25 @@ export type PerformanceOptimizer = {
   cache: SmartCache;
   parallelExecutor: ParallelExecutor;
   progressTracker: ProgressTracker;
-}
+};
 
 export type SmartCache = {
   get<T>(key: string): Promise<T | null>;
   set<T>(key: string, value: T, ttl?: number): Promise<void>;
   invalidate(pattern: string): Promise<void>;
   clear(): Promise<void>;
-}
+};
 
 export type ParallelExecutor = {
   execute<T>(tasks: Task<T>[], options?: ExecutionOptions): Promise<T[]>;
   executeWithDependencies<T>(tasks: DependentTask<T>[]): Promise<T[]>;
-}
+};
 
 export type ProgressTracker = {
   start(total: number, description: string): void;
   update(completed: number, currentTask?: string): void;
   finish(): void;
-}
+};
 
 export type Task<T> = {
   id: string;
@@ -37,24 +37,24 @@ export type Task<T> = {
   execute: () => Promise<T>;
   timeout?: number;
   retries?: number;
-}
+};
 
 export type DependentTask<T> = Task<T> & {
   dependencies: string[];
-}
+};
 
 export type ExecutionOptions = {
   maxConcurrency?: number;
   timeout?: number;
   failFast?: boolean;
   retryFailedTasks?: boolean;
-}
+};
 
 export type CacheEntry<T> = {
   value: T;
   timestamp: number;
   ttl: number;
-}
+};
 
 export function createPerformanceOptimizer(cacheDir: string): PerformanceOptimizer {
   const cache = new FileBasedCache(cacheDir);
