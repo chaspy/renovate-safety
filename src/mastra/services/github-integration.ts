@@ -4,7 +4,7 @@
  */
 
 import { 
-  getGitHubPRInfoTool,
+  getPRInfoTool,
   dependencyReviewTool,
   githubCompareTool,
   prCommentTool,
@@ -28,7 +28,7 @@ export type GitHubGitHubPRInfo = {
  */
 export async function fetchGitHubPRInfo(prNumber: number): Promise<any> {
   try {
-    const result = await getGitHubPRInfoTool.execute({
+    const result = await getPRInfoTool.execute({
       context: {
         prNumber,
         includeBaseRepository: true
@@ -49,7 +49,7 @@ export async function fetchGitHubPRInfo(prNumber: number): Promise<any> {
 /**
  * Get dependency changes directly using tools (no Agent wrapper)
  */
-export async function getDependencyChanges(prInfo: GitHubGitHubPRInfo): Promise<any> {
+export async function getDependencyChanges(prInfo: GitHubPRInfo): Promise<any> {
   const owner = prInfo.repository?.owner || 'unknown';
   const repo = prInfo.repository?.name || 'unknown';
   

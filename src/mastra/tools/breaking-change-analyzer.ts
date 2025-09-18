@@ -3,7 +3,7 @@
  * Provides more accurate detection with categorization and deduplication
  */
 
-import { BreakingChange } from '../../types/index.js';
+// Note: Using local AnalyzedAnalyzedBreakingChange type for internal analysis
 import { extractExportedNamesFromLine as extractExportedNamesBase, extractFunctionSignature, normalizeSignature } from '../../lib/code-analysis-utils.js';
 import {
   ExportTracking,
@@ -13,7 +13,7 @@ import {
   shouldSkipFile,
 } from './breaking-change-analyzer-helpers.js';
 
-export type AnalyzedBreakingChange = {
+export type AnalyzedAnalyzedBreakingChange = {
   text: string;
   severity: 'critical' | 'breaking' | 'warning';
   source: string;
@@ -21,9 +21,9 @@ export type AnalyzedBreakingChange = {
   confidence: number; // 0.0 to 1.0
 };
 
-export class BreakingChangeAnalyzer {
+export class AnalyzedBreakingChangeAnalyzer {
   private readonly detectedChanges = new Set<string>();
-  private breakingChanges: BreakingChange[] = [];
+  private breakingChanges: AnalyzedBreakingChange[] = [];
   private publicEntryHints: string[] = [];
 
   /**
@@ -35,7 +35,7 @@ export class BreakingChangeAnalyzer {
     fromVersion: string,
     toVersion: string,
     context?: { publicEntryHints?: string[] }
-  ): BreakingChange[] {
+  ): AnalyzedBreakingChange[] {
     this.reset();
     if (context?.publicEntryHints && context.publicEntryHints.length > 0) {
       this.publicEntryHints = this.normalizeHints(context.publicEntryHints);
@@ -193,7 +193,7 @@ export class BreakingChangeAnalyzer {
   private analyzeDocumentationChanges(diff: any[]) {
     for (const change of diff) {
       if (this.isDocumentationFile(change.file) && change.content) {
-        this.detectDocumentedBreakingChanges(change);
+        this.detectDocumentedAnalyzedBreakingChanges(change);
       }
     }
   }
@@ -201,7 +201,7 @@ export class BreakingChangeAnalyzer {
   /**
    * Detect documented breaking changes
    */
-  private detectDocumentedBreakingChanges(change: any) {
+  private detectDocumentedAnalyzedBreakingChanges(change: any) {
     const content = change.content;
     
     const patterns = [
@@ -258,7 +258,7 @@ export class BreakingChangeAnalyzer {
   /**
    * Remove duplicates and filter non-breaking changes
    */
-  private deduplicateAndFilter(): BreakingChange[] {
+  private deduplicateAndFilter(): AnalyzedBreakingChange[] {
     return this.breakingChanges
       .filter(change => {
         // Filter out non-breaking additions
@@ -399,4 +399,4 @@ export class BreakingChangeAnalyzer {
 }
 
 // Export singleton instance
-export const breakingChangeAnalyzer = new BreakingChangeAnalyzer();
+export const breakingChangeAnalyzer = new AnalyzedBreakingChangeAnalyzer();

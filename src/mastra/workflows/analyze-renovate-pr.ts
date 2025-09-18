@@ -13,7 +13,7 @@ import {
 
 // New services - much cleaner architecture
 import { 
-  fetchPRInfo, 
+  fetchGitHubPRInfo, 
   getDependencyChanges, 
   compareBranches, 
   handlePRPosting
@@ -69,7 +69,7 @@ const getPRInfoStep = createStep({
     console.log(`📊 Execution tracking initialized for PR #${prNumber}`);
     
     // Use direct service call instead of Agent wrapper
-    const prInfo = await fetchPRInfo(prNumber);
+    const prInfo = await fetchGitHubPRInfo(prNumber);
 
     // Set repository information for tracking
     if (prInfo.repository) {
