@@ -250,7 +250,7 @@ type LLMAnalysisParams = {
   dependencyUsage: DependencyUsage | null;
   breakingChanges: BreakingChange[];
   knowledgeBasedBreaking: string[];
-}
+};
 
 export async function performLLMAnalysis(
   _spinner: Ora,
@@ -349,7 +349,7 @@ type AnalysisResultParams = {
   apiUsages: APIUsage[];
   deepAnalysis: DeepAnalysisResult | undefined;
   usageAnalysis: UsageAnalysis | null;
-}
+};
 
 export async function generateAnalysisResult(
   params: AnalysisResultParams,

@@ -12,12 +12,12 @@ import { getFileContext } from './utils.js';
 export type ConfigFilePattern = {
   pattern: string;
   type: string;
-}
+};
 
 export type FileSearchOptions = {
   cwd: string;
   ignore: string[];
-}
+};
 
 /**
  * Search for configuration files containing a package reference

@@ -5,17 +5,17 @@ import {
   normalizeSignature,
 } from './code-analysis-utils.js';
 
-export interface ApiDiffSummary {
+export type ApiDiffSummary = {
   bullets: string[];
   enginesDiff?: { from: string; to: string };
-}
+};
 
-interface DiffParseState {
+type DiffParseState = {
   inDiff: boolean;
   currentFile: string;
-}
+};
 
-interface ExportsAndSignatures {
+type ExportsAndSignatures = {
   addedExports: Set<string>;
   removedExports: Set<string>;
   removedSignatures: Map<string, Set<string>>;

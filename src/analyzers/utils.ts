@@ -98,7 +98,7 @@ export type UsageCategorization = {
   configUsageCount: number;
   criticalPaths: string[];
   hasDynamicImports: boolean;
-}
+};
 
 /**
  * Categorizes usage locations by context and type

@@ -13,7 +13,7 @@ export type PackageMetadata = {
   publishedAt?: Date;
   deprecated?: boolean;
   deprecationMessage?: string;
-}
+};
 
 /**
  * Usage analysis result
@@ -25,7 +25,7 @@ export type UsageLocation = {
   type: 'import' | 'require' | 'function-call' | 'property-access' | 'type-reference' | 'config';
   code: string;
   context: 'production' | 'test' | 'config' | 'build';
-}
+};
 
 export type UsageAnalysis = {
   locations: UsageLocation[];
@@ -35,14 +35,14 @@ export type UsageAnalysis = {
   configUsageCount: number;
   criticalPaths: string[];
   hasDynamicImports: boolean;
-}
+};
 
 /**
  * Additional context specific to the package ecosystem
  */
 export type AdditionalContext = {
   [key: string]: unknown;
-}
+};
 
 /**
  * Base interface for all package analyzers
