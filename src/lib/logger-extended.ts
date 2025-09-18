@@ -85,8 +85,12 @@ export function logError(message: string, error?: unknown): void {
       } catch {
         errorMessage = '[Object]';
       }
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    } else if (typeof error === 'number' || typeof error === 'boolean') {
+      errorMessage = error.toString();
     } else {
-      errorMessage = String(error);
+      errorMessage = '[Unknown]';
     }
     console.log(`   ${chalk.red(errorMessage)}`);
   }
