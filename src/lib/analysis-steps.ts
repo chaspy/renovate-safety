@@ -243,7 +243,7 @@ export async function extractBreakingChangesStep(
   return breakingChanges;
 }
 
-interface LLMAnalysisParams {
+type LLMAnalysisParams = {
   packageUpdate: PackageUpdate;
   changelogDiff: ChangelogDiff | null;
   codeDiff: CodeDiff | null;
@@ -319,8 +319,13 @@ export async function performDeepAnalysisStep(
     spinner = ora('Performing deep code analysis...').start();
     const breakingAPINames = breakingChanges
       .map((bc) => {
-        const matches = bc.line.match(/`([a-zA-Z_$][a-zA-Z0-9_$]*)`/g);
-        return matches ? matches.map((m) => m.slice(1, -1)) : [];
+        const regex = /`([a-zA-Z_$][a-zA-Z0-9_$]*)`/g;
+        const matches: string[] = [];
+        let match;
+        while ((match = regex.exec(bc.line)) !== null) {
+          matches.push(match[0]);
+        }
+        return matches.map((m) => m.slice(1, -1));
       })
       .flat();
 
@@ -334,7 +339,7 @@ export async function performDeepAnalysisStep(
   return deepAnalysis;
 }
 
-interface AnalysisResultParams {
+type AnalysisResultParams = {
   packageUpdate: PackageUpdate;
   changelogDiff: ChangelogDiff | null;
   codeDiff: CodeDiff | null;

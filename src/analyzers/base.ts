@@ -3,7 +3,7 @@ import type { PackageUpdate, ChangelogDiff } from '../types/index.js';
 /**
  * Package metadata from registry or repository
  */
-export interface PackageMetadata {
+export type PackageMetadata = {
   name: string;
   version: string;
   description?: string;
@@ -18,7 +18,7 @@ export interface PackageMetadata {
 /**
  * Usage analysis result
  */
-export interface UsageLocation {
+export type UsageLocation = {
   file: string;
   line: number;
   column: number;
@@ -27,7 +27,7 @@ export interface UsageLocation {
   context: 'production' | 'test' | 'config' | 'build';
 }
 
-export interface UsageAnalysis {
+export type UsageAnalysis = {
   locations: UsageLocation[];
   totalUsageCount: number;
   productionUsageCount: number;
@@ -40,7 +40,7 @@ export interface UsageAnalysis {
 /**
  * Additional context specific to the package ecosystem
  */
-export interface AdditionalContext {
+export type AdditionalContext = {
   [key: string]: unknown;
 }
 

@@ -9,12 +9,12 @@ import { getFiles, getSourceFiles } from '../lib/glob-helpers.js';
 import type { UsageLocation } from './base.js';
 import { getFileContext } from './utils.js';
 
-export interface ConfigFilePattern {
+export type ConfigFilePattern = {
   pattern: string;
   type: string;
 }
 
-export interface FileSearchOptions {
+export type FileSearchOptions = {
   cwd: string;
   ignore: string[];
 }
