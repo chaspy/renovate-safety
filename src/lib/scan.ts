@@ -115,7 +115,10 @@ function extractAPIPatterns(_packageName: string, breakingChanges: BreakingChang
 
     // Extract from common patterns
     const commonPatterns = [
-      new RegExp(`removed\\s+(?:method|function|property|class|interface|type|export)\\s+(${fullIdentifier})`, 'i'),
+      new RegExp(
+        `removed\\s+(?:method|function|property|class|interface|type|export)\\s+(${fullIdentifier})`,
+        'i'
+      ),
       new RegExp(`renamed\\s+(${fullIdentifier})\\s+to\\s+(${fullIdentifier})`, 'i'),
       new RegExp(`deprecated\\s+(${fullIdentifier})`, 'i'),
       new RegExp(`(${fullIdentifier})\\s+is\\s+(?:removed|deprecated|renamed)`, 'i'),

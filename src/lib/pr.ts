@@ -16,7 +16,7 @@ export async function extractPackageInfo(options: CLIOptions): Promise<PackageUp
   }
 
   // Try to get info from PR or current branch
-  let prData: PRData | null = null;
+  let prData: PRData | null;
 
   if (options.pr) {
     prData = await getPRData(options.pr);

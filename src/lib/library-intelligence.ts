@@ -721,7 +721,7 @@ function estimateMigrationEffort(
   const automationCoverage =
     codemods.reduce((acc, mod) => acc + mod.coverage, 0) / codemods.length || 0;
 
-  let timeInHours = 0;
+  let timeInHours: number;
   let complexity: MigrationIntelligence['estimatedEffort']['complexity'] = 'trivial';
 
   if (changeCount === 0) {

@@ -270,7 +270,7 @@ export async function performLLMAnalysis(
       {
         provider: options.llm,
         cacheDir: options.cacheDir,
-        language: options.language || 'en'
+        language: options.language || 'en',
       }
     );
 
