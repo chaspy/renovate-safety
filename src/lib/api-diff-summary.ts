@@ -20,12 +20,12 @@ type ExportsAndSignatures = {
   removedExports: Set<string>;
   removedSignatures: Map<string, Set<string>>;
   addedSignatures: Map<string, Set<string>>;
-}
+};
 
-interface EngineVersions {
+type EngineVersions = {
   nodeOld: string | null;
   nodeNew: string | null;
-}
+};
 
 export async function summarizeApiDiff(
   codeDiff: CodeDiff,

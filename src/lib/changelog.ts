@@ -350,12 +350,12 @@ function detectPackageType(packageName: string): 'javascript' | 'python' | 'unkn
   return 'javascript';
 }
 
-interface PyPIPackageInfo {
+type PyPIPackageInfo = {
   info?: {
     project_urls?: Record<string, string>;
     home_page?: string;
   };
-}
+};
 
 async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDiff | null> {
   try {

@@ -8,7 +8,7 @@ import { safeJsonParse } from './safe-json.js';
 
 const CONCURRENT_FILE_LIMIT = 10;
 
-export interface PackageUsageDetail {
+export type PackageUsageDetail = {
   file: string;
   line: number;
   type: 'import' | 'require' | 'dynamic-import';
@@ -17,9 +17,9 @@ export interface PackageUsageDetail {
   defaultImport?: string;
   namespaceImport?: string;
   isTypeOnly?: boolean;
-}
+};
 
-export interface APIUsageDetail {
+export type APIUsageDetail = {
   file: string;
   line: number;
   apiName: string;
@@ -33,16 +33,16 @@ export interface APIUsageDetail {
   context: string;
   arguments?: string[];
   chainedCalls?: string[];
-}
+};
 
-export interface FileClassification {
+export type FileClassification = {
   file: string;
   category: 'test' | 'production' | 'config' | 'build' | 'documentation';
   confidence: number;
   indicators: string[];
-}
+};
 
-export interface ConfigFileUsage {
+export type ConfigFileUsage = {
   file: string;
   configType:
     | 'package.json'
@@ -56,9 +56,9 @@ export interface ConfigFileUsage {
     | 'other';
   usage: string;
   content: unknown;
-}
+};
 
-export interface DeepAnalysisResult {
+export type DeepAnalysisResult = {
   packageName: string;
   totalFiles: number;
   filesUsingPackage: number;
@@ -73,7 +73,7 @@ export interface DeepAnalysisResult {
     testVsProduction: { test: number; production: number };
   };
   recommendations: string[];
-}
+};
 
 export async function performDeepAnalysis(
   packageUpdate: PackageUpdate,

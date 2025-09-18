@@ -4,19 +4,19 @@ import { secureNpmExec, secureSystemExec } from './secure-exec.js';
 import { validatePackageName } from './validation.js';
 import { readJsonFile } from './file-helpers.js';
 
-export interface DependencyUsage {
+export type DependencyUsage = {
   packageName: string;
   dependents: DependentInfo[];
   isDirect: boolean;
   usageType: 'dependencies' | 'devDependencies' | 'peerDependencies' | 'optionalDependencies';
-}
+};
 
-export interface DependentInfo {
+export type DependentInfo = {
   name: string;
   version: string;
   path: string[];
   type: 'direct' | 'transitive';
-}
+};
 
 export interface DependencyImpact {
   usage: DependencyUsage;
