@@ -1,4 +1,11 @@
-import type { AnalysisResult, BreakingChange } from '../types/index.js';
+import type {
+  AnalysisResult,
+  BreakingChange,
+  DependencyUsage,
+  DependentInfo,
+  APIUsage,
+  ConfigFileUsage,
+} from '../types/index.js';
 import { packageKnowledgeBase } from './package-knowledge.js';
 import {
   generateMarkdownLink,
@@ -535,7 +542,7 @@ function generateDependencyUsageSection(result: AnalysisResult, isJa: boolean): 
   return report;
 }
 
-function generateTransitiveDependencyDetails(dependencyUsage: any): string {
+function generateTransitiveDependencyDetails(dependencyUsage: DependencyUsage): string {
   const paths = dependencyUsage.dependents.slice(0, 5);
   const dependencyType = paths[0].type === 'direct' ? 'Direct' : 'Transitive';
   const displayCount = Math.min(5, dependencyUsage.dependents.length);
@@ -543,7 +550,7 @@ function generateTransitiveDependencyDetails(dependencyUsage: any): string {
   const countSuffix = totalCount > 5 ? ' of ' + totalCount : '';
 
   let report = `**${dependencyType} Dependencies (${displayCount}${countSuffix}):**\n`;
-  paths.forEach((dep: any) => {
+  paths.forEach((dep: DependentInfo) => {
     const pathStr = dep.path.join(' → ');
     report += `- ${dep.name} (${dep.version}) - via ${pathStr}\n`;
   });
@@ -596,7 +603,7 @@ async function generateApiUsageSection(result: AnalysisResult, isJa: boolean): P
 }
 
 async function generateCodeUsageSection(
-  codeUsages: any[],
+  codeUsages: APIUsage[],
   packageName: string,
   isJa: boolean
 ): Promise<string> {
@@ -655,14 +662,12 @@ async function generateCodeUsageSection(
   return report;
 }
 
-function generateConfigUsageSection(configUsages: any[], isJa: boolean): string {
+function generateConfigUsageSection(configUsages: ConfigFileUsage[], isJa: boolean): string {
   let report = isJa
     ? `#### ⚙️ 設定/メタデータ参照 (${configUsages.length} 箇所)\n`
     : `#### ⚙️ Config/Metadata References (${configUsages.length} locations)\n`;
 
-  const configFiles = [
-    ...new Set(configUsages.map((u: { filePath?: string; file?: string }) => u.filePath || u.file)),
-  ];
+  const configFiles = [...new Set(configUsages.map((u) => u.file))];
   configFiles.slice(0, 5).forEach((file) => {
     report += `- ${file}\n`;
   });

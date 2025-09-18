@@ -1,4 +1,10 @@
-import type { AnalysisResult } from '../types/index.js';
+import type {
+  AnalysisResult,
+  DeepAnalysisResult,
+  PackageUsageDetail,
+  ConfigFileUsage,
+  FileClassification,
+} from '../types/index.js';
 import { getRiskEmoji, getRiskDescription } from './grade.js';
 import {
   generateActionableRecommendations,
@@ -199,7 +205,7 @@ export function generateDeepAnalysisSection(
   return sections;
 }
 
-function generateUsageSummary(usageSummary: any): string[] {
+function generateUsageSummary(usageSummary: DeepAnalysisResult['usageSummary']): string[] {
   const sections = [];
   sections.push(`**Usage Distribution:**`);
   const { testVsProduction, byFileType, byAPIType, mostUsedAPIs } = usageSummary;
@@ -235,7 +241,7 @@ function generateUsageSummary(usageSummary: any): string[] {
   return sections;
 }
 
-function generateImportTypes(imports: any[]): string[] {
+function generateImportTypes(imports: PackageUsageDetail[]): string[] {
   if (imports.length === 0) return [];
 
   const sections = [];
@@ -255,7 +261,7 @@ function generateImportTypes(imports: any[]): string[] {
   return sections;
 }
 
-function generateConfigUsages(configUsages: any[]): string[] {
+function generateConfigUsages(configUsages: ConfigFileUsage[]): string[] {
   if (configUsages.length === 0) return [];
 
   const sections = [];
@@ -267,7 +273,7 @@ function generateConfigUsages(configUsages: any[]): string[] {
   return sections;
 }
 
-function generateFileClassifications(fileClassifications: any[]): string[] {
+function generateFileClassifications(fileClassifications: FileClassification[]): string[] {
   if (fileClassifications.length === 0) return [];
 
   const sections = [];

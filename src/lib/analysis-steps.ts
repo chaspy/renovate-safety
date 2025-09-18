@@ -1,5 +1,15 @@
-import ora from 'ora';
-import { CLIOptions, AnalysisResult, DeepAnalysisResult } from '../types/index.js';
+import ora, { Ora } from 'ora';
+import {
+  CLIOptions,
+  AnalysisResult,
+  DeepAnalysisResult,
+  PackageUpdate,
+  ChangelogDiff,
+  CodeDiff,
+  DependencyUsage,
+  BreakingChange,
+  LLMSummary,
+} from '../types/index.js';
 import { extractPackageInfo } from './pr.js';
 import { extractBreakingChanges } from './breaking.js';
 import { summarizeApiDiff } from './api-diff-summary.js';
@@ -16,7 +26,7 @@ import { createDefaultAnalysisChain } from '../analyzers/strategies/index.js';
 import { logSection, logListItem } from './logger-extended.js';
 
 export async function extractPackageInformation(
-  spinner: any,
+  spinner: Ora,
   options: CLIOptions,
   exitOnComplete: boolean
 ) {
@@ -36,7 +46,7 @@ export async function extractPackageInformation(
 }
 
 export async function checkShouldSkipPatchUpdate(
-  packageUpdate: any,
+  packageUpdate: PackageUpdate,
   options: CLIOptions,
   exitOnComplete: boolean
 ) {
@@ -65,7 +75,7 @@ export async function checkShouldSkipPatchUpdate(
   return null;
 }
 
-export async function findAppropriateAnalyzer(spinner: any, packageUpdate: any) {
+export async function findAppropriateAnalyzer(spinner: Ora, packageUpdate: PackageUpdate) {
   const analyzeSpinner = ora('Finding appropriate package analyzer...').start();
   const analyzer = await analyzerRegistry.findAnalyzer(packageUpdate.name, process.cwd());
 
@@ -79,9 +89,9 @@ export async function findAppropriateAnalyzer(spinner: any, packageUpdate: any) 
 }
 
 export async function fetchChangelogAndKnowledge(
-  spinner: any,
-  analyzer: any,
-  packageUpdate: any,
+  spinner: Ora,
+  analyzer: unknown,
+  packageUpdate: PackageUpdate,
   options: CLIOptions
 ) {
   const fetchSpinner = ora('Fetching package information...').start();
@@ -114,24 +124,25 @@ export async function fetchChangelogAndKnowledge(
     if (strategyResult.confidence > 0) {
       changelogDiff = {
         content: strategyResult.content,
-        source: strategyResult.source as any,
+        source: strategyResult.source as ChangelogDiff['source'],
         fromVersion: packageUpdate.fromVersion,
         toVersion: packageUpdate.toVersion,
       };
       fetchSpinner.succeed(
-        `Analysis completed using ${strategyResult.source} (confidence: ${Math.round(strategyResult.confidence * 100)}%)`
+        `Analysis completed using ${String(strategyResult.source)} (confidence: ${Math.round(strategyResult.confidence * 100)}%)`
       );
     } else {
       fetchSpinner.warn('Limited information available from all sources');
     }
   } else {
-    fetchSpinner.succeed(`Fetched changelog from ${changelogDiff.source}`);
+    const source: string = changelogDiff?.source ?? 'unknown';
+    fetchSpinner.succeed(`Fetched changelog from ${source}`);
   }
 
   return { changelogDiff, knowledgeBasedBreaking };
 }
 
-export async function fetchCodeDifference(spinner: any, packageUpdate: any) {
+export async function fetchCodeDifference(spinner: Ora, packageUpdate: PackageUpdate) {
   const codeDiffSpinner = ora('Fetching code differences from GitHub...').start();
   const codeDiff = await fetchCodeDiff(packageUpdate);
 
@@ -144,7 +155,7 @@ export async function fetchCodeDifference(spinner: any, packageUpdate: any) {
   return codeDiff;
 }
 
-export async function analyzeDependencyUsageStep(spinner: any, packageUpdate: any) {
+export async function analyzeDependencyUsageStep(spinner: Ora, packageUpdate: PackageUpdate) {
   const dependencySpinner = ora('Analyzing dependency usage...').start();
   const dependencyUsage = await analyzeDependencyUsage(packageUpdate.name);
 
@@ -159,7 +170,11 @@ export async function analyzeDependencyUsageStep(spinner: any, packageUpdate: an
   return dependencyUsage;
 }
 
-export async function analyzePackageUsageStep(spinner: any, analyzer: any, packageUpdate: any) {
+export async function analyzePackageUsageStep(
+  spinner: Ora,
+  analyzer: unknown,
+  packageUpdate: PackageUpdate
+) {
   const usageSpinner = ora('Analyzing package usage in codebase...').start();
   let usageAnalysis: UsageAnalysis | null = null;
 
@@ -176,9 +191,9 @@ export async function analyzePackageUsageStep(spinner: any, analyzer: any, packa
 }
 
 export async function extractBreakingChangesStep(
-  spinner: any,
-  changelogDiff: any,
-  codeDiff: any,
+  spinner: Ora,
+  changelogDiff: ChangelogDiff | null,
+  codeDiff: CodeDiff | null,
   knowledgeBasedBreaking: string[]
 ) {
   const breakingSpinner = ora('Analyzing for breaking changes...').start();
@@ -217,16 +232,16 @@ export async function extractBreakingChangesStep(
 }
 
 interface LLMAnalysisParams {
-  packageUpdate: any;
-  changelogDiff: any;
-  codeDiff: any;
-  dependencyUsage: any;
-  breakingChanges: any[];
+  packageUpdate: PackageUpdate;
+  changelogDiff: ChangelogDiff | null;
+  codeDiff: CodeDiff | null;
+  dependencyUsage: DependencyUsage | null;
+  breakingChanges: BreakingChange[];
   knowledgeBasedBreaking: string[];
 }
 
 export async function performLLMAnalysis(
-  spinner: any,
+  spinner: Ora,
   options: CLIOptions,
   params: LLMAnalysisParams
 ) {
@@ -264,7 +279,7 @@ export async function performLLMAnalysis(
 
 export function convertUsageAnalysisToApiUsages(
   usageAnalysis: UsageAnalysis | null,
-  packageUpdate: any
+  packageUpdate: PackageUpdate
 ) {
   return usageAnalysis
     ? usageAnalysis.locations.map((loc) => ({
@@ -272,7 +287,7 @@ export function convertUsageAnalysisToApiUsages(
         line: loc.line,
         column: loc.column,
         apiName: packageUpdate.name,
-        usageType: loc.type as any,
+        usageType: loc.type as 'import' | 'call' | 'reference',
         snippet: loc.code,
         context: loc.context,
       }))
@@ -280,10 +295,10 @@ export function convertUsageAnalysisToApiUsages(
 }
 
 export async function performDeepAnalysisStep(
-  spinner: any,
+  spinner: Ora,
   options: CLIOptions,
-  packageUpdate: any,
-  breakingChanges: any[]
+  packageUpdate: PackageUpdate,
+  breakingChanges: BreakingChange[]
 ) {
   let deepAnalysis: DeepAnalysisResult | undefined = undefined;
   if (options.deep) {
@@ -306,15 +321,15 @@ export async function performDeepAnalysisStep(
 }
 
 interface AnalysisResultParams {
-  packageUpdate: any;
-  changelogDiff: any;
-  codeDiff: any;
-  dependencyUsage: any;
-  breakingChanges: any[];
-  llmSummary: any;
-  apiUsages: any[];
-  deepAnalysis: any;
-  usageAnalysis: any;
+  packageUpdate: PackageUpdate;
+  changelogDiff: ChangelogDiff | null;
+  codeDiff: CodeDiff | null;
+  dependencyUsage: DependencyUsage | null;
+  breakingChanges: BreakingChange[];
+  llmSummary: LLMSummary | null;
+  apiUsages: unknown[];
+  deepAnalysis: DeepAnalysisResult | undefined;
+  usageAnalysis: UsageAnalysis | null;
 }
 
 export async function generateAnalysisResult(
@@ -381,7 +396,7 @@ export async function generateAndDisplayReport(
 }
 
 export async function handlePRPosting(
-  spinner: any,
+  spinner: Ora,
   options: CLIOptions,
   analysisResult: AnalysisResult
 ) {
