@@ -4,7 +4,7 @@
  */
 
 import { 
-  getPRInfoTool,
+  getGitHubPRInfoTool,
   dependencyReviewTool,
   githubCompareTool,
   prCommentTool,
@@ -12,7 +12,7 @@ import {
 } from '../tools/index.js';
 import { RuntimeContext } from '@mastra/core/runtime-context';
 
-export type PRInfo = {
+export type GitHubGitHubPRInfo = {
   number: number;
   title: string;
   base: string;
@@ -26,9 +26,9 @@ export type PRInfo = {
 /**
  * Fetch PR information directly using tools (no Agent wrapper)
  */
-export async function fetchPRInfo(prNumber: number): Promise<any> {
+export async function fetchGitHubPRInfo(prNumber: number): Promise<any> {
   try {
-    const result = await getPRInfoTool.execute({
+    const result = await getGitHubPRInfoTool.execute({
       context: {
         prNumber,
         includeBaseRepository: true
@@ -49,7 +49,7 @@ export async function fetchPRInfo(prNumber: number): Promise<any> {
 /**
  * Get dependency changes directly using tools (no Agent wrapper)
  */
-export async function getDependencyChanges(prInfo: PRInfo): Promise<any> {
+export async function getDependencyChanges(prInfo: GitHubGitHubPRInfo): Promise<any> {
   const owner = prInfo.repository?.owner || 'unknown';
   const repo = prInfo.repository?.name || 'unknown';
   
@@ -77,7 +77,7 @@ export async function getDependencyChanges(prInfo: PRInfo): Promise<any> {
 /**
  * Compare branches directly using tools (no Agent wrapper)
  */
-export async function compareBranches(prInfo: PRInfo): Promise<any> {
+export async function compareBranches(prInfo: GitHubPRInfo): Promise<any> {
   const owner = prInfo.repository?.owner || 'unknown';
   const repo = prInfo.repository?.name || 'unknown';
   
@@ -105,7 +105,7 @@ export async function compareBranches(prInfo: PRInfo): Promise<any> {
 /**
  * Check for existing PR comments
  */
-export async function checkExistingComment(prInfo: PRInfo): Promise<{ exists: boolean; commentId?: string }> {
+export async function checkExistingComment(prInfo: GitHubPRInfo): Promise<{ exists: boolean; commentId?: string }> {
   try {
     const result = await prCommentTool.execute({
       context: {
@@ -128,7 +128,7 @@ export async function checkExistingComment(prInfo: PRInfo): Promise<{ exists: bo
  * Post or update PR comment
  */
 export async function postPRComment(
-  prInfo: PRInfo, 
+  prInfo: GitHubPRInfo, 
   body: string, 
   mode: 'create' | 'update' = 'create'
 ): Promise<void> {
@@ -150,7 +150,7 @@ export async function postPRComment(
 /**
  * Add label to PR
  */
-export async function addPRLabel(prInfo: PRInfo, label: string): Promise<void> {
+export async function addPRLabel(prInfo: GitHubPRInfo, label: string): Promise<void> {
   try {
     await prLabelTool.execute({
       context: {
@@ -169,7 +169,7 @@ export async function addPRLabel(prInfo: PRInfo, label: string): Promise<void> {
  * Handle PR posting with proper mode detection
  */
 export async function handlePRPosting(
-  prInfo: PRInfo,
+  prInfo: GitHubPRInfo,
   reportBody: string,
   postMode: string,
   riskLevel: string

@@ -3,6 +3,7 @@
  * Provides more accurate detection with categorization and deduplication
  */
 
+import { BreakingChange } from '../../types/index.js';
 import { extractExportedNamesFromLine as extractExportedNamesBase, extractFunctionSignature, normalizeSignature } from '../../lib/code-analysis-utils.js';
 import {
   ExportTracking,
@@ -12,7 +13,7 @@ import {
   shouldSkipFile,
 } from './breaking-change-analyzer-helpers.js';
 
-export type BreakingChange = {
+export type AnalyzedBreakingChange = {
   text: string;
   severity: 'critical' | 'breaking' | 'warning';
   source: string;

@@ -1,7 +1,7 @@
 import type { TsUsage } from '../tools/ts-usage-scanner.js';
 import type { ConfigUsage } from '../tools/config-scanner.js';
 
-export type ImpactAnalysis = {
+export type AgentImpactAnalysis = {
   level: 'minimal' | 'low' | 'medium' | 'high';
   score: number;
   criticalPaths: CriticalPath[];
@@ -26,7 +26,7 @@ export type AnalyzeImpactInput = {
 export function analyzeImpact(
   usages: Array<TsUsage | ConfigUsage>,
   breakingChanges: string[]
-): ImpactAnalysis {
+): AgentImpactAnalysis {
   const impactScore = calculateImpactScore(usages, breakingChanges);
   const criticalPaths = findCriticalPaths(usages);
   const byType = calculateUsageByType(usages);
@@ -43,7 +43,7 @@ export function analyzeImpact(
   };
 }
 
-export function analyzeUsage(input: AnalyzeImpactInput): ImpactAnalysis {
+export function analyzeUsage(input: AnalyzeImpactInput): AgentImpactAnalysis {
   const allUsages = [...input.codeUsage, ...input.configUsage];
   return analyzeImpact(allUsages, input.breakingChanges);
 }
@@ -101,7 +101,7 @@ function calculateImpactScore(
   return Math.min(score, 100);
 }
 
-function getImpactLevel(score: number): ImpactAnalysis['level'] {
+function getImpactLevel(score: number): AgentImpactAnalysis['level'] {
   if (score >= 50) return 'high';
   if (score >= 20) return 'medium';
   if (score >= 5) return 'low';

@@ -159,7 +159,7 @@ export type MigrationIntelligence = {
   migrationGuide?: string;
   codemods: Codemod[];
   breakingChanges: DetailedBreakingChange[];
-  apiChanges: ApiChange[];
+  apiChanges: LibraryApiChange[];
   configChanges: ConfigChange[];
   estimatedEffort: {
     timeInHours: number;
@@ -189,7 +189,7 @@ export type DetailedBreakingChange = {
   automationAvailable: boolean;
 };
 
-export type ApiChange = {
+export type LibraryApiChange = {
   api: string;
   changeType: 'removed' | 'renamed' | 'signature-changed' | 'deprecated';
   oldSignature?: string;
