@@ -4,6 +4,9 @@ import { secureNpmExec, secureSystemExec } from './secure-exec.js';
 import { validatePackageName } from './validation.js';
 import { readJsonFile } from './file-helpers.js';
 import { executeInParallel } from './parallel-helpers.js';
+import { Severity } from './enhanced-code-analysis.js';
+
+export type ImpactLevel = Severity | 'none';
 
 export interface EnhancedDependencyAnalysis {
   packageName: string;
@@ -19,9 +22,9 @@ export interface ImpactAnalysis {
   directUsages: DirectUsage[];
   transitiveUsages: TransitiveUsage[];
   configurationUsages: ConfigUsage[];
-  runtimeImpact: 'critical' | 'high' | 'medium' | 'low' | 'none';
-  buildTimeImpact: 'critical' | 'high' | 'medium' | 'low' | 'none';
-  testImpact: 'critical' | 'high' | 'medium' | 'low' | 'none';
+  runtimeImpact: ImpactLevel;
+  buildTimeImpact: ImpactLevel;
+  testImpact: ImpactLevel;
 }
 
 export interface DirectUsage {
@@ -466,8 +469,12 @@ function findPackageReferences(content: string, packageName: string): string[] {
   ];
 
   for (const pattern of patterns) {
-    const matches = content.match(pattern);
-    if (matches) {
+    const matches: string[] = [];
+    let match;
+    while ((match = pattern.exec(content)) !== null) {
+      matches.push(match[0]);
+    }
+    if (matches.length > 0) {
       references.push(...matches);
     }
   }

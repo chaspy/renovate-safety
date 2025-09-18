@@ -3,6 +3,8 @@ import { CodeDiff } from './github-diff.js';
 import { loggers } from './logger.js';
 import { executeInParallel } from './parallel-helpers.js';
 
+export type Severity = 'critical' | 'high' | 'medium' | 'low';
+
 export interface EnhancedCodeAnalysis {
   packageName: string;
   codeDiff: CodeDiff | null;
@@ -21,7 +23,7 @@ export interface SemanticChange {
     | 'api-modification'
     | 'behavior-change'
     | 'performance-change';
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  severity: Severity;
   description: string;
   file: string;
   lineNumber?: number;
@@ -49,7 +51,7 @@ export interface BreakingPattern {
   pattern: string;
   description: string;
   files: string[];
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  severity: Severity;
   migrationRequired: boolean;
   autoFixable: boolean;
   suggestedFix?: string;
@@ -352,7 +354,8 @@ function parseApiChange(line: string, file: string, lineNumber: number): ApiChan
   }
 
   // Class definitions
-  const classMatch = content.match(/class\s+(\w+)/);
+  const classRegex = /class\s+(\w+)/;
+  const classMatch = classRegex.exec(content);
   if (classMatch) {
     return {
       api: classMatch[1],

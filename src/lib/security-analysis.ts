@@ -28,8 +28,12 @@ export async function analyzeSecurityImplications(
     ];
 
     for (const { pattern, severity } of securityKeywords) {
-      const matches = changelogDiff.content.match(pattern);
-      if (matches) {
+      const matches: string[] = [];
+      let match;
+      while ((match = pattern.exec(changelogDiff.content)) !== null) {
+        matches.push(match[0]);
+      }
+      if (matches.length > 0) {
         issues.push({
           type: 'vulnerability',
           severity,

@@ -300,7 +300,7 @@ function extractFromVersion(body: string, packageName: string): string | null {
   ];
 
   for (const pattern of patterns) {
-    const match = cleanBody.match(pattern);
+    const match = pattern.exec(cleanBody);
     if (match) {
       return match[1];
     }
@@ -341,7 +341,7 @@ function extractToVersion(body: string, packageName: string): string | null {
   ];
 
   for (const pattern of patterns) {
-    const match = cleanBody.match(pattern);
+    const match = pattern.exec(cleanBody);
     if (match) {
       return match[1];
     }
@@ -498,7 +498,8 @@ function extractVersionsFromBody(
 
 function extractFromBranchName(prData: PRData): PackageUpdate | null {
   // Try branch name
-  const branchMatch = prData.branch.match(/renovate\/(.+?)-(.+)$/);
+  const branchRegex = /renovate\/(.+?)-(.+)$/;
+  const branchMatch = branchRegex.exec(prData.branch);
   if (branchMatch) {
     // Extract version info from PR body
     const fromVersion = extractFromVersion(prData.body, branchMatch[1]);

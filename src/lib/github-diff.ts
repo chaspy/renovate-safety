@@ -95,13 +95,15 @@ async function getGitHubInfo(packageName: string): Promise<{ owner: string; repo
         typeof manifest.repository === 'object' &&
         manifest.repository.url
       ) {
-        const match = manifest.repository.url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+        const repoRegex = /github\.com[:/]([^/]+)\/([^/.]+)/;
+        const match = repoRegex.exec(manifest.repository.url);
         if (match) {
           return { owner: match[1], repo: match[2] };
         }
       }
       if (manifest.homepage) {
-        const match = manifest.homepage.match(/github\.com\/([^/]+)\/([^/]+)/);
+        const homepageRegex = /github\.com\/([^/]+)\/([^/]+)/;
+        const match = homepageRegex.exec(manifest.homepage);
         if (match) {
           return { owner: match[1], repo: match[2] };
         }
