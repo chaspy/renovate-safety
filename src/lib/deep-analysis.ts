@@ -3,13 +3,13 @@ import * as path from 'path';
 import { getSourceFiles, getConfigFiles } from './glob-helpers.js';
 import * as fs from 'fs/promises';
 import { processInParallel } from './parallel-helpers.js';
-import type { 
+import type {
   PackageUpdate,
   PackageUsageDetail,
   APIUsageDetail,
   FileClassification,
   ConfigFileUsage,
-  DeepAnalysisResult
+  DeepAnalysisResult,
 } from '../types/index.js';
 import { safeJsonParse } from './safe-json.js';
 
