@@ -10,7 +10,7 @@ import { RiskArbiter } from '../tools/index.js';
 import { trackAgent, getCurrentTracker } from '../tools/execution-tracker.js';
 import { usageImpactAnalyzer, type UsageImpact } from '../tools/usage-impact-analyzer.js';
 
-export interface DependencyAssessment {
+export type DependencyAssessment = {
   dependency: {
     name: string;
     fromVersion: string;
@@ -34,7 +34,7 @@ export interface DependencyAssessment {
     estimatedEffort: string;
     testingScope: string;
   };
-}
+};
 
 // Helper functions to extract data from CodeImpactAgent response
 function extractTotalUsages(codeImpactResult: any): number {

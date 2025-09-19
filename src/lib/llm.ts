@@ -20,11 +20,11 @@ import { logError } from './logger-extended.js';
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 
-interface LLMAnalysisOptions {
+type LLMAnalysisOptions = {
   provider?: 'claude-cli' | 'anthropic' | 'openai';
   cacheDir?: string;
   language?: 'en' | 'ja';
-}
+};
 
 export async function summarizeWithLLM(
   packageUpdate: PackageUpdate,
@@ -267,7 +267,8 @@ async function summarizeWithOpenAI(prompt: string): Promise<LLMSummary | null> {
 function parseResponse(text: string): LLMSummary | null {
   try {
     // Extract JSON from the response (in case there's extra text)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const jsonRegex = /\{[\s\S]*\}/;
+    const jsonMatch = jsonRegex.exec(text);
     if (!jsonMatch) {
       loggers.warn('No JSON found in LLM response');
       return null;

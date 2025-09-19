@@ -6,20 +6,20 @@
 import { glob } from 'glob';
 import * as fs from 'fs/promises';
 
-export interface UsagePattern {
+export type UsagePattern = {
   pattern: RegExp;
   description: string;
   riskLevel: 'high' | 'medium' | 'low';
-}
+};
 
-export interface UsageImpact {
+export type UsageImpact = {
   isAffected: boolean;
   affectedFiles: string[];
   affectedPatterns: string[];
   riskLevel: 'high' | 'medium' | 'low' | 'none';
   confidence: number;
   recommendations: string[];
-}
+};
 
 export class UsageImpactAnalyzer {
   

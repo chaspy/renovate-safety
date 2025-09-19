@@ -3,7 +3,7 @@
  * Enhanced source tracking for breaking changes and dependency information
  */
 
-export interface BreakingChangeSource {
+export type BreakingChangeSource = {
   type: 'npm' | 'github-releases' | 'github-changelog' | 'github-compare' | 'documentation' | 'migration-guide';
   url: string;
   status: 'success' | 'failed' | 'partial';
@@ -11,16 +11,16 @@ export interface BreakingChangeSource {
   description?: string;
   confidence: number; // 0-1
   extractedAt: Date;
-}
+};
 
-export interface SourceCollection {
+export type SourceCollection = {
   packageName: string;
   fromVersion: string;
   toVersion: string;
   sources: BreakingChangeSource[];
   primarySource?: BreakingChangeSource;
   fallbackSources: BreakingChangeSource[];
-}
+};
 
 /**
  * Enhanced source link generator with better categorization

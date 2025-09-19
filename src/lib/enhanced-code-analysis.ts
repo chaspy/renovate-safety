@@ -3,7 +3,9 @@ import { CodeDiff } from './github-diff.js';
 import { loggers } from './logger.js';
 import { executeInParallel } from './parallel-helpers.js';
 
-export interface EnhancedCodeAnalysis {
+export type Severity = 'critical' | 'high' | 'medium' | 'low';
+
+export type EnhancedCodeAnalysis = {
   packageName: string;
   codeDiff: CodeDiff | null;
   semanticChanges: SemanticChange[];
@@ -12,16 +14,16 @@ export interface EnhancedCodeAnalysis {
   migrationComplexity: MigrationComplexity;
   fileImpactAnalysis: FileImpactAnalysis;
   riskAssessment: CodeRiskAssessment;
-}
+};
 
-export interface SemanticChange {
+export type SemanticChange = {
   type:
     | 'api-addition'
     | 'api-removal'
     | 'api-modification'
     | 'behavior-change'
     | 'performance-change';
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  severity: Severity;
   description: string;
   file: string;
   lineNumber?: number;
@@ -30,9 +32,9 @@ export interface SemanticChange {
     after?: string;
   };
   impact: string;
-}
+};
 
-export interface ApiChange {
+export type ApiChange = {
   api: string;
   changeType: 'added' | 'removed' | 'modified' | 'deprecated';
   file: string;
@@ -43,36 +45,36 @@ export interface ApiChange {
   };
   documentation?: string;
   compatibility: 'breaking' | 'backward-compatible' | 'enhancement';
-}
+};
 
-export interface BreakingPattern {
+export type BreakingPattern = {
   pattern: string;
   description: string;
   files: string[];
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  severity: Severity;
   migrationRequired: boolean;
   autoFixable: boolean;
   suggestedFix?: string;
-}
+};
 
-export interface MigrationComplexity {
+export type MigrationComplexity = {
   overallComplexity: 'trivial' | 'simple' | 'moderate' | 'complex' | 'major';
   estimatedHours: number;
   automationPossible: number; // percentage
   riskFactors: string[];
   migrationSteps: MigrationStep[];
-}
+};
 
-export interface MigrationStep {
+export type MigrationStep = {
   order: number;
   description: string;
   category: 'preparation' | 'code-change' | 'testing' | 'validation' | 'cleanup';
   effort: 'low' | 'medium' | 'high';
   automatable: boolean;
   dependencies: number[]; // step numbers this depends on
-}
+};
 
-export interface FileImpactAnalysis {
+export type FileImpactAnalysis = {
   categories: FileCategory[];
   riskDistribution: {
     critical: number;
@@ -81,15 +83,15 @@ export interface FileImpactAnalysis {
     low: number;
   };
   affectedAreas: AffectedArea[];
-}
+};
 
-export interface FileCategory {
+export type FileCategory = {
   category: 'api' | 'config' | 'types' | 'implementation' | 'documentation' | 'tests';
   files: FileImpact[];
-  overallImpact: 'critical' | 'high' | 'medium' | 'low';
-}
+  overallImpact: Severity;
+};
 
-export interface FileImpact {
+export type FileImpact = {
   filename: string;
   changeType: 'added' | 'removed' | 'modified';
   linesChanged: number;
@@ -97,30 +99,30 @@ export interface FileImpact {
   publicApi: boolean;
   testCoverage: boolean;
   backwards_compatible: boolean;
-}
+};
 
-export interface AffectedArea {
+export type AffectedArea = {
   area: string;
   description: string;
   files: string[];
-  impact: 'critical' | 'high' | 'medium' | 'low';
+  impact: Severity;
   userFacing: boolean;
-}
+};
 
-export interface CodeRiskAssessment {
-  overallRisk: 'critical' | 'high' | 'medium' | 'low';
+export type CodeRiskAssessment = {
+  overallRisk: Severity;
   riskFactors: RiskFactor[];
   confidence: number; // 0-100
   recommendations: string[];
-}
+};
 
-export interface RiskFactor {
+export type RiskFactor = {
   factor: string;
-  impact: 'critical' | 'high' | 'medium' | 'low';
+  impact: Severity;
   likelihood: 'certain' | 'likely' | 'possible' | 'unlikely';
   explanation: string;
   mitigation?: string;
-}
+};
 
 export async function performEnhancedCodeAnalysis(
   packageUpdate: PackageUpdate,
@@ -352,7 +354,8 @@ function parseApiChange(line: string, file: string, lineNumber: number): ApiChan
   }
 
   // Class definitions
-  const classMatch = content.match(/class\s+(\w+)/);
+  const classRegex = /class\s+(\w+)/;
+  const classMatch = classRegex.exec(content);
   if (classMatch) {
     return {
       api: classMatch[1],

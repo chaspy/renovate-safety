@@ -1,11 +1,11 @@
 import type { PackageUpdate, CodeDiff, ChangelogDiff } from '../types/index.js';
 
-interface SecurityIssue {
+type SecurityIssue = {
   type: 'vulnerability' | 'suspicious-pattern' | 'permission-change' | 'dependency-injection';
   severity: 'low' | 'medium' | 'high' | 'critical';
   description: string;
   recommendation: string;
-}
+};
 
 export async function analyzeSecurityImplications(
   packageUpdate: PackageUpdate,
@@ -28,8 +28,12 @@ export async function analyzeSecurityImplications(
     ];
 
     for (const { pattern, severity } of securityKeywords) {
-      const matches = changelogDiff.content.match(pattern);
-      if (matches) {
+      const matches: string[] = [];
+      let match;
+      while ((match = pattern.exec(changelogDiff.content)) !== null) {
+        matches.push(match[0]);
+      }
+      if (matches.length > 0) {
         issues.push({
           type: 'vulnerability',
           severity,

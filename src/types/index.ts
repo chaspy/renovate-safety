@@ -1,4 +1,4 @@
-export interface CLIOptions {
+export type CLIOptions = {
   pr?: number;
   from?: string;
   to?: string;
@@ -11,22 +11,22 @@ export interface CLIOptions {
   force: boolean;
   language?: 'en' | 'ja';
   deep: boolean;
-}
+};
 
-export interface PackageUpdate {
+export type PackageUpdate = {
   name: string;
   fromVersion: string;
   toVersion: string;
-}
+};
 
-export interface ChangelogDiff {
+export type ChangelogDiff = {
   content: string;
   source: 'npm' | 'github' | 'PyPI' | 'github+npm';
   fromVersion?: string;
   toVersion?: string;
-}
+};
 
-export interface CodeDiff {
+export type CodeDiff = {
   content: string;
   source: 'github-compare';
   filesChanged: number;
@@ -34,35 +34,35 @@ export interface CodeDiff {
   deletions: number;
   fromTag: string;
   toTag: string;
-}
+};
 
-export interface DependencyUsage {
+export type DependencyUsage = {
   packageName: string;
   dependents: DependentInfo[];
   isDirect: boolean;
   usageType: 'dependencies' | 'devDependencies' | 'peerDependencies' | 'optionalDependencies';
-}
+};
 
-export interface DependentInfo {
+export type DependentInfo = {
   name: string;
   version: string;
   path: string[];
   type: 'direct' | 'transitive';
-}
+};
 
-export interface BreakingChange {
+export type BreakingChange = {
   line: string;
   severity: 'breaking' | 'warning' | 'removal';
   source?: string; // e.g., 'changelog', 'release-notes', 'code-diff'
-}
+};
 
-export interface LLMSummary {
+export type LLMSummary = {
   summary: string;
   language: 'en' | 'ja';
   breakingChanges: string[];
-}
+};
 
-export interface APIUsage {
+export type APIUsage = {
   file?: string;
   filePath?: string;
   line: number;
@@ -71,11 +71,11 @@ export interface APIUsage {
   context?: string;
   apiName: string;
   usageType?: 'import' | 'call' | 'reference';
-}
+};
 
 export type RiskLevel = 'safe' | 'low' | 'medium' | 'high' | 'critical' | 'unknown';
 
-export interface RiskAssessment {
+export type RiskAssessment = {
   level: RiskLevel;
   factors: string[];
   estimatedEffort: 'none' | 'minimal' | 'moderate' | 'significant' | 'unknown';
@@ -86,9 +86,9 @@ export interface RiskAssessment {
     | 'full'
     | 'full regression'
     | 'full regression recommended';
-}
+};
 
-export interface AnalysisResult {
+export type AnalysisResult = {
   package: PackageUpdate;
   changelogDiff: ChangelogDiff | null;
   codeDiff: CodeDiff | null;
@@ -99,15 +99,15 @@ export interface AnalysisResult {
   deepAnalysis?: DeepAnalysisResult;
   riskAssessment: RiskAssessment;
   recommendation: string;
-}
+};
 
-export interface Report {
+export type Report = {
   analysisResult: AnalysisResult;
   format: 'markdown' | 'json';
-}
+};
 
 // Deep Analysis Types
-export interface PackageUsageDetail {
+export type PackageUsageDetail = {
   file: string;
   line: number;
   type: 'import' | 'require' | 'dynamic-import';
@@ -116,9 +116,9 @@ export interface PackageUsageDetail {
   defaultImport?: string;
   namespaceImport?: string;
   isTypeOnly?: boolean;
-}
+};
 
-export interface APIUsageDetail {
+export type APIUsageDetail = {
   file: string;
   line: number;
   apiName: string;
@@ -132,16 +132,16 @@ export interface APIUsageDetail {
   context: string;
   arguments?: string[];
   chainedCalls?: string[];
-}
+};
 
-export interface FileClassification {
+export type FileClassification = {
   file: string;
   category: 'test' | 'production' | 'config' | 'build' | 'documentation';
   confidence: number;
   indicators: string[];
-}
+};
 
-export interface ConfigFileUsage {
+export type ConfigFileUsage = {
   file: string;
   configType:
     | 'package.json'
@@ -155,9 +155,9 @@ export interface ConfigFileUsage {
     | 'other';
   usage: string;
   content: unknown;
-}
+};
 
-export interface DeepAnalysisResult {
+export type DeepAnalysisResult = {
   packageName: string;
   totalFiles: number;
   filesUsingPackage: number;
@@ -172,4 +172,4 @@ export interface DeepAnalysisResult {
     testVsProduction: { test: number; production: number };
   };
   recommendations: string[];
-}
+};

@@ -1,6 +1,6 @@
 // Helper functions for report-generator workflow to reduce complexity
 
-export interface Assessment {
+export type Assessment = {
   dependency: {
     name: string;
     fromVersion: string;
@@ -16,7 +16,7 @@ export interface Assessment {
   releaseNotes?: {
     breakingChanges?: Array<{ text: string }>;
   };
-}
+};
 
 export function generateSummaryTable(assessments: Assessment[], isJapanese: boolean): string {
   let markdown = `| Package | Version | ${isJapanese ? 'リスク' : 'Risk'} | ${isJapanese ? '影響' : 'Impact'} |\n`;

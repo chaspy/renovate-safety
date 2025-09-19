@@ -3,26 +3,13 @@ import * as path from 'path';
 import { secureNpmExec, secureSystemExec } from './secure-exec.js';
 import { validatePackageName } from './validation.js';
 import { readJsonFile } from './file-helpers.js';
+import type { DependencyUsage, DependentInfo } from '../types/index.js';
 
-export interface DependencyUsage {
-  packageName: string;
-  dependents: DependentInfo[];
-  isDirect: boolean;
-  usageType: 'dependencies' | 'devDependencies' | 'peerDependencies' | 'optionalDependencies';
-}
-
-export interface DependentInfo {
-  name: string;
-  version: string;
-  path: string[];
-  type: 'direct' | 'transitive';
-}
-
-export interface DependencyImpact {
+export type DependencyImpact = {
   usage: DependencyUsage;
   riskLevel: 'high' | 'medium' | 'low';
   reason: string;
-}
+};
 
 export async function analyzeDependencyUsage(packageName: string): Promise<DependencyUsage | null> {
   try {

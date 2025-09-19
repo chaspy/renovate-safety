@@ -3,6 +3,7 @@ import { getPackageRawData } from './npm-registry.js';
 import { validatePackageName } from './validation.js';
 import { safeJsonParse } from './safe-json.js';
 import { loggers } from './logger.js';
+import { Severity } from './enhanced-code-analysis.js';
 import {
   FALLBACK_VALUES,
   RELEASE_FREQUENCIES,
@@ -32,7 +33,7 @@ import {
   parseBrowserSupport,
 } from './utils/package-helpers.js';
 
-export interface LibraryIntelligence {
+export type LibraryIntelligence = {
   packageName: string;
   packageInfo: PackageInfo;
   ecosystemInfo: EcosystemInfo;
@@ -41,9 +42,9 @@ export interface LibraryIntelligence {
   popularityMetrics: PopularityMetrics;
   technicalDetails: TechnicalDetails;
   migrationIntelligence: MigrationIntelligence;
-}
+};
 
-export interface PackageInfo {
+export type PackageInfo = {
   description: string;
   keywords: string[];
   license: string;
@@ -57,26 +58,26 @@ export interface PackageInfo {
     unpacked: number;
     gzipped?: number;
   };
-}
+};
 
-export interface EcosystemInfo {
+export type EcosystemInfo = {
   packageManager: 'npm' | 'pypi' | 'gem' | 'cargo' | 'go' | 'other';
   runtime: string[];
   framework: string[];
   category: string[];
   alternatives: AlternativePackage[];
   complementaryPackages: string[];
-}
+};
 
-export interface AlternativePackage {
+export type AlternativePackage = {
   name: string;
   reason: string;
   pros: string[];
   cons: string[];
   migrationEffort: 'low' | 'medium' | 'high';
-}
+};
 
-export interface MaintenanceInfo {
+export type MaintenanceInfo = {
   lastUpdated: string;
   releaseFrequency: 'very-active' | 'active' | 'moderate' | 'slow' | 'inactive';
   maintainerResponse: 'excellent' | 'good' | 'average' | 'poor' | 'unknown';
@@ -86,18 +87,18 @@ export interface MaintenanceInfo {
   communityHealth: 'excellent' | 'good' | 'average' | 'poor';
   funding: boolean;
   sponsors: string[];
-}
+};
 
-export interface SecurityInfo {
+export type SecurityInfo = {
   vulnerabilities: SecurityVulnerability[];
   securityScore: number; // 0-100
   auditStatus: 'clean' | 'warnings' | 'vulnerabilities' | 'unknown';
   lastAudit: string;
   securityPolicy: boolean;
   codeOfConduct: boolean;
-}
+};
 
-export interface SecurityVulnerability {
+export type SecurityVulnerability = {
   id: string;
   severity: 'critical' | 'high' | 'moderate' | 'low';
   title: string;
@@ -105,9 +106,9 @@ export interface SecurityVulnerability {
   affectedVersions: string;
   patchedIn?: string;
   cwe?: string[];
-}
+};
 
-export interface PopularityMetrics {
+export type PopularityMetrics = {
   downloads: {
     daily: number;
     weekly: number;
@@ -118,9 +119,9 @@ export interface PopularityMetrics {
   dependentRepos: number;
   dependentPackages: number;
   trendingScore: number; // -100 to 100
-}
+};
 
-export interface TechnicalDetails {
+export type TechnicalDetails = {
   bundleSize: {
     minified?: number;
     gzipped?: number;
@@ -137,46 +138,46 @@ export interface TechnicalDetails {
   };
   exports: ModuleExport[];
   apiSurface: ApiSurface;
-}
+};
 
-export interface ModuleExport {
+export type ModuleExport = {
   name: string;
   type: 'function' | 'class' | 'constant' | 'type' | 'namespace';
   stability: 'stable' | 'experimental' | 'deprecated';
-}
+};
 
-export interface ApiSurface {
+export type ApiSurface = {
   publicMethods: number;
   publicClasses: number;
   publicConstants: number;
   complexity: 'simple' | 'moderate' | 'complex' | 'very-complex';
-}
+};
 
-export interface MigrationIntelligence {
+export type MigrationIntelligence = {
   fromVersion: string;
   toVersion: string;
   migrationGuide?: string;
   codemods: Codemod[];
   breakingChanges: DetailedBreakingChange[];
-  apiChanges: ApiChange[];
+  apiChanges: LibraryApiChange[];
   configChanges: ConfigChange[];
   estimatedEffort: {
     timeInHours: number;
     complexity: 'trivial' | 'simple' | 'moderate' | 'complex' | 'major';
     automatable: number; // percentage
   };
-}
+};
 
-export interface Codemod {
+export type Codemod = {
   name: string;
   description: string;
   command: string;
   coverage: number; // percentage of changes it can handle
-}
+};
 
-export interface DetailedBreakingChange {
+export type DetailedBreakingChange = {
   type: 'api-removal' | 'api-change' | 'behavior-change' | 'config-change' | 'dependency-change';
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  severity: Severity;
   title: string;
   description: string;
   affectedApis: string[];
@@ -186,25 +187,25 @@ export interface DetailedBreakingChange {
     after: string;
   };
   automationAvailable: boolean;
-}
+};
 
-export interface ApiChange {
+export type LibraryApiChange = {
   api: string;
   changeType: 'removed' | 'renamed' | 'signature-changed' | 'deprecated';
   oldSignature?: string;
   newSignature?: string;
   deprecationDate?: string;
   removalDate?: string;
-}
+};
 
-export interface ConfigChange {
+export type ConfigChange = {
   configFile: string;
   property: string;
   changeType: 'removed' | 'renamed' | 'default-changed' | 'validation-changed';
   oldValue?: string;
   newValue?: string;
   migrationInstructions: string;
-}
+};
 
 export async function gatherLibraryIntelligence(
   packageName: string,

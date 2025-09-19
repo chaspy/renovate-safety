@@ -4,7 +4,7 @@ import { getEnvironmentConfig } from './env-config.js';
 import { loggers } from './logger.js';
 import { getPackageRepository, extractGitHubRepo } from './npm-registry.js';
 
-export interface CodeDiff {
+export type CodeDiff = {
   content: string;
   source: 'github-compare';
   filesChanged: number;
@@ -12,7 +12,7 @@ export interface CodeDiff {
   deletions: number;
   fromTag: string;
   toTag: string;
-}
+};
 
 export async function fetchCodeDiff(packageUpdate: PackageUpdate): Promise<CodeDiff | null> {
   try {
@@ -95,13 +95,15 @@ async function getGitHubInfo(packageName: string): Promise<{ owner: string; repo
         typeof manifest.repository === 'object' &&
         manifest.repository.url
       ) {
-        const match = manifest.repository.url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+        const repoRegex = /github\.com[:/]([^/]+)\/([^/.]+)/;
+        const match = repoRegex.exec(manifest.repository.url);
         if (match) {
           return { owner: match[1], repo: match[2] };
         }
       }
       if (manifest.homepage) {
-        const match = manifest.homepage.match(/github\.com\/([^/]+)\/([^/]+)/);
+        const homepageRegex = /github\.com\/([^/]+)\/([^/]+)/;
+        const match = homepageRegex.exec(manifest.homepage);
         if (match) {
           return { owner: match[1], repo: match[2] };
         }
@@ -238,13 +240,13 @@ function isRelevantFile(filename: string): boolean {
   return importantFiles.some((file) => filename.endsWith(file));
 }
 
-interface GitHubFile {
+type GitHubFile = {
   filename: string;
   additions?: number;
   deletions?: number;
   status: string;
   patch?: string;
-}
+};
 
 function formatDiffContent(files: GitHubFile[], packageUpdate: PackageUpdate): string {
   const header = `# Code Changes Analysis\nPackage: ${packageUpdate.name}\nVersion: ${packageUpdate.fromVersion} → ${packageUpdate.toVersion}\n\n`;

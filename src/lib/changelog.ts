@@ -195,7 +195,8 @@ async function getGitHubInfo(packageName: string): Promise<{ owner: string; repo
     const manifest = await pacote.manifest(packageName);
 
     if (manifest.repository && typeof manifest.repository === 'object' && manifest.repository.url) {
-      const match = manifest.repository.url.match(/github\.com[:/]([^/]+)\/([^/.]+)/);
+      const repoRegex = /github\.com[:/]([^/]+)\/([^/.]+)/;
+      const match = repoRegex.exec(manifest.repository.url);
       if (match) {
         return {
           owner: match[1],
@@ -206,7 +207,8 @@ async function getGitHubInfo(packageName: string): Promise<{ owner: string; repo
 
     // Try homepage
     if (manifest.homepage) {
-      const match = manifest.homepage.match(/github\.com\/([^/]+)\/([^/]+)/);
+      const homepageRegex = /github\.com\/([^/]+)\/([^/]+)/;
+      const match = homepageRegex.exec(manifest.homepage);
       if (match) {
         return {
           owner: match[1],
@@ -276,7 +278,8 @@ function extractRelevantSections(
 
   for (const line of lines) {
     // Check if this is a version header
-    const versionMatch = line.match(/^#+\s*v?(\d+\.\d+\.\d+)/);
+    const versionRegex = /^#+\s*v?(\d+\.\d+\.\d+)/;
+    const versionMatch = versionRegex.exec(line);
     if (versionMatch) {
       const version = normalizeVersion(versionMatch[1]);
       if (!version) continue;
@@ -347,12 +350,12 @@ function detectPackageType(packageName: string): 'javascript' | 'python' | 'unkn
   return 'javascript';
 }
 
-interface PyPIPackageInfo {
+type PyPIPackageInfo = {
   info?: {
     project_urls?: Record<string, string>;
     home_page?: string;
   };
-}
+};
 
 async function fetchFromPyPI(packageUpdate: PackageUpdate): Promise<ChangelogDiff | null> {
   try {

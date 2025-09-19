@@ -129,18 +129,18 @@ export async function getRenovatePRs(): Promise<PRInfo[]> {
   }
 }
 
-interface PRInfo {
+type PRInfo = {
   number: number;
   title: string;
   branch: string;
   body: string;
-}
+};
 
-interface PRData {
+type PRData = {
   title: string;
   branch: string;
   body: string;
-}
+};
 
 async function getPRData(prNumber: number): Promise<PRData | null> {
   try {
@@ -300,7 +300,7 @@ function extractFromVersion(body: string, packageName: string): string | null {
   ];
 
   for (const pattern of patterns) {
-    const match = cleanBody.match(pattern);
+    const match = pattern.exec(cleanBody);
     if (match) {
       return match[1];
     }
@@ -341,7 +341,7 @@ function extractToVersion(body: string, packageName: string): string | null {
   ];
 
   for (const pattern of patterns) {
-    const match = cleanBody.match(pattern);
+    const match = pattern.exec(cleanBody);
     if (match) {
       return match[1];
     }
@@ -446,7 +446,7 @@ function extractFromRenovateTitle(prData: PRData): PackageUpdate | null {
 
   // Try title first
   for (const pattern of patterns) {
-    const match = prData.title.match(pattern);
+    const match = pattern.exec(prData.title);
     if (match) {
       if (match.length === 4) {
         // Pattern with from and to versions
@@ -498,7 +498,8 @@ function extractVersionsFromBody(
 
 function extractFromBranchName(prData: PRData): PackageUpdate | null {
   // Try branch name
-  const branchMatch = prData.branch.match(/renovate\/(.+?)-(.+)$/);
+  const branchRegex = /renovate\/(.+?)-(.+)$/;
+  const branchMatch = branchRegex.exec(prData.branch);
   if (branchMatch) {
     // Extract version info from PR body
     const fromVersion = extractFromVersion(prData.body, branchMatch[1]);

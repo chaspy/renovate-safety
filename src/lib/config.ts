@@ -4,11 +4,11 @@ import { homedir } from 'os';
 import { safeJsonParse, isConfigObject } from './safe-json.js';
 import { getEnvironmentConfig } from './env-config.js';
 
-export interface Config {
+export type Config = {
   language?: 'en' | 'ja';
   llmProvider?: 'claude-cli' | 'anthropic' | 'openai';
   cacheDir?: string;
-}
+};
 
 export async function loadConfig(): Promise<Config> {
   const config: Config = {};

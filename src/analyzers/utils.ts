@@ -91,14 +91,14 @@ export function getFileContext(filePath: string): 'production' | 'test' | 'confi
 /**
  * Categorization result for usage analysis
  */
-export interface UsageCategorization {
+export type UsageCategorization = {
   totalUsageCount: number;
   productionUsageCount: number;
   testUsageCount: number;
   configUsageCount: number;
   criticalPaths: string[];
   hasDynamicImports: boolean;
-}
+};
 
 /**
  * Categorizes usage locations by context and type

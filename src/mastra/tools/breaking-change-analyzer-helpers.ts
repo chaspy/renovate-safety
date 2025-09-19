@@ -1,11 +1,11 @@
 // Helper functions for breaking change analyzer to reduce complexity
 
-export interface ExportTracking {
+export type ExportTracking = {
   removedExportNames: Set<string>;
   addedExportNames: Set<string>;
   removedSignatures: Map<string, Set<string>>;
   addedSignatures: Map<string, Set<string>>;
-}
+};
 
 export function processAddedLine(
   line: string,

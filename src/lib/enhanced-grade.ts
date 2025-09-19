@@ -9,7 +9,7 @@ import {
   VersionJump,
 } from './risk-assessment-utils.js';
 
-export interface RiskFactors {
+export type RiskFactors = {
   versionJump: VersionJump;
   usage: {
     directUsageCount: number;
@@ -29,13 +29,13 @@ export interface RiskFactors {
     isDevDependency?: boolean;
     isLockfileOnly?: boolean;
   };
-}
+};
 
-export interface EnhancedRiskAssessment extends RiskAssessment {
+export type EnhancedRiskAssessment = RiskAssessment & {
   confidence: number;
   detailedFactors: RiskFactors;
   mitigationSteps?: string[];
-}
+};
 
 export async function assessEnhancedRisk(
   packageUpdate: PackageUpdate,

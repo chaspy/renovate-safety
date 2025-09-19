@@ -3,7 +3,7 @@ import { Octokit } from '@octokit/rest';
 import { secureSystemExec } from '../../lib/secure-exec.js';
 import { safeJsonParse } from '../../lib/safe-json.js';
 
-export interface PRInfo {
+export type DetailedPRInfo = {
   number: number;
   title: string;
   body: string;
@@ -19,13 +19,13 @@ export interface PRInfo {
     owner: string;
     name: string;
   };
-}
+};
 
 export async function fetchPRWithGHCLI(
   prNumber: number,
   includeBaseRepository: boolean,
   getRepoInfo: () => Promise<[string, string]>
-): Promise<{ success: boolean; data?: PRInfo; error?: string }> {
+): Promise<{ success: boolean; data?: DetailedPRInfo; error?: string }> {
   const fields = [
     'number',
     'title',
@@ -63,7 +63,7 @@ export async function fetchPRWithGHCLI(
   return { success: true, data: prInfo };
 }
 
-function transformGHCLIData(data: Record<string, any>, prNumber: number): PRInfo {
+function transformGHCLIData(data: Record<string, any>, prNumber: number): DetailedPRInfo {
   return {
     number: typeof data.number === 'number' ? data.number : prNumber,
     title: typeof data.title === 'string' ? data.title : '',
@@ -76,10 +76,10 @@ function transformGHCLIData(data: Record<string, any>, prNumber: number): PRInfo
 }
 
 async function addRepositoryInfo(
-  prInfo: PRInfo,
+  prInfo: DetailedPRInfo,
   data: Record<string, any>,
   getRepoInfo: () => Promise<[string, string]>
-): Promise<PRInfo> {
+): Promise<DetailedPRInfo> {
   let baseOwner = '';
   let baseName = '';
 
@@ -111,7 +111,7 @@ export async function fetchPRWithOctokit(
   includeBaseRepository: boolean,
   auth: string,
   getRepoInfo: () => Promise<[string, string]>
-): Promise<{ success: boolean; data?: PRInfo; error?: string; status?: number }> {
+): Promise<{ success: boolean; data?: DetailedPRInfo; error?: string; status?: number }> {
   try {
     const [owner, repo] = await getRepoInfo();
     const octokit = new Octokit({ auth });
@@ -149,7 +149,7 @@ export async function fetchPRWithOctokit(
   }
 }
 
-function transformOctokitData(data: any): PRInfo {
+function transformOctokitData(data: any): DetailedPRInfo {
   return {
     number: data.number,
     title: data.title,
@@ -161,7 +161,7 @@ function transformOctokitData(data: any): PRInfo {
   };
 }
 
-function addOctokitRepositoryInfo(prInfo: PRInfo, data: any): PRInfo {
+function addOctokitRepositoryInfo(prInfo: DetailedPRInfo, data: any): DetailedPRInfo {
   return {
     ...prInfo,
     repository: {

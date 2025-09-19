@@ -47,7 +47,8 @@ export default [
       'max-depth': ['warn', 6], // Gradually reducing to target of 4
       'no-nested-ternary': 'error', // No nested ternary operators
       'no-empty': ['error', { allowEmptyCatch: false }], // Proper exception handling
-      'prefer-regex-literals': 'warn', // Use RegExp.exec() instead of String.match()
+      'prefer-regex-literals': 'error', // Use RegExp.exec() instead of String.match()
+      '@typescript-eslint/consistent-type-definitions': ['error', 'type'], // Prefer type aliases over interfaces for unions
       '@typescript-eslint/prefer-optional-chain': 'error', // Use optional chaining
       '@typescript-eslint/prefer-string-starts-ends-with': 'error', // Use String#startsWith/endsWith
       'no-useless-escape': 'error', // No unnecessary escape characters
@@ -75,6 +76,18 @@ export default [
         allowTernary: false,
         allowTaggedTemplates: false 
       }], // Catch redundant assignments more strictly
+      
+      // Additional rules to catch SonarQube-style issues
+      '@typescript-eslint/no-base-to-string': 'error', // Prevent Object stringification issues
+      '@typescript-eslint/require-array-sort-compare': 'error', // Require explicit compare function
+      '@typescript-eslint/prefer-includes': 'error', // Use includes() instead of indexOf()
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.type='MemberExpression'][callee.property.name='match']",
+          message: 'Use RegExp.exec() instead of String.match() for better performance and consistency.'
+        }
+      ], // Detect String.match() usage
     },
   },
   {

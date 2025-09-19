@@ -6,12 +6,12 @@
 import { getErrorMessage } from '../analyzers/utils.js';
 import { getEnvironmentConfig } from './env-config.js';
 
-export interface LogContext {
+export type LogContext = {
   operation: string;
   target?: string;
   error?: unknown;
   metadata?: Record<string, unknown>;
-}
+};
 
 /**
  * Standardized warning logger for failed operations

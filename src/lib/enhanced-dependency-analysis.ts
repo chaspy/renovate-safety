@@ -4,8 +4,11 @@ import { secureNpmExec, secureSystemExec } from './secure-exec.js';
 import { validatePackageName } from './validation.js';
 import { readJsonFile } from './file-helpers.js';
 import { executeInParallel } from './parallel-helpers.js';
+import { Severity } from './enhanced-code-analysis.js';
 
-export interface EnhancedDependencyAnalysis {
+export type ImpactLevel = Severity | 'none';
+
+export type EnhancedDependencyAnalysis = {
   packageName: string;
   impactAnalysis: ImpactAnalysis;
   versionConstraints: VersionConstraints[];
@@ -13,41 +16,41 @@ export interface EnhancedDependencyAnalysis {
   usagePatterns: UsagePattern[];
   relatedPackages: RelatedPackage[];
   updateCompatibility: UpdateCompatibility;
-}
+};
 
-export interface ImpactAnalysis {
+export type ImpactAnalysis = {
   directUsages: DirectUsage[];
   transitiveUsages: TransitiveUsage[];
   configurationUsages: ConfigUsage[];
-  runtimeImpact: 'critical' | 'high' | 'medium' | 'low' | 'none';
-  buildTimeImpact: 'critical' | 'high' | 'medium' | 'low' | 'none';
-  testImpact: 'critical' | 'high' | 'medium' | 'low' | 'none';
-}
+  runtimeImpact: ImpactLevel;
+  buildTimeImpact: ImpactLevel;
+  testImpact: ImpactLevel;
+};
 
-export interface DirectUsage {
+export type DirectUsage = {
   packageName: string;
   usageType: 'dependencies' | 'devDependencies' | 'peerDependencies' | 'optionalDependencies';
   versionRange: string;
   workspaces?: string[];
   purpose: 'runtime' | 'build' | 'test' | 'tooling' | 'types';
-}
+};
 
-export interface TransitiveUsage {
+export type TransitiveUsage = {
   parentPackage: string;
   depth: number;
   versionRange: string;
   resolvedVersion: string;
   conflicts: VersionConflict[];
-}
+};
 
-export interface VersionConflict {
+export type VersionConflict = {
   requiredBy: string;
   requiredVersion: string;
   actualVersion: string;
   severity: 'error' | 'warning' | 'info';
-}
+};
 
-export interface ConfigUsage {
+export type ConfigUsage = {
   file: string;
   type:
     | 'package.json'
@@ -58,53 +61,53 @@ export interface ConfigUsage {
     | 'other';
   configurations: string[];
   impact: 'breaking' | 'migration-required' | 'minimal';
-}
+};
 
-export interface VersionConstraints {
+export type VersionConstraints = {
   package: string;
   currentVersion: string;
   requestedVersion: string;
   semverCompatible: boolean;
   constraintType: 'exact' | 'caret' | 'tilde' | 'range' | 'latest';
   conflictsWith: string[];
-}
+};
 
-export interface BreakingChangeRisk {
-  overallRisk: 'critical' | 'high' | 'medium' | 'low';
+export type BreakingChangeRisk = {
+  overallRisk: Severity;
   factors: RiskFactor[];
   mitigationSteps: string[];
-}
+};
 
-export interface RiskFactor {
+export type RiskFactor = {
   type: 'major-version' | 'api-changes' | 'peer-dependency' | 'config-changes' | 'ecosystem-impact';
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  severity: Severity;
   description: string;
   evidenceSource: 'changelog' | 'github-diff' | 'dependency-analysis' | 'community-reports';
-}
+};
 
-export interface UsagePattern {
+export type UsagePattern = {
   pattern: string;
   files: string[];
   frequency: number;
   category: 'import' | 'config' | 'api-call' | 'type-usage';
   riskLevel: 'high' | 'medium' | 'low';
-}
+};
 
-export interface RelatedPackage {
+export type RelatedPackage = {
   name: string;
   relationship: 'peer' | 'plugin' | 'extension' | 'ecosystem' | 'alternative';
   compatibilityStatus: 'compatible' | 'needs-update' | 'incompatible' | 'unknown';
   recommendedVersion?: string;
   migrationRequired: boolean;
-}
+};
 
-export interface UpdateCompatibility {
+export type UpdateCompatibility = {
   canAutoUpdate: boolean;
   requiresManualIntervention: boolean;
   estimatedEffort: 'minimal' | 'low' | 'medium' | 'high' | 'extensive';
   blockers: string[];
   prerequisites: string[];
-}
+};
 
 export async function performEnhancedDependencyAnalysis(
   packageName: string,
@@ -466,8 +469,12 @@ function findPackageReferences(content: string, packageName: string): string[] {
   ];
 
   for (const pattern of patterns) {
-    const matches = content.match(pattern);
-    if (matches) {
+    const matches: string[] = [];
+    let match;
+    while ((match = pattern.exec(content)) !== null) {
+      matches.push(match[0]);
+    }
+    if (matches.length > 0) {
       references.push(...matches);
     }
   }

@@ -110,7 +110,9 @@ async function analyzeCommand(options: CLIOptions) {
   try {
     await analyzeSinglePR(options);
   } catch (error) {
-    // Error handling is done in analyzeSinglePR
+    // analyzeSinglePR already handles error logging and process exit
+    // Re-throwing is handled internally, so we can safely ignore here
+    logError('Analysis completed with errors', error);
   }
 }
 

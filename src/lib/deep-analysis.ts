@@ -3,77 +3,17 @@ import * as path from 'path';
 import { getSourceFiles, getConfigFiles } from './glob-helpers.js';
 import * as fs from 'fs/promises';
 import { processInParallel } from './parallel-helpers.js';
-import type { PackageUpdate } from '../types/index.js';
+import type {
+  PackageUpdate,
+  PackageUsageDetail,
+  APIUsageDetail,
+  FileClassification,
+  ConfigFileUsage,
+  DeepAnalysisResult,
+} from '../types/index.js';
 import { safeJsonParse } from './safe-json.js';
 
 const CONCURRENT_FILE_LIMIT = 10;
-
-export interface PackageUsageDetail {
-  file: string;
-  line: number;
-  type: 'import' | 'require' | 'dynamic-import';
-  importSpecifier: string;
-  namedImports?: string[];
-  defaultImport?: string;
-  namespaceImport?: string;
-  isTypeOnly?: boolean;
-}
-
-export interface APIUsageDetail {
-  file: string;
-  line: number;
-  apiName: string;
-  usageType:
-    | 'function-call'
-    | 'property-access'
-    | 'constructor'
-    | 'type-reference'
-    | 'decorator'
-    | 'jsx-component';
-  context: string;
-  arguments?: string[];
-  chainedCalls?: string[];
-}
-
-export interface FileClassification {
-  file: string;
-  category: 'test' | 'production' | 'config' | 'build' | 'documentation';
-  confidence: number;
-  indicators: string[];
-}
-
-export interface ConfigFileUsage {
-  file: string;
-  configType:
-    | 'package.json'
-    | 'tsconfig.json'
-    | 'webpack'
-    | 'rollup'
-    | 'vite'
-    | 'babel'
-    | 'eslint'
-    | 'prettier'
-    | 'other';
-  usage: string;
-  content: unknown;
-}
-
-export interface DeepAnalysisResult {
-  packageName: string;
-  totalFiles: number;
-  filesUsingPackage: number;
-  imports: PackageUsageDetail[];
-  apiUsages: APIUsageDetail[];
-  fileClassifications: FileClassification[];
-  configUsages: ConfigFileUsage[];
-  usageSummary: {
-    byFileType: Record<string, number>;
-    byAPIType: Record<string, number>;
-    mostUsedAPIs: Array<{ api: string; count: number }>;
-    testVsProduction: { test: number; production: number };
-  };
-  recommendations: string[];
-}
 
 export async function performDeepAnalysis(
   packageUpdate: PackageUpdate,
