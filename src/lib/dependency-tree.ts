@@ -3,20 +3,7 @@ import * as path from 'path';
 import { secureNpmExec, secureSystemExec } from './secure-exec.js';
 import { validatePackageName } from './validation.js';
 import { readJsonFile } from './file-helpers.js';
-
-export type DependencyUsage = {
-  packageName: string;
-  dependents: DependentInfo[];
-  isDirect: boolean;
-  usageType: 'dependencies' | 'devDependencies' | 'peerDependencies' | 'optionalDependencies';
-};
-
-export type DependentInfo = {
-  name: string;
-  version: string;
-  path: string[];
-  type: 'direct' | 'transitive';
-};
+import type { DependencyUsage, DependentInfo } from '../types/index.js';
 
 export type DependencyImpact = {
   usage: DependencyUsage;
