@@ -52,7 +52,7 @@
     "@anthropic-ai/sdk": "^0.55.0",
     "@mastra/core": "^0.15.2",
     "@octokit/rest": "^22.0.0",
-    "@types/glob": "^8.1.0",
+    "@types/glob": "^9.0.0",
     "ai": "^5.0.30",
     "chalk": "^5.4.1",
     "commander": "^14.0.0",
